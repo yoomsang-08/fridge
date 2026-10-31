@@ -17,6 +17,7 @@ const Fridge3D = lazy(() => import('./Fridge3D'))
 type Mode = '3d' | 'flat'
 
 const MODE_KEY = 'fridge-view-mode'
+const DOOR_HINT_KEY = 'fridge-door-hint-v1'
 const CAMERA_ORDER: CameraPreset[] = ['front', 'left', 'right', 'top']
 const CAMERA_LABEL: Record<CameraPreset, string> = { front: '정면', left: '왼쪽', right: '오른쪽', top: '위' }
 
@@ -59,6 +60,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const [cameraNonce, setCameraNonce] = useState(0)
   const [doorOpen, setDoorOpen] = useState<Record<string, boolean>>({})
   const [side, setSide] = useState(false)
+  // 문은 닫힌 채로 시작한다. 처음 한 번만 '문을 누르면 안이 보여요'를 띄운다
+  const [hintSeen, setHintSeen] = useState(() => localStorage.getItem(DOOR_HINT_KEY) === '1')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [egg, setEgg] = useState(false)
 
@@ -72,7 +75,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const shape = useMemo(() => shapeOf(fridge), [fridge])
   const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
   const byComp = useMemo(() => itemsBy(items), [items])
-  const anyOpen = shape.doors.some((d) => doorOpen[d.id] ?? true)
+  const anyOpen = shape.doors.some((d) => doorOpen[d.id] ?? false)
+  const showHint = !anyOpen && !hintSeen && shape.doors.length > 0
   const unplaced = mine.filter((c) => !c.layout)
   const selected = mine.find((c) => c.id === selectedId) ?? null
   const fridgeItems = mine.flatMap((c) => byComp.get(c.id) ?? [])
@@ -86,7 +90,19 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
     setMode(m)
     localStorage.setItem(MODE_KEY, m)
   }
-  const setAllDoors = (open: boolean) => setDoorOpen(Object.fromEntries(shape.doors.map((d) => [d.id, open])))
+  const seeHint = () => {
+    if (hintSeen) return
+    setHintSeen(true)
+    localStorage.setItem(DOOR_HINT_KEY, '1')
+  }
+  const setAllDoors = (open: boolean) => {
+    if (open) seeHint()
+    setDoorOpen(Object.fromEntries(shape.doors.map((d) => [d.id, open])))
+  }
+  const toggleDoor = (id: string) => {
+    seeHint()
+    setDoorOpen((s) => ({ ...s, [id]: !(s[id] ?? false) }))
+  }
   const nextCamera = () => {
     setCamera((c) => CAMERA_ORDER[(CAMERA_ORDER.indexOf(c) + 1) % CAMERA_ORDER.length])
     setCameraNonce((n) => n + 1)
@@ -161,7 +177,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
                 camera={camera}
                 cameraNonce={cameraNonce}
                 onSelect={setSelectedId}
-                onToggleDoor={(id) => setDoorOpen((s) => ({ ...s, [id]: !(s[id] ?? true) }))}
+                onToggleDoor={toggleDoor}
                 onOpenItem={onOpen}
                 onEgg={() => setEgg(true)}
                 egg={egg}
@@ -171,7 +187,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
             </Suspense>
           </div>
         ) : (
-          <div className="px-3 pt-14 pb-3">
+          <div className={cx('px-3 pt-14', showHint ? 'pb-8' : 'pb-3')}>
             <Fridge2D
               view={!anyOpen ? 'closed' : side ? 'side' : 'open'}
               shape={shape}
@@ -185,6 +201,10 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
               onOpenNotes={onOpenNotes}
             />
           </div>
+        )}
+
+        {showHint && (
+          <p className="pointer-events-none absolute inset-x-0 bottom-2 z-10 mx-auto w-fit rounded-full bg-surface/90 px-2.5 py-0.5 text-xs text-muted">문을 누르면 안이 보여요</p>
         )}
       </Card>
 
