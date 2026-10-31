@@ -27,7 +27,11 @@ export function PushSettings({ householdId }: { householdId: string }) {
 
   useEffect(() => {
     if (state !== 'on' || !supabase) return
-    getDigestPrefs(supabase).then(setPrefs, () => setPrefs(null))
+    // 구독은 있는데 내 계정 줄이 없으면(다시 접속해 계정이 바뀐 기기) 꺼진 것으로 보여 다시 켜게 한다
+    getDigestPrefs(supabase).then(
+      (p) => (p ? setPrefs(p) : setState('off')),
+      () => setPrefs(null),
+    )
   }, [state])
 
   if (!supabase) return null

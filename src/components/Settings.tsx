@@ -51,30 +51,28 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
       <Card className="p-5">
         <h2 className="text-[15px] font-extrabold">우리 집 식구</h2>
         <ul className="mt-3 flex flex-col gap-1">
-          {members.map((m) => {
-            const mine = m.id === me.id
-            return (
-              <li key={m.id} className="flex min-h-11 items-center gap-2">
-                <span className={cx('font-bold', !m.name && 'text-faint')}>{m.name ?? '이름 없음'}</span>
-                {mine && (
-                  <span className="rounded-md bg-accent-soft px-1.5 py-px text-[11px] font-bold text-accent">나</span>
-                )}
-                {mine && (
-                  <Button
-                    variant="ghost"
-                    size="md"
-                    className="ml-auto"
-                    onClick={async () => {
-                      const name = await ask('내 이름', m.name ?? '')
-                      if (name) run(() => repo.renameMe(name))
-                    }}
-                  >
-                    이름 바꾸기
-                  </Button>
-                )}
-              </li>
-            )
-          })}
+          {peopleOf(members, me).map((p) => (
+            <li key={p.key} className="flex min-h-11 items-center gap-2">
+              <span className={cx('font-bold', !p.name && 'text-faint')}>{p.name ?? '이름 없음'}</span>
+              {p.mine && (
+                <span className="rounded-md bg-accent-soft px-1.5 py-px text-[11px] font-bold text-accent">나</span>
+              )}
+              {p.devices > 1 && <span className="text-xs text-muted">기기 {p.devices}대</span>}
+              {p.mine && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  className="ml-auto"
+                  onClick={async () => {
+                    const name = await ask('내 이름', me.name ?? '')
+                    if (name) run(() => repo.renameMe(name))
+                  }}
+                >
+                  이름 바꾸기
+                </Button>
+              )}
+            </li>
+          ))}
         </ul>
       </Card>
 
@@ -245,4 +243,22 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
       {dialog}
     </div>
   )
+}
+
+/**
+ * 식구 목록을 사람 단위로. 한 사람이 폰·PC처럼 기기마다(다시 접속할 때마다) 계정이 달라서 이름으로 묶는다.
+ * 이름 없는 계정은 이 기기 것만 보여 준다.
+ */
+function peopleOf(members: Member[], me: Me) {
+  const people = new Map<string, { key: string; name: string | null; mine: boolean; devices: number }>()
+  for (const m of members) {
+    const mine = m.id === me.id
+    if (!m.name && !mine) continue
+    const key = m.name ?? m.id
+    const p = people.get(key) ?? { key, name: m.name, mine: false, devices: 0 }
+    p.devices += 1
+    p.mine ||= mine
+    people.set(key, p)
+  }
+  return [...people.values()]
 }
