@@ -175,25 +175,27 @@ export function SunnyEgg({ size = 36 }: { size?: number }) {
   )
 }
 
-/** 앱 로고: 초록 바탕의 냉장고 */
+/** 앱 로고: 초록 바탕의 냉장고, 문에 반숙 달걀 자석. public/favicon.svg 와 같은 그림 */
 export function Logo({ size = 36 }: { size?: number }) {
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-[30%] bg-accent text-white"
+      className="grid shrink-0 place-items-center overflow-hidden rounded-[30%] bg-accent"
       style={{ width: size, height: size }}
       aria-hidden
     >
-      <svg
-        width={size * 0.55}
-        height={size * 0.55}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      >
-        <rect x="5" y="2.5" width="14" height="19" rx="3" />
-        <path d="M5 10h14M9 6v1.5M9 13.5v3" />
+      <svg width={size} height={size} viewBox="0 0 1024 1024">
+        <rect x="322" y="200" width="380" height="624" rx="82" fill="#fff" />
+        <rect x="322" y="452" width="380" height="22" fill="var(--color-accent)" />
+        <rect x="390" y="290" width="28" height="100" rx="14" fill="var(--color-accent)" />
+        <rect x="390" y="540" width="28" height="150" rx="14" fill="var(--color-accent)" />
+        <path
+          transform="translate(570 640) scale(5.4) translate(-24 -24) rotate(-12 24 24)"
+          d="M24 4c7 0 9 6 14 8s7 8 5 14-2 12-9 15-12 2-17 0S5 35 4 28s3-11 6-15 7-9 14-9Z"
+          fill="#fdf6e3"
+          stroke="var(--color-line)"
+          strokeWidth="1.5"
+        />
+        <circle cx="564" cy="642" r="50" fill="#f6c343" />
       </svg>
     </span>
   )
