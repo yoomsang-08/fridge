@@ -177,6 +177,10 @@ const TOKEN_FALLBACK = {
   'urgent-soft': '#fdf0e6',
   soon: '#a87a10',
   'soon-soft': '#fbf3dc',
+  'note-yellow': '#fff1b8',
+  'note-pink': '#fde0e3',
+  'note-mint': '#dcf1e4',
+  'note-sky': '#dceaf6',
 } as const
 
 export type Token = keyof typeof TOKEN_FALLBACK

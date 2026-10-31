@@ -18,7 +18,8 @@ import {
   type DoorSpec,
   type FridgeShape,
 } from '../lib/fridgeShape'
-import type { Compartment, Item } from '../lib/types'
+import { magnetOf } from '../lib/notes'
+import type { Compartment, Item, Note } from '../lib/types'
 
 export type CameraPreset = 'front' | 'left' | 'right' | 'top'
 
@@ -39,12 +40,16 @@ interface Props {
   onEgg: () => void
   /** 이스터에그가 켜져 있는 동안 맨 위 칸에 반숙 달걀 */
   egg: boolean
+  /** 첫 번째 문 앞면에 붙일 메모. 누르면 onOpenNotes */
+  notes?: Note[]
+  onOpenNotes?: () => void
 }
 
 const WALL = 0.03
 const PANEL = 0.05
 const POCKET_DEPTH = 0.11
 const OPEN_ANGLE = (105 * Math.PI) / 180
+const NOTE_TILT = [-0.05, 0.035, -0.025]
 /** 드래그(회전)와 탭을 구분하는 거리(px) */
 const TAP_SLOP = 6
 
@@ -107,6 +112,58 @@ function pillTexture(text: string, bg: string, fg: string) {
     },
     256,
     128,
+  )
+}
+
+/** 냉장고 문에 붙은 메모: 종이색 + 자석 + 앞 몇 줄 */
+function noteTexture(note: Note) {
+  return cachedTexture(
+    `note|${note.id}|${note.color}|${note.body}`,
+    (g) => {
+      g.fillStyle = token(`note-${note.color}`)
+      g.beginPath()
+      g.roundRect(0, 0, 256, 256, 10)
+      g.fill()
+      const magnet = magnetOf(note.body)
+      g.textAlign = 'center'
+      if (magnet === 'heart') {
+        g.fillStyle = token('accent')
+        g.font = `44px ${FONT}`
+        g.fillText('♥', 128, 46)
+      } else if (magnet === 'egg') {
+        g.fillStyle = '#ffffff'
+        g.beginPath()
+        g.ellipse(128, 26, 22, 18, 0, 0, Math.PI * 2)
+        g.fill()
+        g.fillStyle = '#f6c343'
+        g.beginPath()
+        g.arc(128, 26, 9, 0, Math.PI * 2)
+        g.fill()
+      } else {
+        g.fillStyle = token('accent')
+        g.beginPath()
+        g.arc(128, 24, 13, 0, Math.PI * 2)
+        g.fill()
+      }
+      // 한 글자씩 채워 줄바꿈, 넘치면 … 으로
+      g.fillStyle = token('ink')
+      g.font = `bold 36px ${FONT}`
+      g.textAlign = 'left'
+      const lines: string[] = []
+      let line = ''
+      for (const ch of note.body.replace(/\s+/g, ' ')) {
+        if (g.measureText(line + ch).width > 216) {
+          lines.push(line)
+          line = ch.trimStart()
+        } else line += ch
+      }
+      lines.push(line)
+      const shown = lines.slice(0, 4)
+      if (lines.length > 4) shown[3] = shown[3].slice(0, -1) + '…'
+      shown.forEach((l, i) => g.fillText(l, 20, 96 + i * 46))
+    },
+    256,
+    256,
   )
 }
 
@@ -333,10 +390,15 @@ function Door({
   onToggle,
   onSelect,
   onOpen,
+  notes = [],
+  onOpenNotes,
 }: {
   door: DoorSpec
   shape: FridgeShape
   open: boolean
+  /** 문 앞면에 붙일 메모 */
+  notes?: Note[]
+  onOpenNotes?: () => void
   pockets: Compartment[]
   itemsByCompartment: Map<string, Item[]>
   /** 문이 닫혀 있을 때 앞에 띄울 경고: 가장 급한 단계와 그 개수 */
@@ -418,6 +480,22 @@ function Door({
             />
           </sprite>
         )}
+        {notes.map((n, i) => (
+          <mesh
+            key={n.id}
+            // 문 가운데 아래쪽에 지그재그로
+            position={[(i % 2 ? 1 : -1) * Math.min(0.06, dw * 0.15), -dh * 0.06 - i * 0.165, PANEL + 0.002 + i * 0.0004]}
+            rotation={[0, 0, NOTE_TILT[i % NOTE_TILT.length]]}
+            onClick={(e) => {
+              if (!isTap(e)) return
+              e.stopPropagation()
+              onOpenNotes?.()
+            }}
+          >
+            <planeGeometry args={[0.155, 0.155]} />
+            <meshBasicMaterial map={noteTexture(n)} toneMapped={false} />
+          </mesh>
+        ))}
         {pockets.map((p) => (
           <Pocket
             key={p.id}
@@ -675,7 +753,7 @@ function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: Camer
 // ---------- 장면 ----------
 
 export default function Fridge3D(props: Props) {
-  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg } =
+  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg, notes = [], onOpenNotes } =
     props
   const H = shape.height / 1000
 
@@ -746,6 +824,8 @@ export default function Fridge3D(props: Props) {
           onToggle={() => onToggleDoor(d.id)}
           onSelect={onSelect}
           onOpen={onOpenItem}
+          notes={d === shape.doors[0] ? notes : undefined}
+          onOpenNotes={onOpenNotes}
         />
       ))}
       {/* 바닥: 배경과 같은 색, 냉장고 밑에만 옅은 그림자 */}

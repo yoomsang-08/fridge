@@ -10,7 +10,8 @@ import {
   type DoorSpec,
   type FridgeShape,
 } from '../lib/fridgeShape'
-import type { Compartment, Item, Layout } from '../lib/types'
+import { magnetOf, notePaper } from '../lib/notes'
+import type { Compartment, Item, Layout, Note } from '../lib/types'
 import { cx } from '../lib/cx'
 
 export type View2D = 'closed' | 'open' | 'side'
@@ -24,6 +25,9 @@ interface Props {
   onSelect: (compartmentId: string | null) => void
   onOpenItem: (item: Item) => void
   onOpenDoors: () => void
+  /** 첫 번째 문 앞면에 붙일 메모 */
+  notes?: Note[]
+  onOpenNotes?: () => void
 }
 
 interface Box {
@@ -176,11 +180,13 @@ function Region({
 }
 
 /** 문 닫힌 정면: 문마다 그 안의 식품 수와 기한 단계별 작은 배지 */
-function ClosedView({ shape, placed, itemsOf, onOpenDoors }: {
+function ClosedView({ shape, placed, itemsOf, onOpenDoors, notes, onOpenNotes }: {
   shape: FridgeShape
   placed: Compartment[]
   itemsOf: (c: Compartment) => Item[]
   onOpenDoors: () => void
+  notes: Note[]
+  onOpenNotes?: () => void
 }) {
   const W = shape.width
   const H = shape.height
@@ -229,11 +235,70 @@ function ClosedView({ shape, placed, itemsOf, onOpenDoors }: {
       {shape.display && (
         <rect {...rectProps(scale(shape.display, { x: 0, y: 0, w: W, h: H }))} rx={8} className="fill-ink" />
       )}
+      {notes.length > 0 && (
+        <DoorNotes door={scale(shape.doors[0].rect, { x: 0, y: 0, w: W, h: H })} notes={notes} onOpen={onOpenNotes} />
+      )}
     </svg>
   )
 }
 
-export function Fridge2D({ view, shape, compartments, itemsByCompartment, selectedId, onSelect, onOpenItem, onOpenDoors }: Props) {
+const NOTE = 200
+const NOTE_TILT = [-3, 2, -1.5]
+
+/** 문 닫힌 정면: 첫 번째 문 아래쪽에 포스트잇 메모. 누르면 메모 탭 */
+function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?: () => void }) {
+  const cols = Math.max(1, Math.min(notes.length, Math.floor((door.w - 30) / (NOTE + 20))))
+  const rowW = cols * NOTE + (cols - 1) * 20
+  const rows = Math.ceil(notes.length / cols)
+  return (
+    <g
+      role="button"
+      aria-label={`메모 ${notes.length}개 보기`}
+      className="cursor-pointer"
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpen?.()
+      }}
+    >
+      {notes.map((n, i) => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        const x = door.x + (door.w - rowW) / 2 + col * (NOTE + 20)
+        // 문 아래쪽(손잡이 홈 위)에 모아 붙이고, 최근 메모가 맨 위
+        const y = door.y + door.h - 70 - rows * NOTE - (rows - 1) * 24 + row * (NOTE + 24)
+        const magnet = magnetOf(n.body)
+        return (
+          <g key={n.id} transform={`rotate(${NOTE_TILT[i % NOTE_TILT.length]} ${x + NOTE / 2} ${y + NOTE / 2})`}>
+            <foreignObject x={x} y={y} width={NOTE} height={NOTE}>
+              <div
+                className={cx(
+                  'h-full w-full overflow-hidden rounded-[6px] px-4 pt-7 pb-3 text-[34px] leading-[1.25] font-bold break-keep text-ink shadow-card',
+                  notePaper(n.color),
+                )}
+              >
+                <p className="line-clamp-3">{n.body}</p>
+              </div>
+            </foreignObject>
+            {magnet === 'heart' ? (
+              <text x={x + NOTE / 2} y={y + 26} fontSize={34} textAnchor="middle" className="fill-accent">
+                ♥
+              </text>
+            ) : magnet === 'egg' ? (
+              <g>
+                <ellipse cx={x + NOTE / 2} cy={y + 14} rx={17} ry={14} className="fill-surface stroke-line" strokeWidth={3} />
+                <circle cx={x + NOTE / 2} cy={y + 14} r={7} fill="#f6c343" />
+              </g>
+            ) : (
+              <circle cx={x + NOTE / 2} cy={y + 14} r={11} className="fill-accent" />
+            )}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+export function Fridge2D({ view, shape, compartments, itemsByCompartment, selectedId, onSelect, onOpenItem, onOpenDoors, notes = [], onOpenNotes }: Props) {
   const W = shape.width
   const H = shape.height
   const placed = compartments.filter((c) => c.layout)
@@ -243,7 +308,8 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
   const svgClass = 'mx-auto block max-h-[64dvh] w-full touch-manipulation'
   const wall = 26
 
-  if (view === 'closed') return <ClosedView shape={shape} placed={placed} itemsOf={itemsOf} onOpenDoors={onOpenDoors} />
+  if (view === 'closed')
+    return <ClosedView shape={shape} placed={placed} itemsOf={itemsOf} onOpenDoors={onOpenDoors} notes={notes} onOpenNotes={onOpenNotes} />
 
   const dividers = (inner: Box, onlyH = false) =>
     shape.dividers
