@@ -58,6 +58,25 @@ function scale(l: Layout, outer: Box): Box {
   return { x: outer.x + l.x * outer.w, y: outer.y + l.y * outer.h, w: l.w * outer.w, h: l.h * outer.h }
 }
 
+/** SVG 글자는 넘쳐도 잘리지 않으니 칸 폭에 맞게 미리 줄인다. 한글은 글자 크기만큼, 영숫자·기호는 그 절반쯤 차지 */
+function fitText(text: string, width: number, fontSize: number): string {
+  const w = (ch: string) => (/[\u3131-\uD79D]/.test(ch) ? fontSize : fontSize * 0.55)
+  let used = 0
+  for (let i = 0; i < text.length; i++) {
+    used += w(text[i])
+    if (used > width) {
+      let out = text.slice(0, i)
+      used = [...out].reduce((n, ch) => n + w(ch), 0) + fontSize
+      while (out && used > width) {
+        used -= w(out[out.length - 1])
+        out = out.slice(0, -1)
+      }
+      return `${out.trimEnd()}…`
+    }
+  }
+  return text
+}
+
 /** 칸 사각형 안에 식품 동그라미(분류 tint + 기한 단계 테두리)를 채운다. 넘치면 마지막 자리에 +N */
 function Chips({ box, items, onOpen, label }: { box: Box; items: Item[]; onOpen: (i: Item) => void; label?: string }) {
   const labelH = label ? Math.min(LABEL * 1.3, box.h * 0.4) : 0
@@ -83,7 +102,7 @@ function Chips({ box, items, onOpen, label }: { box: Box; items: Item[]; onOpen:
           fontSize={Math.min(LABEL, labelH * 0.8)}
           className="pointer-events-none fill-muted font-semibold select-none"
         >
-          {label}
+          {fitText(label, box.w - pad * 2, Math.min(LABEL, labelH * 0.8))}
         </text>
       )}
       {shown.map((it, i) => {
@@ -131,7 +150,8 @@ function Region({
   selected,
   onSelect,
   onOpen,
-  label = c.name,
+  // 아래 칸은 위치로 어느 칸인지 보이니 '냉동실 '·'맞춤보관실 ' 같은 앞말을 빼고 서랍 번호가 보이게
+  label = c.section === 'lower' ? c.name.replace(/^\S+ /, '') : c.name,
 }: {
   box: Box
   c: Compartment

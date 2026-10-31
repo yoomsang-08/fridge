@@ -1,4 +1,4 @@
-import { DoorClosed, DoorOpen, PanelRight, RotateCw, Square } from 'lucide-react'
+import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
 import { isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
@@ -117,8 +117,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
       <Card className="relative overflow-hidden">
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
           {mode === '3d' ? (
-            <IconButton onClick={nextCamera} aria-label={`다른 각도로 보기 (지금 ${CAMERA_LABEL[camera]})`} className="bg-surface/80">
-              <RotateCw size={20} />
+            <IconButton onClick={nextCamera} aria-label="각도 바꾸기" title={`각도 바꾸기 (지금 ${CAMERA_LABEL[camera]})`} className="bg-surface/80">
+              <Rotate3d size={20} />
             </IconButton>
           ) : (
             anyOpen && (
