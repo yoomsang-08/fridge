@@ -23,6 +23,8 @@ export interface PushTarget {
   excludeUserIds?: string[]
   /** 아침 기한 알림을 끈 기기는 빼기 */
   expiryDigestOnly?: boolean
+  /** 아침 알림 시각을 이 시(한국 시간)로 고른 기기에만 */
+  digestHour?: number
 }
 
 let configured = false
@@ -60,6 +62,7 @@ export async function sendToHousehold(
   await ensureVapid(sb)
   let q = sb.from('push_subscriptions').select('endpoint, user_id, p256dh, auth').eq('household_id', householdId)
   if (target.expiryDigestOnly) q = q.eq('expiry_digest', true)
+  if (target.digestHour !== undefined) q = q.eq('digest_hour', target.digestHour)
   const { data: subs, error } = await q
   if (error) throw error
 

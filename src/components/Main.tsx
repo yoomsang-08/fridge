@@ -1,4 +1,4 @@
-import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, Thermometer, type LucideIcon } from 'lucide-react'
+import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
 import type { SmartThings } from '../lib/smartthings'
@@ -20,13 +20,12 @@ import { Button, Card, Logo, SunnyEgg } from './ui'
 
 const URGENT_LEVELS = new Set(['expired', 'urgent'])
 
-type Tab = 'list' | 'view' | 'notes' | 'device' | 'settings'
+type Tab = 'list' | 'view' | 'notes' | 'settings'
 /** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: 'list', label: '재고', icon: List },
   { id: 'view', label: '냉장고', icon: Refrigerator },
   { id: 'notes', label: '메모', icon: NoteIcon },
-  { id: 'device', label: '온도', icon: Thermometer },
   { id: 'settings', label: '설정', icon: SettingsIcon },
 ]
 type SheetState =
@@ -235,6 +234,12 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           />
         )}
 
+        {tab === 'view' && (
+          <div className="mb-4">
+            <FridgeStatus st={smartthings} />
+          </div>
+        )}
+
         {tab === 'view' && !noFridge && (
           <FridgeView
             fridges={snap.fridges}
@@ -247,8 +252,6 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             onOpenNotes={() => openTab('notes')}
           />
         )}
-
-        {tab === 'device' && <FridgeStatus st={smartthings} />}
 
         {tab === 'settings' && (
           <Settings
