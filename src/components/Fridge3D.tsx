@@ -20,7 +20,8 @@ import {
   type FridgeShape,
 } from '../lib/fridgeShape'
 import { magnetOf } from '../lib/notes'
-import { bodyColor, Container3D, SHAPE_HEIGHT } from './Container3D'
+import { bodyColor, SHAPE_HEIGHT } from '../lib/container3d'
+import { Container3D } from './Container3D'
 import type { Compartment, Item, Note } from '../lib/types'
 
 export type CameraPreset = 'front' | 'left' | 'right' | 'top'
