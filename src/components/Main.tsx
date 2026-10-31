@@ -45,7 +45,15 @@ interface Props {
 export function Main({ repo, household, smartthings, isLocal = false, onSignOut }: Props) {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('list')
+  // 알림을 눌러 열면 ./?tab=notes 처럼 들어온다
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = new URLSearchParams(location.search).get('tab')
+    return TABS.some((x) => x.id === t) ? (t as Tab) : 'list'
+  })
+  useEffect(() => {
+    // 새로고침해도 그 탭에 묶이지 않게 주소에서 지운다
+    if (location.search.includes('tab=')) history.replaceState(null, '', location.pathname)
+  }, [])
   const [sheet, setSheet] = useState<SheetState>(null)
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())
@@ -269,6 +277,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
 
       {sheet?.mode === 'note-write' && (
         <NoteWriteSheet
+          me={snap.me}
+          members={snap.members}
           onClose={() => setSheet(null)}
           onSave={async (input) => {
             await mutate(() => repo.addNote(input))

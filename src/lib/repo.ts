@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { hashtagsOf } from './notes'
 import type { Compartment, Fridge, Household, Item, ItemInput, Me, Member, Note, NoteInput, Zone } from './types'
 import type { FridgeTemplate } from './templates'
 
@@ -150,7 +151,17 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         .eq('household_id', hid)
         .eq('user_id', uid ?? '')
         .maybeSingle()
-      check(await sb.from('notes').insert({ ...input, household_id: hid, author_name: m?.display_name || null }))
+      const { data: note } = check(
+        await sb
+          .from('notes')
+          .insert({ ...input, household_id: hid, author_name: m?.display_name || null })
+          .select('id')
+          .single(),
+      )
+      // #이름 이 있으면 그 식구 폰으로 알림. 알림이 안 가도 메모는 붙어 있으니 기다리지 않는다
+      if (hashtagsOf(input.body).length > 0) {
+        sb.functions.invoke('note-notify', { body: { note_id: note!.id } }).catch(() => {})
+      }
     },
     async deleteNote(id) {
       check(await sb.from('notes').delete().eq('id', id))
