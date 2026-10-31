@@ -10,7 +10,7 @@ export const NOTE_COLORS: { id: NoteColor; label: string; paper: string }[] = [
 export const notePaper = (color: NoteColor) => NOTE_COLORS.find((c) => c.id === color)?.paper ?? 'bg-note-yellow'
 
 /** 한 사람이 기기를 여러 개 쓰면 기기마다 계정이 달라서, 이름이 같아도 내 메모로 본다 */
-export function isMine(note: Note, me: Me): boolean {
+export function isMine(note: Pick<Note, 'author_id' | 'author_name'>, me: Me): boolean {
   return note.author_id === me.id || (!!me.name && note.author_name === me.name)
 }
 
@@ -29,6 +29,9 @@ export function timeAgo(iso: string, now = Date.now()): string {
   if (day < 7) return `${day}일 전`
   return new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
+
+/** 좁은 자리용: '40분', '2시간', '어제' */
+export const shortAgo = (iso: string, now = Date.now()) => timeAgo(iso, now).replace(/ 전$/, '')
 
 /** 냉장고 보기에서 문 앞면에 붙일 메모 수 (최근 것부터) */
 export const DOOR_NOTE_COUNT = 3

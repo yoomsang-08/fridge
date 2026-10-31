@@ -22,7 +22,7 @@ import {
 import { magnetOf } from '../lib/notes'
 import { bodyColor, SHAPE_HEIGHT } from '../lib/container3d'
 import { Container3D } from './Container3D'
-import type { Compartment, Item, Note } from '../lib/types'
+import type { Compartment, FridgePhoto, Item, Note } from '../lib/types'
 
 export type CameraPreset = 'front' | 'left' | 'right' | 'top'
 
@@ -46,6 +46,8 @@ interface Props {
   /** 첫 번째 문 앞면에 붙일 메모. 누르면 onOpenNotes */
   notes?: Note[]
   onOpenNotes?: () => void
+  /** 두 번째 문(없으면 첫 번째 문) 앞면에 붙일 사진 */
+  photos?: FridgePhoto[]
 }
 
 const WALL = 0.03
@@ -199,6 +201,73 @@ function noteTexture(note: Note) {
     },
     256,
     256,
+  )
+}
+
+/** 문에 붙인 사진 한 장: 흰 테두리(폴라로이드) + 사진. 사진은 4:5 로 가운데를 잘라 보인다 */
+const PHOTO_TILT = [0.035, -0.03]
+const PHOTO_W = 0.22
+
+function usePhotoTexture(url: string, aspect: number) {
+  const [tex, setTex] = useState<THREE.Texture | null>(null)
+  const invalidate = useThree((s) => s.invalidate)
+  useEffect(() => {
+    let alive = true
+    const loader = new THREE.TextureLoader()
+    loader.setCrossOrigin('anonymous')
+    loader.load(url, (t) => {
+      if (!alive) return t.dispose()
+      t.colorSpace = THREE.SRGBColorSpace
+      // object-fit: cover 처럼 가운데를 4:5 로 자른다
+      const img = t.image as { width: number; height: number }
+      const ia = img.width / img.height
+      if (ia > aspect) {
+        t.repeat.set(aspect / ia, 1)
+        t.offset.set((1 - aspect / ia) / 2, 0)
+      } else {
+        t.repeat.set(1, ia / aspect)
+        t.offset.set(0, (1 - ia / aspect) / 2)
+      }
+      setTex(t)
+      invalidate()
+    })
+    return () => {
+      alive = false
+    }
+  }, [url, aspect, invalidate])
+  useEffect(() => () => tex?.dispose(), [tex])
+  return tex
+}
+
+function DoorPhoto({ photo, position, tilt, onOpen }: { photo: FridgePhoto; position: [number, number, number]; tilt: number; onOpen?: () => void }) {
+  const pad = PHOTO_W * 0.06
+  const iw = PHOTO_W - pad * 2
+  const ih = iw * 1.25
+  const fh = ih + pad + pad * 3.2
+  const tex = usePhotoTexture(photo.url, iw / ih)
+  return (
+    <group
+      position={position}
+      rotation={[0, 0, tilt]}
+      onClick={(e) => {
+        if (!isTap(e)) return
+        e.stopPropagation()
+        onOpen?.()
+      }}
+    >
+      <mesh>
+        <planeGeometry args={[PHOTO_W, fh]} />
+        <meshBasicMaterial color="#ffffff" toneMapped={false} />
+      </mesh>
+      <mesh position={[0, fh / 2 - pad - ih / 2, 0.0005]}>
+        <planeGeometry args={[iw, ih]} />
+        {tex ? <meshBasicMaterial key="photo" map={tex} toneMapped={false} /> : <meshBasicMaterial key="blank" color="#e5e7e6" />}
+      </mesh>
+      <mesh position={[0, fh / 2 - 0.004, 0.001]}>
+        <circleGeometry args={[0.011, 20]} />
+        <meshBasicMaterial color={token('accent')} toneMapped={false} />
+      </mesh>
+    </group>
   )
 }
 
@@ -508,6 +577,7 @@ function Door({
   onSelect,
   onOpen,
   notes = [],
+  photos = [],
   onOpenNotes,
 }: {
   door: DoorSpec
@@ -515,6 +585,7 @@ function Door({
   open: boolean
   /** 문 앞면에 붙일 메모 */
   notes?: Note[]
+  photos?: FridgePhoto[]
   onOpenNotes?: () => void
   pockets: Compartment[]
   itemsByCompartment: Map<string, Item[]>
@@ -620,6 +691,16 @@ function Door({
             <planeGeometry args={[NOTE_SIZE, NOTE_SIZE]} />
             <meshBasicMaterial map={noteTexture(n)} toneMapped={false} />
           </mesh>
+        ))}
+        {photos.map((p, i) => (
+          <DoorPhoto
+            key={p.id}
+            photo={p}
+            // 문 위쪽 가운데, 두 번째 장은 아래로 살짝 겹쳐서
+            position={[(i % 2 ? -1 : 1) * Math.min(0.04, dw * 0.08), dh * 0.16 - i * 0.24, PANEL + 0.003 + i * 0.0004]}
+            tilt={PHOTO_TILT[i % PHOTO_TILT.length]}
+            onOpen={onOpenNotes}
+          />
         ))}
         {pockets.map((p) => (
           <Pocket
@@ -902,7 +983,7 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
 // ---------- 장면 ----------
 
 export default function Fridge3D(props: Props) {
-  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg, notes = [], onOpenNotes } =
+  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg, notes = [], onOpenNotes, photos = [] } =
     props
   const H = shape.height / 1000
 
@@ -976,6 +1057,7 @@ export default function Fridge3D(props: Props) {
           onSelect={onSelect}
           onOpen={onOpenItem}
           notes={d === shape.doors[0] ? notes : undefined}
+          photos={d === (shape.doors[1] ?? shape.doors[0]) ? photos : undefined}
           onOpenNotes={onOpenNotes}
         />
       ))}

@@ -11,7 +11,7 @@ import {
   type FridgeShape,
 } from '../lib/fridgeShape'
 import { magnetOf, notePaper } from '../lib/notes'
-import type { Compartment, Item, Layout, Note } from '../lib/types'
+import type { Compartment, FridgePhoto, Item, Layout, Note } from '../lib/types'
 import { cx } from '../lib/cx'
 
 export type View2D = 'closed' | 'open' | 'side'
@@ -28,6 +28,8 @@ interface Props {
   /** 첫 번째 문 앞면에 붙일 메모 */
   notes?: Note[]
   onOpenNotes?: () => void
+  /** 두 번째 문(없으면 첫 번째 문) 앞면에 붙일 사진 */
+  photos?: FridgePhoto[]
 }
 
 interface Box {
@@ -190,7 +192,7 @@ function Region({
 }
 
 /** 문 닫힌 정면: 문마다 그 안의 식품 수와 기한 단계별 작은 배지 */
-function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpenNotes }: {
+function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpenNotes, photos }: {
   shape: FridgeShape
   /** 열린 정면의 전체 폭. 닫혀도 같은 비율(같은 높이)로 그린다 */
   frameW: number
@@ -199,6 +201,7 @@ function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpen
   onOpenDoors: () => void
   notes: Note[]
   onOpenNotes?: () => void
+  photos: FridgePhoto[]
 }) {
   const W = shape.width
   const H = shape.height
@@ -249,10 +252,50 @@ function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpen
       {shape.display && (
         <rect {...rectProps(scale(shape.display, { x: 0, y: 0, w: W, h: H }))} rx={8} className="fill-ink" />
       )}
+      {photos.length > 0 && (
+        <DoorPhotos door={scale((shape.doors[1] ?? shape.doors[0]).rect, { x: 0, y: 0, w: W, h: H })} photos={photos} onOpen={onOpenNotes} />
+      )}
       {notes.length > 0 && (
         <DoorNotes door={scale(shape.doors[0].rect, { x: 0, y: 0, w: W, h: H })} notes={notes} onOpen={onOpenNotes} />
       )}
     </svg>
+  )
+}
+
+const PHOTO_W = 320
+const PHOTO_STEP = 300
+const PHOTO_TILT = [2, -1.5]
+const PHOTO_SHIFT = [16, -18]
+
+/** 문 닫힌 정면: 사진을 폴라로이드처럼 자석으로. 누르면 메모 탭 */
+function DoorPhotos({ door, photos, onOpen }: { door: Box; photos: FridgePhoto[]; onOpen?: () => void }) {
+  const h = PHOTO_W * 1.28
+  return (
+    <g
+      role="button"
+      aria-label={`사진 ${photos.length}장 보기`}
+      className="cursor-pointer"
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpen?.()
+      }}
+    >
+      {photos.map((p, i) => {
+        const x = door.x + (door.w - PHOTO_W) / 2 + PHOTO_SHIFT[i % PHOTO_SHIFT.length]
+        // 문 이름 아래부터, 두 번째 사진은 첫 장 아래쪽을 살짝 덮게
+        const y = door.y + 190 + i * PHOTO_STEP
+        return (
+          <g key={p.id} transform={`rotate(${PHOTO_TILT[i % PHOTO_TILT.length]} ${x + PHOTO_W / 2} ${y + h / 2})`}>
+            <foreignObject x={x} y={y} width={PHOTO_W} height={h}>
+              <div className="h-full w-full border-[3px] border-line bg-white p-[14px] pb-[54px]">
+                <img src={p.url} alt="" className="h-full w-full object-cover" />
+              </div>
+            </foreignObject>
+            <circle cx={x + PHOTO_W / 2} cy={y + 6} r={12} className="fill-accent" />
+          </g>
+        )
+      })}
+    </g>
   )
 }
 
@@ -316,7 +359,7 @@ function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?:
   )
 }
 
-export function Fridge2D({ view, shape, compartments, itemsByCompartment, selectedId, onSelect, onOpenItem, onOpenDoors, notes = [], onOpenNotes }: Props) {
+export function Fridge2D({ view, shape, compartments, itemsByCompartment, selectedId, onSelect, onOpenItem, onOpenDoors, notes = [], onOpenNotes, photos = [] }: Props) {
   const W = shape.width
   const H = shape.height
   const placed = compartments.filter((c) => c.layout)
@@ -336,7 +379,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
   const total = bodyX + W + (rw ? gap + rw : 0)
 
   if (view === 'closed')
-    return <ClosedView shape={shape} frameW={total} placed={placed} itemsOf={itemsOf} onOpenDoors={onOpenDoors} notes={notes} onOpenNotes={onOpenNotes} />
+    return <ClosedView shape={shape} frameW={total} placed={placed} itemsOf={itemsOf} onOpenDoors={onOpenDoors} notes={notes} onOpenNotes={onOpenNotes} photos={photos} />
 
   const dividers = (inner: Box, onlyH = false) =>
     shape.dividers

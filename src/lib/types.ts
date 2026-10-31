@@ -99,6 +99,32 @@ export interface Note {
 
 export type NoteInput = Pick<Note, 'body' | 'color'>
 
+/** 냉장고 문에 붙인 사진 */
+export interface FridgePhoto {
+  id: string
+  household_id: string
+  /** 저장소 경로 '<household_id>/<파일>' */
+  path: string
+  width: number
+  height: number
+  author_id: string | null
+  author_name: string | null
+  created_at: string
+  /** 화면에 띄울 주소 (서명된 URL 또는 data: URL) */
+  url: string
+}
+
+/** 메모에 단 댓글 */
+export interface NoteComment {
+  id: string
+  note_id: string
+  household_id: string
+  body: string
+  author_id: string | null
+  author_name: string | null
+  created_at: string
+}
+
 /** 이 기기를 쓰는 사람 */
 export interface Me {
   id: string

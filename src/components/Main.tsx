@@ -6,14 +6,14 @@ import { FRIDGE_TEMPLATES } from '../lib/templates'
 import { expiryLevel } from '../lib/expiry'
 import { setAppBadge } from '../lib/badge'
 import { isUnread } from '../lib/notes'
-import type { Household, Item, Note } from '../lib/types'
+import type { FridgePhoto, Household, Item, Note, NoteComment } from '../lib/types'
 import { FridgeStatus } from './FridgeStatus'
 import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
 import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
-import { NoteViewSheet, NoteWriteSheet } from './NoteSheet'
+import { NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from './NoteSheet'
 import { Settings } from './Settings'
 import { cx } from '../lib/cx'
 import { Button, Card, Logo, SunnyEgg } from './ui'
@@ -33,6 +33,7 @@ type SheetState =
   | { mode: 'edit'; item: Item }
   | { mode: 'note-write' }
   | { mode: 'note-view'; note: Note }
+  | { mode: 'photo-view'; photo: FridgePhoto }
   | null
 
 const LAST_COMPARTMENT_KEY = 'fridge-last-compartment'
@@ -62,7 +63,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())
   /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
-  const [removed, setRemoved] = useState<Note | null>(null)
+  const [removed, setRemoved] = useState<{ note: Note; comments: NoteComment[] } | null>(null)
   const egg = useSunnyEgg()
   const compactFab = useScrollingDown()
 
@@ -218,10 +219,14 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         {tab === 'notes' && (
           <NoteBoard
             notes={snap.notes}
+            comments={snap.comments}
             me={snap.me}
             fresh={fresh}
             onOpen={(note) => setSheet({ mode: 'note-view', note })}
             onWrite={() => setSheet({ mode: 'note-write' })}
+            photos={snap.photos}
+            onOpenPhoto={(photo) => setSheet({ mode: 'photo-view', photo })}
+            onAddPhoto={(file) => mutate(() => repo.addPhoto(file))}
           />
         )}
 
@@ -251,6 +256,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             onUseOne={(item) => mutate(() => repo.act(item, 'use'))}
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
             notes={snap.notes}
+            photos={snap.photos}
             onOpenNotes={() => openTab('notes')}
             header={<FridgeStatus st={smartthings} />}
           />
@@ -324,14 +330,30 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
 
       {sheet?.mode === 'note-view' && (
         <NoteViewSheet
-          note={sheet.note}
+          note={snap.notes.find((n) => n.id === sheet.note.id) ?? sheet.note}
+          comments={snap.comments.filter((c) => c.note_id === sheet.note.id)}
           me={snap.me}
           onClose={() => setSheet(null)}
           onRemove={async () => {
             const note = sheet.note
+            const comments = snap.comments.filter((c) => c.note_id === note.id)
             await mutate(() => repo.deleteNote(note.id))
             setSheet(null)
-            setRemoved(note)
+            setRemoved({ note, comments })
+          }}
+          onComment={(body) => mutate(() => repo.addComment(sheet.note.id, body))}
+          onDeleteComment={(id) => mutate(() => repo.deleteComment(id))}
+        />
+      )}
+
+      {sheet?.mode === 'photo-view' && (
+        <PhotoViewSheet
+          photo={sheet.photo}
+          me={snap.me}
+          onClose={() => setSheet(null)}
+          onRemove={async () => {
+            await mutate(() => repo.deletePhoto(sheet.photo))
+            setSheet(null)
           }}
         />
       )}
@@ -345,9 +367,9 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           <button
             className="h-9 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
             onClick={() => {
-              const note = removed
+              const { note, comments } = removed
               setRemoved(null)
-              mutate(() => repo.restoreNote(note))
+              mutate(() => repo.restoreNote(note, comments))
             }}
           >
             되돌리기

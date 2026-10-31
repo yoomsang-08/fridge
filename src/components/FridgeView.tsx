@@ -4,7 +4,7 @@ import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
 import { fitPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
 import { ZONE_LABEL } from '../lib/templates'
 import { DOOR_NOTE_COUNT } from '../lib/notes'
-import type { Compartment, Fridge, Item, Note } from '../lib/types'
+import type { Compartment, Fridge, FridgePhoto, Item, Note } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Fridge2D } from './Fridge2D'
 import type { CameraPreset } from './Fridge3D'
@@ -49,9 +49,11 @@ interface Props {
   /** 냉장고 문 메모. 첫 번째 냉장고 문 앞면에 최근 몇 장을 붙인다 */
   notes?: Note[]
   onOpenNotes?: () => void
+  /** 냉장고 문 사진 */
+  photos?: FridgePhoto[]
 }
 
-export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onAddTo, header, notes = [], onOpenNotes }: Props) {
+export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onAddTo, header, notes = [], onOpenNotes, photos = [] }: Props) {
   const [webgl] = useState(hasWebGL)
   const [fridgeId, setFridgeId] = useState(fridges[0]?.id)
   const [mode, setMode] = useState<Mode>(() =>
@@ -92,6 +94,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const selectedItems = selected ? sortByUrgency(byComp.get(selected.id) ?? []) : []
   // 메모는 집에 하나인 메인 냉장고(첫 번째)에만 붙인다
   const doorNotes = fridge.id === fridges[0]?.id ? notes.slice(0, DOOR_NOTE_COUNT) : []
+  // 사진도 메인 냉장고 문에 최근 두 장만
+  const doorPhotos = fridge.id === fridges[0]?.id ? photos.slice(0, 2) : []
   const nameOf = (i: Item) => mine.find((c) => c.id === i.compartment_id)?.name
 
   const changeMode = (m: Mode) => {
@@ -205,6 +209,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
                 onEgg={() => setEgg(true)}
                 egg={egg}
                 notes={doorNotes}
+                photos={doorPhotos}
                 onOpenNotes={onOpenNotes}
               />
             </Suspense>
@@ -221,6 +226,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
               onOpenItem={onOpen}
               onOpenDoors={() => setAllDoors(true)}
               notes={doorNotes}
+              photos={doorPhotos}
               onOpenNotes={onOpenNotes}
             />
           </div>
