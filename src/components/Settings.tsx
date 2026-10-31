@@ -7,6 +7,7 @@ import type { Compartment, Fridge, Household, Me, Member, Zone } from '../lib/ty
 import { useDialog } from './Dialog'
 import { BackupSettings } from './BackupSettings'
 import { CategoryDaysSettings } from './CategoryDaysSettings'
+import { MemberDevices } from './MemberDevices'
 import { PushSettings } from './PushSettings'
 import { cx } from '../lib/cx'
 import { Button, Card, IconButton } from './ui'
@@ -75,6 +76,14 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
             </li>
           ))}
         </ul>
+        {!isLocal && (
+          <MemberDevices
+            members={members}
+            me={me}
+            confirm={confirm}
+            onRemove={(ids) => run(() => repo.removeDevices(ids))}
+          />
+        )}
       </Card>
 
       {!isLocal && <PushSettings householdId={household.id} />}

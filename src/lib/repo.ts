@@ -53,6 +53,10 @@ export interface Repo {
   markNotesRead(ids: string[]): Promise<void>
   /** 이 기기를 쓰는 사람의 이름 바꾸기 */
   renameMe(name: string): Promise<void>
+  /** 이 기기를 지금 쓰는 중이라고 기록 (마지막 사용 시각, 기기 종류) */
+  touchDevice(device: string): Promise<void>
+  /** 식구의 기기(계정) 지우기. 내 기기는 지울 수 없다 */
+  removeDevices(userIds: string[]): Promise<void>
   /** 분류별 자동 기한(일) 바꾸기. null 이면 그 보관 위치에서는 자동으로 안 채움 */
   setCategoryDays(id: string, days: CategoryDays): Promise<void>
   /** 다른 기기에서 바뀌면 호출. 반환값은 구독 해제 */
@@ -100,14 +104,21 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
         sb.from('items').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(300),
         sb.from('notes').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100),
-        sb.from('household_members').select('user_id, display_name').eq('household_id', hid).order('created_at'),
+        // 0016 전에는 last_seen_at·device 칸이 없어서 * 로 읽는다
+        sb.from('household_members').select('*').eq('household_id', hid).order('created_at'),
         sb.from('categories').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('note_comments').select('*').eq('household_id', hid).order('created_at').limit(500),
         sb.from('fridge_photos').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(PHOTO_LIMIT),
       ])
       // 0007 마이그레이션 전이면 테이블이 없으니 기본 분류로
       setCategories((k.data as Category[] | null) ?? DEFAULT_CATEGORIES)
-      const members: Member[] = (check(m).data ?? []).map((r) => ({ id: r.user_id, name: r.display_name || null }))
+      const members: Member[] = (check(m).data ?? []).map((r) => ({
+        id: r.user_id,
+        name: r.display_name || null,
+        lastSeenAt: r.last_seen_at ?? null,
+        device: r.device ?? null,
+        joinedAt: r.created_at,
+      }))
       return {
         fridges: check(f).data as Fridge[],
         compartments: check(c).data as Compartment[],
@@ -263,6 +274,13 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       const uid = auth.session?.user.id ?? ''
       check(await sb.from('household_members').update({ display_name: name }).eq('household_id', hid).eq('user_id', uid))
     },
+    async touchDevice(device) {
+      // 0016 전이면 함수가 없으니 조용히 넘어간다
+      await sb.rpc('touch_member', { p_household: hid, p_device: device })
+    },
+    async removeDevices(userIds) {
+      check(await sb.rpc('remove_member_devices', { p_household: hid, p_users: userIds }))
+    },
     async setCategoryDays(id, days) {
       check(await sb.from('categories').update({ ...days, days_set: true }).eq('household_id', hid).eq('id', id))
       setCategories(getCategories().map((c) => (c.id === id ? { ...c, ...days } : c)))
@@ -332,7 +350,13 @@ export function createLocalRepo(): Repo {
       setCategories(applyLocalDays())
       const history = [...s.items].sort((a, b) => b.created_at.localeCompare(a.created_at))
       const me = localMe()
-      return { ...s, items: s.items.filter((i) => i.status === 'active'), history, me, members: [me] }
+      return {
+        ...s,
+        items: s.items.filter((i) => i.status === 'active'),
+        history,
+        me,
+        members: [{ ...me, lastSeenAt: now(), device: null, joinedAt: now() }],
+      }
     },
     addFridge: (t, name) =>
       mutate((s) => {
@@ -477,6 +501,8 @@ export function createLocalRepo(): Repo {
     async renameMe(name) {
       localStorage.setItem(LOCAL_NAME_KEY, name)
     },
+    touchDevice: async () => {},
+    removeDevices: async () => {},
     async setCategoryDays(id, days) {
       const all = { ...localDays(), [id]: { ...localDays()[id], ...days } }
       localStorage.setItem(LOCAL_DAYS_KEY, JSON.stringify(all))
