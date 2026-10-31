@@ -1,11 +1,11 @@
-import { Check } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { useState } from 'react'
 import { isMine, NOTE_COLORS, NOTE_SUGGESTIONS, notePaper, timeAgo } from '../lib/notes'
-import type { Me, Member, Note, NoteColor, NoteInput } from '../lib/types'
+import type { FridgePhoto, Me, Member, Note, NoteColor, NoteComment, NoteInput } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Sheet } from './Sheet'
 import { NoteText } from './StickyNote'
-import { Button, Chip, Field } from './ui'
+import { Button, Chip, Field, TextInput } from './ui'
 
 const MAX = 200
 const LAST_COLOR_KEY = 'fridge-last-note-color'
@@ -128,29 +128,67 @@ export function NoteWriteSheet({
 /** 메모 크게 보기, 떼기 */
 export function NoteViewSheet({
   note,
+  comments,
   me,
   onClose,
   onRemove,
+  onComment,
+  onDeleteComment,
 }: {
   note: Note
+  /** 이 메모에 달린 댓글, 오래된 것부터 */
+  comments: NoteComment[]
   me: Me
   onClose: () => void
   onRemove: () => Promise<void>
+  onComment: (body: string) => Promise<void>
+  onDeleteComment: (id: string) => Promise<void>
 }) {
   const mine = isMine(note, me)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const text = draft.trim()
+
+  const send = async () => {
+    if (!text || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onComment(text)
+      setDraft('')
+    } catch {
+      setError('댓글을 달지 못했어요. 잠시 뒤 다시 해 주세요.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Sheet
       title={mine ? '내가 남긴 메모' : `${note.author_name ?? '누군가'}의 메모`}
       onClose={onClose}
+      // 댓글 입력은 채팅처럼 늘 손 닿는 아래에
       footer={
-        <>
-          <Button variant="ghost" className="flex-1" onClick={onClose}>
-            닫기
+        <form
+          className="flex flex-1 gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            send()
+          }}
+        >
+          <TextInput
+            value={draft}
+            maxLength={MAX}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={comments.length ? '댓글 달기' : '첫 댓글을 남겨 보세요'}
+            aria-label="댓글 쓰기"
+            enterKeyHint="send"
+          />
+          <Button type="submit" className="h-12 shrink-0" disabled={!text || busy}>
+            달기
           </Button>
-          <Button variant="danger" className="flex-1" onClick={onRemove}>
-            떼기
-          </Button>
-        </>
+        </form>
       }
     >
       <div className={cx('rounded-md px-5 pt-6 pb-4 shadow-card', notePaper(note.color))}>
@@ -162,6 +200,112 @@ export function NoteViewSheet({
         {note.author_name ?? '누군가'} · {timeAgo(note.created_at)}
         {mine && (note.read_at ? ` · ${timeAgo(note.read_at)} 읽음` : ' · 아직 안 읽음')}
       </p>
+
+      <section className="mt-5 border-t border-line pt-4" aria-label="댓글">
+        <h3 className="text-[13px] font-bold text-muted">댓글{comments.length > 0 && ` ${comments.length}`}</h3>
+        {comments.length > 0 && (
+          <ul className="mt-2 flex flex-col gap-2">
+            {comments.map((c) => {
+              const own = isMine(c, me)
+              return (
+                <li key={c.id} className={cx('rounded-2xl px-3.5 py-2.5', own ? 'bg-accent-soft' : 'bg-sunken')}>
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    <span className="font-bold text-ink">{c.author_name ?? '누군가'}</span>
+                    <span className="flex-1">{timeAgo(c.created_at)}</span>
+                    {own && (
+                      <button
+                        onClick={() => onDeleteComment(c.id).catch(() => setError('댓글을 지우지 못했어요.'))}
+                        aria-label="내 댓글 지우기"
+                        className="-my-1 -mr-1.5 grid h-7 w-7 place-items-center rounded-full text-faint transition active:bg-ink/10"
+                      >
+                        <X size={14} strokeWidth={2.4} />
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[15px] leading-snug break-keep whitespace-pre-wrap text-ink">
+                    <NoteText body={c.body} />
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        {comments.length === 0 && <p className="mt-1 text-sm text-faint">아직 댓글이 없어요.</p>}
+        {error && <p className="mt-2 text-sm text-expired">{error}</p>}
+      </section>
+      <RemoveButton onRemove={onRemove} />
     </Sheet>
+  )
+}
+
+/** 사진 크게 보기 */
+export function PhotoViewSheet({
+  photo,
+  me,
+  onClose,
+  onRemove,
+}: {
+  photo: FridgePhoto
+  me: Me
+  onClose: () => void
+  onRemove: () => Promise<void>
+}) {
+  const mine = isMine(photo, me)
+  return (
+    <Sheet
+      title={mine ? '내가 붙인 사진' : `${photo.author_name ?? '누군가'}의 사진`}
+      onClose={onClose}
+    >
+      <div className="rounded-[4px] bg-white p-2.5 shadow-card">
+        <img
+          src={photo.url}
+          alt=""
+          width={photo.width}
+          height={photo.height}
+          className="mx-auto max-h-[60dvh] w-auto rounded-[2px] object-contain"
+        />
+      </div>
+      <p className="mt-3 text-sm text-muted">
+        {photo.author_name ?? '누군가'} · {timeAgo(photo.created_at)}
+      </p>
+      {/* 사진은 되돌리기가 없으니 한 번 더 눌러야 뗀다 */}
+      <RemoveButton onRemove={onRemove} confirm="정말 뗄까요? 되돌릴 수 없어요" failText="사진을 떼지 못했어요. 잠시 뒤 다시 해 주세요." />
+    </Sheet>
+  )
+}
+
+/** 시트 맨 아래의 작은 '떼기'. confirm 이 있으면 두 번 눌러야 뗀다 */
+function RemoveButton({
+  onRemove,
+  confirm,
+  failText = '떼지 못했어요. 잠시 뒤 다시 해 주세요.',
+}: {
+  onRemove: () => Promise<void>
+  confirm?: string
+  failText?: string
+}) {
+  const [asked, setAsked] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <div className="mt-6 flex flex-col items-center gap-1">
+      <button
+        disabled={busy}
+        onClick={async () => {
+          if (confirm && !asked) return setAsked(true)
+          setBusy(true)
+          try {
+            await onRemove()
+          } catch {
+            setError(failText)
+            setBusy(false)
+          }
+        }}
+        className="h-9 rounded-xl px-3 text-[13px] font-semibold text-expired/80 transition active:bg-expired-soft"
+      >
+        {asked ? confirm : '냉장고에서 떼기'}
+      </button>
+      {error && <p className="text-sm text-expired">{error}</p>}
+    </div>
   )
 }

@@ -6,8 +6,8 @@ import { Sheet } from './Sheet'
 import { cx } from '../lib/cx'
 import { SpaceIcon } from './SpaceIcon'
 import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
-import { CONTAINERS, guessContainer, roomTempDays, UNITS, useCategories } from '../lib/categories'
-import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE } from '../lib/expiry'
+import { categoryOf, CONTAINERS, guessContainer, roomTempDays, UNITS, useCategories } from '../lib/categories'
+import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE, LEVEL_TEXT } from '../lib/expiry'
 import {
   foodSearchAvailable,
   guessCategory,
@@ -92,6 +92,8 @@ export function ItemSheet({
   const [opened, setOpened] = useState(item?.opened ?? false)
   const [memo, setMemo] = useState(item?.memo ?? '')
   const [moreExpiry, setMoreExpiry] = useState(false)
+  // 칸 고르기는 접어 두고 지금 칸만 한 줄로 보여 준다. '바꾸기'를 눌러야 칸 버튼이 펼쳐진다
+  const [placeOpen, setPlaceOpen] = useState(!initialCompartment)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -273,6 +275,13 @@ export function ItemSheet({
 
   const canSave = !busy && !!name.trim() && !!compartmentId
   const lv = expiryLevel(expiry)
+  const placeLabel = (id: string) => {
+    const c = compartments.find((x) => x.id === id)
+    const f = fridges.find((x) => x.id === c?.fridge_id)
+    if (!c) return ''
+    return fridges.length > 1 && f ? `${f.name} · ${c.name}` : c.name
+  }
+  const placeSpace = fridges.find((f) => f.id === compartments.find((c) => c.id === compartmentId)?.fridge_id)
 
   return (
     <>
@@ -293,6 +302,17 @@ export function ItemSheet({
         }
       >
         <div className="flex flex-col gap-6">
+          {item && onAction && (
+            <ItemSummary
+              item={item}
+              place={placeLabel(item.compartment_id)}
+              busy={busy}
+              onAct={(a) => run(() => onAction(item, a))}
+            />
+          )}
+
+          {item && <h3 className="-mb-2 border-t border-line pt-5 text-xs font-bold text-faint">정보 고치기</h3>}
+
           <Field label="무엇인가요?">
             <div className="relative flex gap-2">
               {/* 아래 칩이 밀리지 않도록 입력창 아래에 겹쳐 띄운다. 누름은 통과 */}
@@ -306,7 +326,8 @@ export function ItemSheet({
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value)
-                  if (EASTER_NAMES.has(e.target.value.trim())) showEgg('이 냉장고의 주인공이시네요. 오늘도 맛있는 하루 보내세요.')
+                  if (EASTER_NAMES.has(e.target.value.trim()))
+                    showEgg('이 냉장고의 주인공이시네요. 오늘도 맛있는 하루 보내세요.')
                 }}
                 onFocus={() => setNameFocused(true)}
                 onBlur={() => setNameFocused(false)}
@@ -327,7 +348,9 @@ export function ItemSheet({
             </div>
             {scanNote && <p className="mt-2 text-sm text-muted">{scanNote}</p>}
             {picked && name === picked.name && (picked.maker || picked.foodType) && (
-              <p className="mt-2 text-[13px] text-muted">{[picked.maker, picked.foodType].filter(Boolean).join(' · ')}</p>
+              <p className="mt-2 text-[13px] text-muted">
+                {[picked.maker, picked.foodType].filter(Boolean).join(' · ')}
+              </p>
             )}
             {products.length > 0 && (
               <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
@@ -372,47 +395,76 @@ export function ItemSheet({
             </div>
           </Field>
 
-          <Field label="어디에 넣나요?">
-            {fridges.length > 1 && (
-              <div className="-mx-5 mb-2.5 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-                {fridges.map((f) => (
-                  <Chip
-                    key={f.id}
-                    active={spaceId === f.id}
-                    onClick={() => {
-                      setSpaceId(f.id)
-                      setCompartmentId(compartments.find((c) => c.fridge_id === f.id)?.id ?? '')
-                    }}
-                  >
-                    <SpaceIcon fridge={f} />
-                    {f.name}
-                  </Chip>
-                ))}
-              </div>
+          <Field
+            label="어디에 넣나요?"
+            aside={
+              placeOpen &&
+              compartmentId && (
+                <button className="h-8 text-sm font-semibold text-accent" onClick={() => setPlaceOpen(false)}>
+                  접기
+                </button>
+              )
+            }
+          >
+            {!placeOpen ? (
+              <button
+                onClick={() => setPlaceOpen(true)}
+                aria-expanded={false}
+                className="flex min-h-12 w-full items-center gap-2.5 rounded-xl border border-line px-3.5 text-left transition active:bg-sunken"
+              >
+                {placeSpace && <SpaceIcon fridge={placeSpace} />}
+                <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{placeLabel(compartmentId)}</span>
+                <span className="shrink-0 text-sm font-semibold text-accent">바꾸기</span>
+              </button>
+            ) : (
+              <>
+                {fridges.length > 1 && (
+                  <div className="-mx-5 mb-2.5 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+                    {fridges.map((f) => (
+                      <Chip
+                        key={f.id}
+                        active={spaceId === f.id}
+                        onClick={() => {
+                          setSpaceId(f.id)
+                          setCompartmentId(compartments.find((c) => c.fridge_id === f.id)?.id ?? '')
+                        }}
+                      >
+                        <SpaceIcon fridge={f} />
+                        {f.name}
+                      </Chip>
+                    ))}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                  {compartments
+                    .filter((c) => c.fridge_id === spaceId)
+                    .map((c) => {
+                      const on = c.id === compartmentId
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            setCompartmentId(c.id)
+                            setPlaceOpen(false)
+                          }}
+                          aria-pressed={on}
+                          className={cx(
+                            'flex min-h-12 flex-col justify-center rounded-xl border px-3 py-1.5 text-left text-sm font-semibold transition',
+                            on
+                              ? 'border-accent bg-accent-soft text-accent ring-1 ring-accent'
+                              : 'border-line active:bg-sunken',
+                          )}
+                        >
+                          <span className={cx('text-[10px] font-semibold', on ? 'text-accent' : 'text-muted')}>
+                            {ZONE_LABEL[c.zone]}
+                          </span>
+                          <span className="truncate">{c.name}</span>
+                        </button>
+                      )
+                    })}
+                </div>
+              </>
             )}
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-              {compartments
-                .filter((c) => c.fridge_id === spaceId)
-                .map((c) => {
-                  const on = c.id === compartmentId
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setCompartmentId(c.id)}
-                      aria-pressed={on}
-                      className={cx(
-                        'flex min-h-12 flex-col justify-center rounded-xl border px-3 py-1.5 text-left text-sm font-semibold transition',
-                        on ? 'border-accent bg-accent-soft text-accent ring-1 ring-accent' : 'border-line active:bg-sunken',
-                      )}
-                    >
-                      <span className={cx('text-[10px] font-semibold', on ? 'text-accent' : 'text-muted')}>
-                        {ZONE_LABEL[c.zone]}
-                      </span>
-                      <span className="truncate">{c.name}</span>
-                    </button>
-                  )
-                })}
-            </div>
           </Field>
 
           <Field label="얼마나?">
@@ -556,31 +608,17 @@ export function ItemSheet({
 
           {item && <AddedBy item={item} members={members} />}
 
-          {item && onAction && onDelete && (
-            <div className="grid grid-cols-3 gap-2 border-t border-line pt-5">
-              <Button
-                variant="secondary"
-                size="md"
-                disabled={busy}
-                onClick={() => run(() => onAction(item, 'consume'))}
-              >
-                다 먹었어요
-              </Button>
-              <Button variant="ghost" size="md" disabled={busy} onClick={() => run(() => onAction(item, 'discard'))}>
-                버렸어요
-              </Button>
-              <Button
-                variant="danger"
-                size="md"
-                disabled={busy}
-                onClick={async () => {
-                  if (await confirm('기록에서 지울까요?', `'${item.name}'을(를) 먹은 기록 없이 완전히 지워요.`))
-                    run(() => onDelete(item))
-                }}
-              >
-                삭제
-              </Button>
-            </div>
+          {item && onDelete && (
+            <button
+              className="-mt-2 self-center py-1 text-[13px] font-semibold text-expired/80"
+              disabled={busy}
+              onClick={async () => {
+                if (await confirm('기록에서 지울까요?', `'${item.name}'을(를) 먹은 기록 없이 완전히 지워요.`))
+                  run(() => onDelete(item))
+              }}
+            >
+              기록에서 지우기
+            </button>
           )}
         </div>
       </Sheet>
@@ -597,5 +635,66 @@ function AddedBy({ item, members }: { item: Item; members: Member[] }) {
   const when = `${d.getMonth() + 1}월 ${d.getDate()}일`
   return (
     <p className="tabular -mb-2 text-xs text-muted">{who ? `${who} 님이 ${when}에 넣었어요` : `${when}에 넣었어요`}</p>
+  )
+}
+
+/** 식품을 눌렀을 때 맨 위: 지금 상태 한눈에 + 바로 하는 일. 고치는 양식은 그 아래 */
+function ItemSummary({
+  item,
+  place,
+  busy,
+  onAct,
+}: {
+  item: Item
+  place: string
+  busy: boolean
+  onAct: (action: ItemAction) => void
+}) {
+  const cat = categoryOf(item.category)
+  const lv = expiryLevel(item.expiry_date)
+  const many = item.quantity > 1
+  return (
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-3 rounded-2xl bg-bg p-3.5">
+        <span
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-2xl"
+          style={{ backgroundColor: cat.tint }}
+          aria-hidden
+        >
+          {cat.emoji}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[17px] font-extrabold">{item.name}</p>
+          <p className="tabular truncate text-xs text-muted">
+            {item.quantity}
+            {item.unit}
+            {item.opened && ' · 개봉'} · {place}
+          </p>
+        </div>
+        <div className="tabular shrink-0 text-right">
+          <p className={cx('text-sm font-extrabold', LEVEL_TEXT[lv], lv === 'ok' && 'font-semibold')}>
+            {expiryLabel(item.expiry_date)}
+          </p>
+          {item.expiry_date && (
+            <p className="text-[11px] text-muted">
+              {item.expiry_type === 'use_by' ? '소비' : '유통'} {item.expiry_date.slice(5).replace('-', '/')}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className={cx('grid gap-2', many ? 'grid-cols-3' : 'grid-cols-2')}>
+        {many && (
+          <Button variant="secondary" size="md" disabled={busy} onClick={() => onAct('use')}>
+            1{item.unit} 썼어요
+          </Button>
+        )}
+        <Button variant="secondary" size="md" disabled={busy} onClick={() => onAct('consume')}>
+          다 먹었어요
+        </Button>
+        <Button variant="ghost" size="md" disabled={busy} onClick={() => onAct('discard')}>
+          버렸어요
+        </Button>
+      </div>
+    </section>
   )
 }

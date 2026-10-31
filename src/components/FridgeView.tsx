@@ -1,10 +1,10 @@
-import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square } from 'lucide-react'
+import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square, ZoomOut } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
-import { isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
+import { fitPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
 import { ZONE_LABEL } from '../lib/templates'
 import { DOOR_NOTE_COUNT } from '../lib/notes'
-import type { Compartment, Fridge, Item, Note } from '../lib/types'
+import type { Compartment, Fridge, FridgePhoto, Item, Note } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Fridge2D } from './Fridge2D'
 import type { CameraPreset } from './Fridge3D'
@@ -49,9 +49,11 @@ interface Props {
   /** 냉장고 문 메모. 첫 번째 냉장고 문 앞면에 최근 몇 장을 붙인다 */
   notes?: Note[]
   onOpenNotes?: () => void
+  /** 냉장고 문 사진 */
+  photos?: FridgePhoto[]
 }
 
-export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onAddTo, header, notes = [], onOpenNotes }: Props) {
+export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onAddTo, header, notes = [], onOpenNotes, photos = [] }: Props) {
   const [webgl] = useState(hasWebGL)
   const [fridgeId, setFridgeId] = useState(fridges[0]?.id)
   const [mode, setMode] = useState<Mode>(() =>
@@ -73,9 +75,13 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   }, [egg])
 
   const fridge = fridges.find((f) => f.id === fridgeId) ?? fridges[0]
-  const shape = useMemo(() => shapeOf(fridge), [fridge])
   const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
   const byComp = useMemo(() => itemsBy(items), [items])
+  // 팬트리는 물건이 많으면 옆으로 늘어난다
+  const shape = useMemo(
+    () => fitPantry(shapeOf(fridge), mine.map((c) => byComp.get(c.id)?.length ?? 0)),
+    [fridge, mine, byComp],
+  )
   // 팬트리처럼 문이 없으면 늘 열린 것처럼 보여 준다
   const noDoors = shape.doors.length === 0
   const anyOpen = noDoors || shape.doors.some((d) => doorOpen[d.id] ?? false)
@@ -83,11 +89,15 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const spaces = [...fridges].sort((a, b) => Number(a.template === 'pantry') - Number(b.template === 'pantry'))
   const unplaced = mine.filter((c) => !c.layout)
   const selected = mine.find((c) => c.id === selectedId) ?? null
+  // 3D 에서 몸체 칸을 고르면 카메라가 그 칸으로 다가간다(Fridge3D 의 focus)
+  const zoomed = !!selected?.layout && !isDoorCompartment(selected)
   const fridgeItems = mine.flatMap((c) => byComp.get(c.id) ?? [])
   const urgent = sortByUrgency(fridgeItems).filter((i) => ['expired', 'urgent', 'soon'].includes(expiryLevel(i.expiry_date)))
   const selectedItems = selected ? sortByUrgency(byComp.get(selected.id) ?? []) : []
   // 메모는 집에 하나인 메인 냉장고(첫 번째)에만 붙인다
   const doorNotes = fridge.id === fridges[0]?.id ? notes.slice(0, DOOR_NOTE_COUNT) : []
+  // 사진도 메인 냉장고 문에 최근 두 장만
+  const doorPhotos = fridge.id === fridges[0]?.id ? photos.slice(0, 2) : []
   const nameOf = (i: Item) => mine.find((c) => c.id === i.compartment_id)?.name
 
   const changeMode = (m: Mode) => {
@@ -155,6 +165,16 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
 
       <Card className="relative overflow-hidden">
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          {/* 칸으로 다가간 뒤엔 빈 곳을 찾기 어려우니 돌아가는 버튼을 따로 */}
+          {mode === '3d' && zoomed && (
+            <button
+              onClick={() => setSelectedId(null)}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-surface/90 px-3 text-sm font-bold text-ink shadow-card transition active:brightness-95"
+            >
+              <ZoomOut size={18} />
+              전체 보기
+            </button>
+          )}
           {mode === '3d' ? (
             <IconButton onClick={nextCamera} aria-label="각도 바꾸기" title={`각도 바꾸기 (지금 ${CAMERA_LABEL[camera]})`} className="bg-surface/80">
               <Rotate3d size={20} />
@@ -201,6 +221,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
                 onEgg={() => setEgg(true)}
                 egg={egg}
                 notes={doorNotes}
+                photos={doorPhotos}
                 onOpenNotes={onOpenNotes}
               />
             </Suspense>
@@ -217,6 +238,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
               onOpenItem={onOpen}
               onOpenDoors={() => setAllDoors(true)}
               notes={doorNotes}
+              photos={doorPhotos}
               onOpenNotes={onOpenNotes}
             />
           </div>

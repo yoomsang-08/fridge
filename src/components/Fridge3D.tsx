@@ -12,6 +12,7 @@ import {
   isDoorCompartment,
   LEVEL_RING,
   pocketRectInDoor,
+  shapeOfItem,
   sortByUrgency,
   tintHex,
   token,
@@ -19,7 +20,9 @@ import {
   type FridgeShape,
 } from '../lib/fridgeShape'
 import { magnetOf } from '../lib/notes'
-import type { Compartment, Item, Note } from '../lib/types'
+import { bodyColor, SHAPE_HEIGHT } from '../lib/container3d'
+import { Container3D } from './Container3D'
+import type { Compartment, FridgePhoto, Item, Note } from '../lib/types'
 
 export type CameraPreset = 'front' | 'left' | 'right' | 'top'
 
@@ -43,6 +46,8 @@ interface Props {
   /** 첫 번째 문 앞면에 붙일 메모. 누르면 onOpenNotes */
   notes?: Note[]
   onOpenNotes?: () => void
+  /** 두 번째 문(없으면 첫 번째 문) 앞면에 붙일 사진 */
+  photos?: FridgePhoto[]
 }
 
 const WALL = 0.03
@@ -199,19 +204,99 @@ function noteTexture(note: Note) {
   )
 }
 
+/** 문에 붙인 사진 한 장: 흰 테두리(폴라로이드) + 사진. 사진은 4:5 로 가운데를 잘라 보인다 */
+const PHOTO_TILT = [0.035, -0.03]
+const PHOTO_W = 0.22
+
+function usePhotoTexture(url: string, aspect: number) {
+  const [tex, setTex] = useState<THREE.Texture | null>(null)
+  const invalidate = useThree((s) => s.invalidate)
+  useEffect(() => {
+    let alive = true
+    const loader = new THREE.TextureLoader()
+    loader.setCrossOrigin('anonymous')
+    loader.load(url, (t) => {
+      if (!alive) return t.dispose()
+      t.colorSpace = THREE.SRGBColorSpace
+      // object-fit: cover 처럼 가운데를 4:5 로 자른다
+      const img = t.image as { width: number; height: number }
+      const ia = img.width / img.height
+      if (ia > aspect) {
+        t.repeat.set(aspect / ia, 1)
+        t.offset.set((1 - aspect / ia) / 2, 0)
+      } else {
+        t.repeat.set(1, ia / aspect)
+        t.offset.set(0, (1 - ia / aspect) / 2)
+      }
+      setTex(t)
+      invalidate()
+    })
+    return () => {
+      alive = false
+    }
+  }, [url, aspect, invalidate])
+  useEffect(() => () => tex?.dispose(), [tex])
+  return tex
+}
+
+function DoorPhoto({ photo, position, tilt, onOpen }: { photo: FridgePhoto; position: [number, number, number]; tilt: number; onOpen?: () => void }) {
+  const pad = PHOTO_W * 0.06
+  const iw = PHOTO_W - pad * 2
+  const ih = iw * 1.25
+  const fh = ih + pad + pad * 3.2
+  const tex = usePhotoTexture(photo.url, iw / ih)
+  return (
+    <group
+      position={position}
+      rotation={[0, 0, tilt]}
+      onClick={(e) => {
+        if (!isTap(e)) return
+        e.stopPropagation()
+        onOpen?.()
+      }}
+    >
+      <mesh>
+        <planeGeometry args={[PHOTO_W, fh]} />
+        <meshBasicMaterial color="#ffffff" toneMapped={false} />
+      </mesh>
+      <mesh position={[0, fh / 2 - pad - ih / 2, 0.0005]}>
+        <planeGeometry args={[iw, ih]} />
+        {tex ? <meshBasicMaterial key="photo" map={tex} toneMapped={false} /> : <meshBasicMaterial key="blank" color="#e5e7e6" />}
+      </mesh>
+      <mesh position={[0, fh / 2 - 0.004, 0.001]}>
+        <circleGeometry args={[0.011, 20]} />
+        <meshBasicMaterial color={token('accent')} toneMapped={false} />
+      </mesh>
+    </group>
+  )
+}
+
 // ---------- 식품 ----------
 
-function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; position: [number, number, number]; onOpen: (i: Item) => void }) {
+function ItemMesh({
+  item,
+  size,
+  position,
+  onOpen,
+  space,
+}: {
+  item: Item
+  size: number
+  position: [number, number, number]
+  onOpen: (i: Item) => void
+  space: 'fridge' | 'pantry'
+}) {
   const [hover, setHover] = useState(false)
   const lv = expiryLevel(item.expiry_date)
   const ring = LEVEL_RING[lv]
   const cat = categoryOf(item.category)
-  const tint = tintHex(cat.tint)
-  const s = size * (hover ? 1.12 : 1)
+  const kind = shapeOfItem(item)
+  const color = bodyColor(tintHex(cat.tint), kind, space)
+  const s = size * (hover ? 1.08 : 1)
+  const h = SHAPE_HEIGHT[kind] * s
   return (
     <group
       position={position}
-      userData={{ item: true }}
       onClick={(e) => {
         if (!isTap(e)) return
         e.stopPropagation()
@@ -227,11 +312,27 @@ function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; 
         document.body.style.cursor = ''
       }}
     >
-      <RoundedBox args={[s * 0.92, s * 0.8, s * 0.92]} radius={s * 0.12} smoothness={2} userData={{ item: true }}>
-        <meshStandardMaterial color={tint} roughness={0.6} />
-      </RoundedBox>
-      <sprite position={[0, s * 0.12, s * 0.5]} scale={[s * 0.85, s * 0.85, 1]} userData={{ item: true }}>
-        <spriteMaterial map={chipTexture(cat.emoji, tint, ring && token(ring))} transparent depthWrite={false} />
+      <Container3D shape={kind} s={s} color={color} />
+      {/* 누르는 자리: 모양과 상관없이 바닥 한 칸 크기 상자 */}
+      <mesh position={[0, Math.max(h, s * 0.4) / 2, 0]} userData={{ item: true }}>
+        <boxGeometry args={[s, Math.max(h, s * 0.4), s * 0.8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      {/* 접지 그림자: 선반 위에 '놓인' 느낌 */}
+      <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[s * 0.55, 32]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.18} depthWrite={false} />
+      </mesh>
+      {/* 기한 링: 지남·3일·7일만, 바닥에 얇게 */}
+      {ring && (
+        <mesh position={[0, 0.003, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[s * 0.44, s * 0.52, 32]} />
+          <meshBasicMaterial color={token(ring)} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {/* 이름표: 작게, 늘 카메라 쪽 */}
+      <sprite position={[0, Math.max(h * 0.5, s * 0.3), s * 0.42]} scale={[s * 0.4, s * 0.4, 1]}>
+        <spriteMaterial map={chipTexture(cat.emoji, '#ffffff')} transparent depthWrite={false} />
       </sprite>
     </group>
   )
@@ -239,7 +340,7 @@ function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; 
 
 function MoreBadge({ count, size, position }: { count: number; size: number; position: [number, number, number] }) {
   return (
-    <sprite position={position} scale={[size * 1.2, size * 0.6, 1]}>
+    <sprite position={[position[0], position[1] + size * 0.3, position[2]]} scale={[size * 1.2, size * 0.6, 1]}>
       <spriteMaterial map={pillTexture(`+${count}`, token('sunken'), token('muted'))} transparent depthWrite={false} />
     </sprite>
   )
@@ -265,8 +366,9 @@ function ItemGrid({
   spread?: boolean
 }) {
   if (!items.length) return null
-  // 넓게 놓을 땐 크게 그리되, 좁은 바구니에도 세 개까지는 한 줄에 들어가게 줄인다
-  const size = Math.max(0.04, Math.min(spread ? 0.13 : 0.1, maxSize, spread ? width / 1.2 / Math.min(items.length, 3) : Infinity))
+  // 넓게 놓을 땐 크게 그리되, 팬트리는 모자라면 안 되니 칸 바닥에 전부 들어갈 때까지 줄인다
+  let size = Math.max(0.035, Math.min(spread ? 0.13 : 0.12, maxSize, spread ? width / 1.2 / Math.min(items.length, 3) : Infinity))
+  while (spread && size > 0.035 && Math.floor(width / (size * 1.2)) * Math.max(1, Math.floor(depth / (size * 1.2))) < items.length) size *= 0.92
   const pitch = size * 1.2
   const cols = Math.max(1, Math.floor(width / pitch))
   const rows = Math.max(1, Math.floor(depth / pitch))
@@ -278,12 +380,12 @@ function ItemGrid({
     const row = Math.floor(i / cols)
     const used = Math.min(cols, shown.length + (sorted.length > capacity ? 1 : 0))
     const x = spread ? (col + 0.5) * (width / used) - width / 2 : (col - (used - 1) / 2) * pitch
-    return [x, floorY + size * 0.4, depth / 2 - pitch / 2 - row * pitch]
+    return [x, floorY, depth / 2 - pitch / 2 - row * pitch]
   }
   return (
     <>
       {shown.map((it, i) => (
-        <ItemMesh key={it.id} item={it} size={size} position={slot(i)} onOpen={onOpen} />
+        <ItemMesh key={it.id} item={it} size={size} position={slot(i)} onOpen={onOpen} space={spread ? 'pantry' : 'fridge'} />
       ))}
       {sorted.length > capacity && <MoreBadge count={sorted.length - shown.length} size={size} position={slot(capacity - 1)} />}
     </>
@@ -475,6 +577,7 @@ function Door({
   onSelect,
   onOpen,
   notes = [],
+  photos = [],
   onOpenNotes,
 }: {
   door: DoorSpec
@@ -482,6 +585,7 @@ function Door({
   open: boolean
   /** 문 앞면에 붙일 메모 */
   notes?: Note[]
+  photos?: FridgePhoto[]
   onOpenNotes?: () => void
   pockets: Compartment[]
   itemsByCompartment: Map<string, Item[]>
@@ -587,6 +691,16 @@ function Door({
             <planeGeometry args={[NOTE_SIZE, NOTE_SIZE]} />
             <meshBasicMaterial map={noteTexture(n)} toneMapped={false} />
           </mesh>
+        ))}
+        {photos.map((p, i) => (
+          <DoorPhoto
+            key={p.id}
+            photo={p}
+            // 문 위쪽 가운데, 두 번째 장은 아래로 살짝 겹쳐서
+            position={[(i % 2 ? -1 : 1) * Math.min(0.04, dw * 0.08), dh * 0.16 - i * 0.24, PANEL + 0.003 + i * 0.0004]}
+            tilt={PHOTO_TILT[i % PHOTO_TILT.length]}
+            onOpen={onOpenNotes}
+          />
         ))}
         {pockets.map((p) => (
           <Pocket
@@ -798,12 +912,38 @@ function CeilingLight({ shape, onEgg }: { shape: FridgeShape; onEgg: () => void 
 
 // ---------- 카메라 ----------
 
-function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; preset: CameraPreset; nonce: number; closed: boolean }) {
+/** 칸을 고르면 카메라가 다가갈 상자(월드 좌표, m) */
+interface Focus {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function CameraRig({
+  shape,
+  preset,
+  nonce,
+  closed,
+  focus,
+}: {
+  shape: FridgeShape
+  preset: CameraPreset
+  nonce: number
+  closed: boolean
+  focus: Focus | null
+}) {
+  // 매 렌더마다 새 객체가 와도 같은 칸이면 다시 움직이지 않게 숫자로 비교한다
+  const fx0 = focus?.x
+  const fy0 = focus?.y
+  const fw0 = focus?.w
+  const fh0 = focus?.h
   const controls = useRef<OrbitControlsImpl>(null)
   const { camera, invalidate, size } = useThree()
   const H = shape.height / 1000
   const W = shape.width / 1000
   const goal = useRef<THREE.Vector3 | null>(null)
+  const goalTarget = useRef<THREE.Vector3 | null>(null)
   // 문이 한쪽으로만 열리면(쿠쿠) 열린 문까지 화면 가운데 오도록 그쪽으로 조금 옮긴다
   const hinges = new Set(shape.doors.map((d) => d.hinge))
   const shiftX = hinges.size === 1 ? (hinges.has('right') ? 0.4 : -0.4) * W : 0
@@ -820,12 +960,23 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
     const cam = camera as THREE.PerspectiveCamera
     const aspect = size.width / size.height
     const fov = (cam.fov * Math.PI) / 180
+    if (fx0 !== undefined && fy0 !== undefined && fw0 !== undefined && fh0 !== undefined) {
+      // 고른 칸이 화면 폭을 거의 채우도록(높이는 60%까지), 살짝 위에서 내려다보는 정면으로
+      const fx = fw0 / 0.92 / 2 / Math.tan(fov / 2) / aspect
+      const fy = fh0 / 0.6 / 2 / Math.tan(fov / 2)
+      const target = new THREE.Vector3(fx0, fy0, 0)
+      goal.current = new THREE.Vector3(0, 0.25, 1).normalize().multiplyScalar(Math.max(fx, fy) + shape.depth / 2000).add(target)
+      goalTarget.current = target
+      invalidate()
+      return
+    }
     // 문을 연 상태(폭 ≈ 2.6배)까지 화면에 들어오게
     const open = shape.doors.length === 0
-    const fitH = (H * (open ? 1.02 : 1.08)) / 2 / Math.tan(fov / 2)
+    const fitH = (H * (open ? 1.02 : 1.0)) / 2 / Math.tan(fov / 2)
     // 비스듬히 볼 땐 열린 문이 화면 옆으로 더 나오니 여유를 둔다
     // 문 없는 선반장은 문 몫의 여유가 필요 없어 카드 폭 80~85%까지 당긴다
-    const spanW = open ? (preset === 'left' || preset === 'right' ? 1.5 : 1.2) : preset === 'left' || preset === 'right' ? 2.9 : 1.7
+    // 문 연 냉장고 정면은 열린 문 끝이 살짝 걸칠 만큼만 여유를 둬서 식품이 크게 보이게
+    const spanW = open ? (preset === 'left' || preset === 'right' ? 1.5 : 1.2) : preset === 'left' || preset === 'right' ? 2.9 : 1.3
     const fitW = (W * spanW) / 2 / Math.tan(fov / 2) / aspect
     const fitClosed = W / 0.85 / 2 / Math.tan(fov / 2) / aspect
     const dist = closeUp
@@ -840,16 +991,22 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
             ? new THREE.Vector3(0.8, 0.2, 0.75)
             : new THREE.Vector3(0, 1.4, 0.7)
     goal.current = dir.normalize().multiplyScalar(dist).add(center)
-    controls.current?.target.copy(center)
+    goalTarget.current = center.clone()
     invalidate()
-  }, [preset, nonce, shape, camera, size, H, W, center, closeUp, portrait, invalidate])
+  }, [preset, nonce, shape, camera, size, H, W, center, closeUp, portrait, fx0, fy0, fw0, fh0, invalidate])
 
   useFrame((state, dt) => {
     if (!goal.current) return
-    camera.position.lerp(goal.current, Math.min(1, dt * 6))
+    const k = Math.min(1, dt * 6)
+    camera.position.lerp(goal.current, k)
+    // 바라보는 곳도 같이 옮겨야 칸으로 다가갈 때 화면이 튀지 않는다
+    if (goalTarget.current) controls.current?.target.lerp(goalTarget.current, k)
     controls.current?.update()
-    if (camera.position.distanceTo(goal.current) < 0.002) goal.current = null
-    else state.invalidate()
+    if (camera.position.distanceTo(goal.current) < 0.002) {
+      if (goalTarget.current) controls.current?.target.copy(goalTarget.current)
+      goal.current = null
+      goalTarget.current = null
+    } else state.invalidate()
   })
 
   return (
@@ -857,7 +1014,7 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
       ref={controls}
       makeDefault
       enableDamping={false}
-      minDistance={0.6}
+      minDistance={0.25}
       maxDistance={8}
       maxPolarAngle={Math.PI * 0.58}
       target={center}
@@ -868,11 +1025,21 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
 // ---------- 장면 ----------
 
 export default function Fridge3D(props: Props) {
-  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg, notes = [], onOpenNotes } =
+  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg, notes = [], onOpenNotes, photos = [] } =
     props
   const H = shape.height / 1000
 
   const placed = compartments.filter((c) => c.layout)
+  // 몸체 칸을 고르면 그 칸으로 다가간다. 문 포켓은 문과 함께 움직여서 제외
+  const picked = placed.find((c) => c.id === selectedId && !isDoorCompartment(c))
+  const focus: Focus | null = (() => {
+    if (!picked?.layout) return null
+    const W = shape.width / 1000
+    const iw = W - WALL * 2
+    const ih = H - WALL * 2
+    const l = picked.layout
+    return { x: -W / 2 + WALL + (l.x + l.w / 2) * iw, y: H - WALL - (l.y + l.h / 2) * ih, w: l.w * iw, h: l.h * ih }
+  })()
   const cabinet = placed.filter((c) => !isDoorCompartment(c))
   const pocketsByDoor = new Map<string, Compartment[]>()
   for (const c of placed.filter(isDoorCompartment)) {
@@ -908,7 +1075,13 @@ export default function Fridge3D(props: Props) {
       <directionalLight position={[-3, 2, 2]} intensity={0.5} />
       {!shape.wood && <pointLight position={[0, (shape.height / 1000) * 0.9, 0]} intensity={0.6} distance={2} />}
       {/* 문 없는 팬트리는 '닫힘' 클로즈업 대상이 아니다 */}
-      <CameraRig shape={shape} preset={camera} nonce={cameraNonce} closed={shape.doors.length > 0 && !shape.doors.some((d) => doorOpen[d.id])} />
+      <CameraRig
+        shape={shape}
+        preset={camera}
+        nonce={cameraNonce}
+        closed={shape.doors.length > 0 && !shape.doors.some((d) => doorOpen[d.id])}
+        focus={focus}
+      />
 
       <Cabinet shape={shape} />
       <CeilingLight shape={shape} onEgg={onEgg} />
@@ -942,6 +1115,7 @@ export default function Fridge3D(props: Props) {
           onSelect={onSelect}
           onOpen={onOpenItem}
           notes={d === shape.doors[0] ? notes : undefined}
+          photos={d === (shape.doors[1] ?? shape.doors[0]) ? photos : undefined}
           onOpenNotes={onOpenNotes}
         />
       ))}

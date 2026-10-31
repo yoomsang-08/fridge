@@ -1,5 +1,5 @@
-import { Heart } from 'lucide-react'
-import { magnetOf, notePaper, splitHashtags, timeAgo } from '../lib/notes'
+import { Heart, MessageCircle } from 'lucide-react'
+import { magnetOf, notePaper, shortAgo, splitHashtags } from '../lib/notes'
 import type { Note } from '../lib/types'
 import { cx } from '../lib/cx'
 import { SunnyEgg } from './ui'
@@ -15,11 +15,14 @@ const tiltOf = (id: string) => TILTS[[...id].reduce((n, ch) => n + ch.charCodeAt
 export function StickyNote({
   note,
   status,
+  comments = 0,
   onClick,
   className,
 }: {
   note: Note
   status?: 'new' | 'read' | 'unread'
+  /** 달린 댓글 수 */
+  comments?: number
   onClick?: () => void
   className?: string
 }) {
@@ -34,15 +37,21 @@ export function StickyNote({
       )}
     >
       <Magnet body={note.body} />
+      {status === 'new' && (
+        <span role="img" aria-label="새 메모" className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-accent" />
+      )}
       <p className="line-clamp-5 flex-1 text-[15px] leading-snug font-semibold break-keep whitespace-pre-wrap text-ink">
         <NoteText body={note.body} />
       </p>
       <div className="mt-2 flex items-center gap-1 text-xs text-muted">
         <span className="min-w-0 flex-1 truncate">
-          {note.author_name ?? '누군가'} · {timeAgo(note.created_at)}
+          {note.author_name ?? '누군가'} · {shortAgo(note.created_at)}
         </span>
-        {status === 'new' && (
-          <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">새 메모</span>
+        {comments > 0 && (
+          <span className="flex shrink-0 items-center gap-0.5 font-semibold text-ink/70" aria-label={`댓글 ${comments}개`}>
+            <MessageCircle size={12} strokeWidth={2.4} />
+            {comments}
+          </span>
         )}
         {status === 'read' && <span className="shrink-0 font-semibold text-accent">읽음</span>}
         {status === 'unread' && <span className="shrink-0 text-faint">안 읽음</span>}
