@@ -34,15 +34,15 @@ npm run dev
 
 로그인 화면은 없습니다. 각 기기는 익명 계정으로 자동 접속하고, 처음 한 번 **우리 집 코드**(12자리)를 넣어야 데이터가 열립니다. 첫 기기에서 "우리 집 새로 만들기"를 누르면 설정 화면에 코드가 나옵니다.
 
-## 스마트싱스 냉장고 연결 (온도 탭)
+## 스마트싱스 냉장고 연결 (냉장고 탭)
 
-온도 탭에서 삼성 냉장고의 냉장·냉동 온도, 문 상태, 이번 달 전기 사용량을 보고 급속냉동·급속냉장을 켜거나 설정 온도를 바꿉니다. 체험 모드에서는 예시 값이 보입니다.
+냉장고 탭 맨 위 **냉장고 상태** 카드에서 삼성 냉장고의 냉장·냉동 온도, 문 상태, 이번 달 전기 사용량을 보고 급속냉동·급속냉장을 켜거나 설정 온도를 바꿉니다. 체험 모드에서는 예시 값이 보입니다.
 
 스마트싱스 토큰은 브라우저에 두지 않고 Supabase Edge Function 이 대신 보관·호출합니다.
 
 1. **SQL Editor** 에서 `supabase/migrations/0004_smartthings.sql` 실행
-2. Edge Function 배포: `supabase functions deploy smartthings` (Supabase CLI, `supabase/functions/smartthings/` 폴더 전체)
-3. 앱 **온도** 탭에서 [스마트싱스 토큰](https://account.smartthings.com/tokens)을 붙여 넣고 연결 (Devices 권한 모두 체크)
+2. Edge Function 배포: 저장소 Secrets 에 `SUPABASE_ACCESS_TOKEN` 을 한 번 넣으면, `supabase/functions` 가 바뀌어 main 에 머지될 때마다 GitHub Actions(`supabase-functions.yml`)가 모든 함수를 배포합니다. 바로 배포하려면 Actions 탭에서 **Deploy Supabase Edge Functions → Run workflow**
+3. 앱 **냉장고** 탭의 냉장고 상태 → **연결** 에서 [스마트싱스 토큰](https://account.smartthings.com/tokens)을 붙여 넣고 연결 (Devices 권한 모두 체크)
 
 지금 쓰는 개인 토큰(PAT)은 24시간이면 만료돼서 하루에 한 번 새로 넣어야 합니다. 다음 단계에서 OAuth 로 바꿔 만료 없이 쓰게 할 예정입니다.
 

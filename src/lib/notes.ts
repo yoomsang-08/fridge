@@ -30,6 +30,9 @@ export function timeAgo(iso: string, now = Date.now()): string {
   return new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
 
+/** 냉장고 보기에서 문 앞면에 붙일 메모 수 (최근 것부터) */
+export const DOOR_NOTE_COUNT = 3
+
 /** 자주 남기는 말: 눌러서 채우기 */
 export const NOTE_SUGGESTIONS = [
   '장 볼 때 우유 사다 줘요',
