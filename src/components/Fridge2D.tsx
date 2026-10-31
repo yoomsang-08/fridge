@@ -91,7 +91,8 @@ function Chips({ box, items, onOpen, label }: { box: Box; items: Item[]; onOpen:
   const labelH = label ? Math.min(LABEL * 1.3 * lines.length, box.h * 0.4) : 0
   const pad = 10
   const area = { x: box.x + pad, y: box.y + labelH + pad / 2, w: box.w - pad * 2, h: box.h - labelH - pad }
-  const d = Math.max(34, Math.min(104, area.h * 0.92, area.w / 2.2))
+  // 많이 들어 있으면 작게 줄여서 최대한 다 보이게(누를 수 있는 34 아래로는 안 줄이고 +N)
+  const d = Math.max(34, Math.min(104, area.h * 0.92, area.w / 2.2, Math.sqrt((area.w * area.h) / Math.max(1, items.length)) / 1.1))
   const pitch = d * 1.1
   const cols = Math.max(1, Math.floor(area.w / pitch))
   const rows = Math.max(1, Math.floor(area.h / pitch))
