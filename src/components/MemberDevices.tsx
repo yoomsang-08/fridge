@@ -43,11 +43,15 @@ export function MemberDevices({
       {open && (
         <div className="flex flex-col gap-1 pb-1">
           <ul className="flex flex-col">
-            {rows.map((m) => {
+            {rows.map((m, i) => {
               const mine = m.id === me.id
+              // 같은 사람의 둘째 줄부터는 이름을 비워 사람 단위로 묶여 보이게
+              const first = i === 0 || rows[i - 1].name !== m.name
               return (
                 <li key={m.id} className="flex min-h-11 items-center gap-2 text-sm">
-                  <span className={cx('w-12 shrink-0 truncate font-bold', !m.name && 'text-faint')}>{m.name ?? '이름 없음'}</span>
+                  <span className={cx('w-12 shrink-0 truncate font-bold', !m.name && 'text-faint')}>
+                    {first ? (m.name ?? '이름 없음') : ''}
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-muted">
                     {m.device ?? '종류 모름'} · {mine ? '지금' : seenLabel(m.lastSeenAt)}
                   </span>
@@ -55,6 +59,7 @@ export function MemberDevices({
                     <span className="rounded-md bg-accent-soft px-1.5 py-px text-[11px] font-bold text-accent">이 기기</span>
                   ) : (
                     <IconButton
+                      className="text-expired/80"
                       aria-label={`${m.name ?? '이름 없음'}의 ${m.device ?? ''} 기기 지우기`}
                       onClick={async () => {
                         if (await confirm('이 기기를 지울까요?', '그 기기에서 다시 쓰려면 집 코드를 넣고 이름을 고르면 돼요. 식품과 메모는 그대로예요.', '지우기'))
