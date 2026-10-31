@@ -34,7 +34,8 @@ export const CELEBRATIONS: Family[] = [
 ]
 
 const H = (c: Omit<Celebration, 'kind'>): Celebration => ({ kind: 'holiday', magnet: c.charms?.[0], ...c })
-const FLAG = (id: string, title: string): Celebration => ({ id, title, message: '', kind: 'flag', magnet: 'flag', banner: false })
+/** 국경일: 가랜드·축하 없이 태극기 자석과 담담한 한 줄만. 현충일처럼 추모하는 날은 넣지 않는다 */
+const FLAG = (id: string, name: string): Celebration => ({ id, title: `오늘은 ${name}이에요`, message: '', kind: 'flag', magnet: 'flag', banner: false })
 
 export const HOLIDAYS = {
   seollal: H({ id: 'seollal', title: '새해 복 많이 받으세요', message: '떡국 재료는 챙기셨나요', charms: ['pouch'] }),

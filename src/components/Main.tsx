@@ -175,7 +175,10 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               <span className="block truncate text-xs text-muted">
                 {egg.on ? (
                   '써니사이드업 팀이 지선 님을 응원해요'
-                ) : celebration?.banner !== false && celebration ? (
+                ) : celebration?.kind === 'flag' ? (
+                  // 국경일은 축하색 없이 담담하게
+                  celebration.title
+                ) : celebration ? (
                   // 생일·기념일에는 집 이름 대신 축하 한 줄 (냉장고 탭에는 가랜드)
                   <span className="font-semibold text-accent">{celebration.title}</span>
                 ) : fridayNight ? (
