@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { formatCode } from '../lib/code'
 import { FRIDGE_TEMPLATES, ZONE_LABEL } from '../lib/templates'
 import type { Repo } from '../lib/repo'
 import type { Compartment, Fridge, Household, Zone } from '../lib/types'
@@ -41,13 +42,16 @@ export function Settings({ repo, household, fridges, compartments, isLocal, onSi
     <div className="flex flex-col gap-4">
       {!isLocal && (
         <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <h2 className="font-bold">함께 쓰기</h2>
-          <p className="mt-1 text-sm text-slate-500">배우자가 앱에 처음 로그인할 때 이 초대코드를 넣으면 같은 냉장고를 함께 봐요.</p>
+          <h2 className="font-bold">우리 집 코드</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            다른 폰이나 PC에서 앱을 처음 열 때 이 코드를 넣으면 같은 냉장고를 함께 봐요. 코드가 비밀번호 역할이니 우리끼리만
+            공유해 주세요.
+          </p>
           <button
             onClick={copyCode}
             className="mt-3 w-full rounded-xl bg-slate-100 py-3 font-mono text-xl font-bold tracking-[0.3em]"
           >
-            {household.invite_code}
+            {formatCode(household.invite_code)}
           </button>
           <p className="mt-1 text-center text-xs text-slate-400">{copied ? '복사했어요' : '눌러서 복사'}</p>
         </section>
@@ -158,11 +162,14 @@ export function Settings({ repo, household, fridges, compartments, isLocal, onSi
 
       {isLocal ? (
         <p className="px-1 text-sm text-slate-500">
-          지금은 체험 모드라 이 기기에만 저장돼요. Supabase를 연결하면 로그인 후 배우자와 함께 쓸 수 있어요.
+          지금은 체험 모드라 이 기기에만 저장돼요. Supabase를 연결하면 우리 집 코드로 배우자와 함께 쓸 수 있어요.
         </p>
       ) : (
-        <button onClick={onSignOut} className="rounded-xl bg-white py-3 text-slate-600 shadow-sm">
-          로그아웃
+        <button
+          onClick={() => confirm('이 기기의 연결을 해제할까요? 다시 쓰려면 우리 집 코드를 넣어야 해요.') && onSignOut?.()}
+          className="rounded-xl bg-white py-3 text-slate-600 shadow-sm"
+        >
+          이 기기 연결 해제
         </button>
       )}
     </div>

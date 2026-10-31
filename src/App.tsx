@@ -3,7 +3,6 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { createLocalRepo, createSupabaseRepo, LOCAL_HOUSEHOLD } from './lib/repo'
 import type { Household } from './lib/types'
-import { Login } from './components/Login'
 import { HouseholdSetup } from './components/HouseholdSetup'
 import { Main } from './components/Main'
 
@@ -17,11 +16,17 @@ const localRepo = createLocalRepo()
 function SupabaseApp({ sb }: { sb: SupabaseClient }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [household, setHousehold] = useState<Household | null | undefined>(undefined)
+  const [authError, setAuthError] = useState<string | null>(null)
   const repo = useMemo(() => (household ? createSupabaseRepo(sb, household) : null), [sb, household])
 
   useEffect(() => {
-    sb.auth.getSession().then(({ data }) => setSession(data.session))
     const { data } = sb.auth.onAuthStateChange((_event, s) => setSession(s))
+    // 로그인 화면 없이 기기마다 익명 계정으로 자동 접속. 우리 집 데이터 접근은 집 코드로 합류해야 열림
+    sb.auth.getSession().then(async ({ data }) => {
+      if (data.session) return setSession(data.session)
+      const { error } = await sb.auth.signInAnonymously()
+      if (error) setAuthError(error.message)
+    })
     return () => data.subscription.unsubscribe()
   }, [sb])
 
@@ -35,20 +40,23 @@ function SupabaseApp({ sb }: { sb: SupabaseClient }) {
     if (session) loadHousehold()
   }, [session, loadHousehold])
 
-  if (session === undefined || (session && household === undefined)) {
+  if (authError) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-2 px-6 text-center">
+        <p className="font-semibold">서버에 접속하지 못했어요</p>
+        <p className="text-sm text-slate-500">
+          Supabase의 Authentication 설정에서 Anonymous sign-ins 가 켜져 있는지 확인해 주세요.
+        </p>
+        <p className="text-xs text-slate-400">{authError}</p>
+      </div>
+    )
+  }
+  if (!session || household === undefined) {
     return <div className="flex min-h-dvh items-center justify-center text-slate-400">불러오는 중…</div>
   }
-  if (!session) return <Login sb={sb} />
 
   if (!household || !repo) {
-    const meta = session.user.user_metadata
-    return (
-      <HouseholdSetup
-        sb={sb}
-        defaultName={meta.full_name ?? meta.name ?? session.user.email?.split('@')[0] ?? ''}
-        onDone={loadHousehold}
-      />
-    )
+    return <HouseholdSetup sb={sb} onDone={loadHousehold} />
   }
 
   return (
