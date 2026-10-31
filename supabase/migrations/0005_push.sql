@@ -9,6 +9,8 @@ create table push_subscriptions (
   auth text not null,
   /** 매일 아침 기한 임박 알림을 받을지 */
   expiry_digest boolean not null default true,
+  /** 아침 알림을 받을 시각(한국 시간, 0~23시) */
+  digest_hour smallint not null default 8 check (digest_hour between 0 and 23),
   created_at timestamptz not null default now()
 );
 

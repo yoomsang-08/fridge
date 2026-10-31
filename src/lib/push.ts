@@ -69,3 +69,38 @@ export async function disablePush(sb: SupabaseClient): Promise<PushState> {
   }
   return 'off'
 }
+
+export interface DigestPrefs {
+  /** 아침 기한 알림 받기 */
+  on: boolean
+  /** 받을 시각(한국 시간, 0~23시) */
+  hour: number
+}
+
+async function currentEndpoint(): Promise<string | null> {
+  const reg = await navigator.serviceWorker.getRegistration()
+  return (await reg?.pushManager.getSubscription())?.endpoint ?? null
+}
+
+/** 이 기기의 아침 알림 설정. 알림을 켜지 않았으면 null */
+export async function getDigestPrefs(sb: SupabaseClient): Promise<DigestPrefs | null> {
+  const endpoint = await currentEndpoint()
+  if (!endpoint) return null
+  const { data, error } = await sb
+    .from('push_subscriptions')
+    .select('expiry_digest, digest_hour')
+    .eq('endpoint', endpoint)
+    .maybeSingle()
+  if (error) throw error
+  return data ? { on: data.expiry_digest, hour: data.digest_hour } : null
+}
+
+export async function setDigestPrefs(sb: SupabaseClient, prefs: DigestPrefs): Promise<void> {
+  const endpoint = await currentEndpoint()
+  if (!endpoint) throw new Error('push_off')
+  const { error } = await sb
+    .from('push_subscriptions')
+    .update({ expiry_digest: prefs.on, digest_hour: prefs.hour })
+    .eq('endpoint', endpoint)
+  if (error) throw error
+}
