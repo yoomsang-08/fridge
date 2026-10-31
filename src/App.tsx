@@ -2,22 +2,25 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { createLocalRepo, createSupabaseRepo, LOCAL_HOUSEHOLD } from './lib/repo'
+import { createDemoSmartThings, createSmartThings } from './lib/smartthings'
 import type { Household } from './lib/types'
 import { HouseholdSetup } from './components/HouseholdSetup'
 import { Main } from './components/Main'
 
 export default function App() {
-  if (!supabase) return <Main repo={localRepo} household={LOCAL_HOUSEHOLD} isLocal />
+  if (!supabase) return <Main repo={localRepo} household={LOCAL_HOUSEHOLD} smartthings={demoSmartThings} isLocal />
   return <SupabaseApp sb={supabase} />
 }
 
 const localRepo = createLocalRepo()
+const demoSmartThings = createDemoSmartThings()
 
 function SupabaseApp({ sb }: { sb: SupabaseClient }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [household, setHousehold] = useState<Household | null | undefined>(undefined)
   const [authError, setAuthError] = useState<string | null>(null)
   const repo = useMemo(() => (household ? createSupabaseRepo(sb, household) : null), [sb, household])
+  const smartthings = useMemo(() => (household ? createSmartThings(sb, household.id) : null), [sb, household])
 
   useEffect(() => {
     const { data } = sb.auth.onAuthStateChange((_event, s) => setSession(s))
@@ -55,7 +58,7 @@ function SupabaseApp({ sb }: { sb: SupabaseClient }) {
     return <div className="flex min-h-dvh items-center justify-center text-faint">불러오는 중…</div>
   }
 
-  if (!household || !repo) {
+  if (!household || !repo || !smartthings) {
     return <HouseholdSetup sb={sb} onDone={loadHousehold} />
   }
 
@@ -64,6 +67,7 @@ function SupabaseApp({ sb }: { sb: SupabaseClient }) {
       key={household.id}
       repo={repo}
       household={household}
+      smartthings={smartthings}
       onSignOut={() => sb.auth.signOut()}
     />
   )
