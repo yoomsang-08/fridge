@@ -6,8 +6,8 @@ import { Sheet } from './Sheet'
 import { cx } from '../lib/cx'
 import { SpaceIcon } from './SpaceIcon'
 import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
-import { autoDays, categoryOf, CONTAINERS, daysLabel, guessContainer, UNITS, useCategories } from '../lib/categories'
-import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE, LEVEL_TEXT } from '../lib/expiry'
+import { autoDays, categoryOf, guessCategoryByName, CONTAINERS, daysLabel, guessContainer, UNITS, useCategories } from '../lib/categories'
+import { addDays, addMonths, daysLeft, expiryLabel, expiryLevel, LEVEL_STYLE, LEVEL_TEXT } from '../lib/expiry'
 import {
   foodSearchAvailable,
   guessCategory,
@@ -18,6 +18,13 @@ import {
 import { ZONE_LABEL } from '../lib/templates'
 import type { ItemAction } from '../lib/repo'
 import type { Compartment, Container, Fridge, Item, ItemInput, Member } from '../lib/types'
+
+/** 기한이 지난 식품 연장: 오늘부터 며칠 더 */
+const EXTEND_DAYS: [number, string][] = [
+  [1, '1일'],
+  [3, '3일'],
+  [7, '1주'],
+]
 
 const QUICK_VISIBLE = 5
 const LAST_SPACE_KEY = 'fridge-last-space'
@@ -82,6 +89,12 @@ export function ItemSheet({
   )
   const [name, setName] = useState(item?.name ?? '')
   const [category, setCategory] = useState(item?.category ?? 'etc')
+  // 칩을 직접 누르기 전까지는 이름을 보고 분류를 정한다 (같은 이름을 넣은 적 있으면 그때 분류)
+  const [categoryTouched, setCategoryTouched] = useState(!!item)
+  // 자동으로 고른 칩이 가로 스크롤 밖에 있으면 보이게
+  useEffect(() => {
+    document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [category])
   const [quantity, setQuantity] = useState(item?.quantity ?? 1)
   const [unit, setUnit] = useState(item?.unit ?? '개')
   const [container, setContainer] = useState<Container | null>(item?.container ?? null)
@@ -235,6 +248,8 @@ export function ItemSheet({
     setQuantity(1)
     setExpiry(null)
     setExpiryTouched(false)
+    setCategoryTouched(false)
+    setCategory('etc')
     setOpened(false)
     setContainer(null)
     setMemo('')
@@ -243,7 +258,8 @@ export function ItemSheet({
     setScanNote(null)
   }
 
-  const save = async (keepOpen: boolean) => {
+  /** expiryOverride: 기한 연장처럼 날짜만 바꿔 바로 저장할 때 */
+  const save = async (keepOpen: boolean, expiryOverride?: string) => {
     if (!name.trim() || !compartmentId) return
     setBusy(true)
     setError(null)
@@ -256,7 +272,7 @@ export function ItemSheet({
           category,
           quantity,
           unit,
-          expiry_date: expiryValue,
+          expiry_date: expiryOverride ?? expiryValue,
           expiry_type: expiryType,
           opened,
           memo: memo.trim() || null,
@@ -317,6 +333,11 @@ export function ItemSheet({
               place={placeLabel(item.compartment_id)}
               busy={busy}
               onAct={(a) => run(() => onAction(item, a))}
+              onExtend={(days) => {
+                const v = addDays(days)
+                pickExpiry(v)
+                save(false, v)
+              }}
             />
           )}
 
@@ -335,6 +356,7 @@ export function ItemSheet({
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value)
+                  if (!categoryTouched) setCategory(guessCategoryByName(e.target.value, history) ?? 'etc')
                   if (EASTER_NAMES.has(e.target.value.trim()))
                     showEgg('이 냉장고의 주인공이시네요. 오늘도 맛있는 하루 보내세요.')
                 }}
@@ -397,8 +419,19 @@ export function ItemSheet({
             )}
             <div className="-mx-5 mt-3 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
               {categories.map((c) => (
-                <Chip key={c.id} active={c.id === category} onClick={() => setCategory(c.id)}>
+                <Chip
+                  key={c.id}
+                  data-cat={c.id}
+                  active={c.id === category}
+                  onClick={() => {
+                    setCategory(c.id)
+                    setCategoryTouched(true)
+                  }}
+                >
                   <span aria-hidden>{c.emoji}</span> {c.label}
+                  {!categoryTouched && c.id === category && category !== 'etc' && (
+                    <span className="rounded-md bg-white/20 px-1 text-[10px] font-bold">자동</span>
+                  )}
                 </Chip>
               ))}
             </div>
@@ -674,11 +707,13 @@ function ItemSummary({
   place,
   busy,
   onAct,
+  onExtend,
 }: {
   item: Item
   place: string
   busy: boolean
   onAct: (action: ItemAction) => void
+  onExtend: (days: number) => void
 }) {
   const cat = categoryOf(item.category)
   const lv = expiryLevel(item.expiry_date)
@@ -712,6 +747,26 @@ function ItemSummary({
           )}
         </div>
       </div>
+      {lv === 'expired' && (
+        <div className="rounded-2xl bg-expired-soft p-3.5">
+          <p className="text-sm font-extrabold text-expired">
+            {item.expiry_type === 'use_by' ? '소비기한' : '유통기한'}이 {-daysLeft(item.expiry_date)!}일 지났어요
+          </p>
+          <p className="mt-1 text-[13px] leading-relaxed text-ink/80">
+            {item.expiry_type === 'use_by'
+              ? '소비기한이 지나면 먹지 않는 게 안전해요. 냉동해 두었거나 냄새·색·포장이 괜찮아서 더 둘 거라면 기한을 늘려 주세요.'
+              : '유통기한은 파는 기한이라, 보관을 잘했다면 며칠 더 먹을 수 있어요. 냄새·색·포장을 확인하고 늘려 주세요.'}
+          </p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="mr-0.5 text-xs font-semibold text-muted">오늘부터</span>
+            {EXTEND_DAYS.map(([d, l]) => (
+              <Chip key={d} disabled={busy} onClick={() => onExtend(d)}>
+                {l} 더
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
       <div className={cx('grid gap-2', many ? 'grid-cols-3' : 'grid-cols-2')}>
         {many && (
           <Button variant="secondary" size="md" disabled={busy} onClick={() => onAct('use')}>
