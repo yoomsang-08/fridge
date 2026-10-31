@@ -83,8 +83,8 @@ npx supabase functions deploy food-search
 ## 알림 (웹 푸시)
 
 - 설정 → **알림**을 켠 기기에, **아침 기한 알림**을 켜 두면 고른 시각(기본 오전 8시)에 '오늘까지 · 3일 안에 · 기한 지남' 식품을 알려 줍니다. 기기마다 따로 정합니다. 아이폰은 홈 화면에 추가한 앱에서만 받을 수 있습니다.
-- 예약 실행은 매시 5분쯤 돌고, 그 시각을 고른 기기에만 보냅니다. Actions → Morning expiry digest → Run workflow 로 바로 시험해 볼 수 있습니다(시각과 상관없이 모두에게).
-- 구성: `push_subscriptions` 테이블(0005), 공용 헬퍼 `supabase/functions/_shared/push.ts` 의 `sendToHousehold()`, 아침 알림 함수 `expiry-digest`, 예약 실행 `.github/workflows/expiry-digest.yml`, 서비스워커 수신 `public/push-sw.js`.
+- 예약 실행은 Supabase 예약 작업(pg_cron, `0009_hardening.sql`)이 매시 정각에 돌고, 그 시각을 고른 기기에만 보냅니다. Actions → Morning expiry digest → Run workflow 로 바로 시험해 볼 수 있습니다(시각과 상관없이 모두에게).
+- 구성: `push_subscriptions` 테이블(0005), 공용 헬퍼 `supabase/functions/_shared/push.ts` 의 `sendToHousehold()`, 아침 알림 함수 `expiry-digest`, 예약 작업 `cron.job` 'expiry-digest'(0009), 시험용 수동 실행 `.github/workflows/expiry-digest.yml`, 서비스워커 수신 `public/push-sw.js`.
 - 다른 알림을 보낼 함수는 `sendToHousehold(hid, { title, body, url, tag }, { onlyDisplayNames, onlyUserIds, excludeUserIds })` 만 부르면 됩니다.
 - 서명 키(VAPID)는 처음 알림을 켤 때 `push-key` 함수가 만들어 `push_config` 테이블(service role 전용)에 저장합니다. 저장소에 넣을 키는 없습니다.
 - 따로 넣을 Secret 은 없습니다. 아침 알림 호출 확인값(`CRON_SECRET`)은 두 워크플로가 `SUPABASE_ACCESS_TOKEN` 에서 같은 방식으로 만들어 씁니다. 직접 정하고 싶으면 저장소 Secret `CRON_SECRET` 에 넣으면 그 값을 씁니다.

@@ -1,12 +1,11 @@
 name: Morning expiry digest
 
-# 매시 5분쯤 실행해, 설정에서 그 시각을 고른 기기에 기한 임박 알림을 보냅니다.
-# GitHub 예약 실행은 몇 분~수십 분 늦을 수 있어요. 직접 실행할 때 all 을 켜면 시각과 상관없이 모두에게 보냅니다(시험용).
+# 아침 알림 시험용 수동 실행. 매시 예약 실행은 Supabase 예약 작업(pg_cron, 0009_hardening.sql)이 합니다.
+# (GitHub 예약 실행은 늦거나 건너뛰고, 60일간 저장소 변경이 없으면 멈춰서 옮겼습니다)
+# all 을 켜면 시각과 상관없이 알림 켠 기기 모두에게 보냅니다.
 # 호출 확인값 CRON_SECRET 은 supabase-functions 워크플로와 같은 방식으로 SUPABASE_ACCESS_TOKEN 에서 만듭니다.
 # 토큰을 바꿨다면 supabase-functions 워크플로를 한 번 다시 실행해 함수 쪽 값도 맞춰 주세요.
 on:
-  schedule:
-    - cron: '5 * * * *'
   workflow_dispatch:
     inputs:
       all:
