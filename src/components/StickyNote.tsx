@@ -1,4 +1,4 @@
-import { Heart } from 'lucide-react'
+import { Heart, MessageCircle } from 'lucide-react'
 import { magnetOf, notePaper, splitHashtags, timeAgo } from '../lib/notes'
 import type { Note } from '../lib/types'
 import { cx } from '../lib/cx'
@@ -15,11 +15,14 @@ const tiltOf = (id: string) => TILTS[[...id].reduce((n, ch) => n + ch.charCodeAt
 export function StickyNote({
   note,
   status,
+  comments = 0,
   onClick,
   className,
 }: {
   note: Note
   status?: 'new' | 'read' | 'unread'
+  /** 달린 댓글 수 */
+  comments?: number
   onClick?: () => void
   className?: string
 }) {
@@ -41,6 +44,12 @@ export function StickyNote({
         <span className="min-w-0 flex-1 truncate">
           {note.author_name ?? '누군가'} · {timeAgo(note.created_at)}
         </span>
+        {comments > 0 && (
+          <span className="flex shrink-0 items-center gap-0.5 font-semibold text-ink/70" aria-label={`댓글 ${comments}개`}>
+            <MessageCircle size={12} strokeWidth={2.4} />
+            {comments}
+          </span>
+        )}
         {status === 'new' && (
           <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">새 메모</span>
         )}

@@ -10,7 +10,7 @@ export const NOTE_COLORS: { id: NoteColor; label: string; paper: string }[] = [
 export const notePaper = (color: NoteColor) => NOTE_COLORS.find((c) => c.id === color)?.paper ?? 'bg-note-yellow'
 
 /** 한 사람이 기기를 여러 개 쓰면 기기마다 계정이 달라서, 이름이 같아도 내 메모로 본다 */
-export function isMine(note: Note, me: Me): boolean {
+export function isMine(note: Pick<Note, 'author_id' | 'author_name'>, me: Me): boolean {
   return note.author_id === me.id || (!!me.name && note.author_name === me.name)
 }
 

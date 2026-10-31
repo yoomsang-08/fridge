@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashtagsOf } from './notes'
-import type { Compartment, Fridge, Household, Item, ItemInput, Me, Member, Note, NoteInput, Zone } from './types'
+import type { Compartment, Fridge, Household, Item, ItemInput, Me, Member, Note, NoteComment, NoteInput, Zone } from './types'
 import type { FridgeTemplate } from './templates'
 import { DEFAULT_CATEGORIES, setCategories, type Category } from './categories'
 
@@ -12,6 +12,8 @@ export interface Snapshot {
   history: Item[]
   /** 냉장고 문 메모, 최근 것부터 */
   notes: Note[]
+  /** 메모 댓글, 오래된 것부터 */
+  comments: NoteComment[]
   me: Me
   /** 우리 집 식구들. 나도 포함 */
   members: Member[]
@@ -35,8 +37,11 @@ export interface Repo {
   addNote(input: NoteInput): Promise<void>
   /** 냉장고 문에서 떼기 */
   deleteNote(id: string): Promise<void>
-  /** 뗀 메모 되돌리기: 같은 메모를 그대로 다시 붙인다 */
-  restoreNote(note: Note): Promise<void>
+  /** 뗀 메모 되돌리기: 같은 메모와 댓글을 그대로 다시 붙인다 */
+  restoreNote(note: Note, comments: NoteComment[]): Promise<void>
+  addComment(noteId: string, body: string): Promise<void>
+  /** 내가 단 댓글 지우기 */
+  deleteComment(id: string): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
   markNotesRead(ids: string[]): Promise<void>
   /** 이 기기를 쓰는 사람의 이름 바꾸기 */
@@ -63,7 +68,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async load() {
       const { data: auth } = await sb.auth.getSession()
       const uid = auth.session?.user.id ?? ''
-      const [f, c, i, h, n, m, k] = await Promise.all([
+      const [f, c, i, h, n, m, k, nc] = await Promise.all([
         sb.from('fridges').select('*').eq('household_id', hid).order('sort_order').order('created_at'),
         sb.from('compartments').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
@@ -71,6 +76,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('notes').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100),
         sb.from('household_members').select('user_id, display_name').eq('household_id', hid).order('created_at'),
         sb.from('categories').select('id, label, emoji, tint, hidden').eq('household_id', hid).order('sort_order'),
+        sb.from('note_comments').select('*').eq('household_id', hid).order('created_at').limit(500),
       ])
       // 0007 마이그레이션 전이면 테이블이 없으니 기본 분류로
       setCategories((k.data as Category[] | null) ?? DEFAULT_CATEGORIES)
@@ -82,6 +88,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         history: check(h).data as Item[],
         // 메모 테이블을 아직 만들지 않았어도 나머지 화면은 열리게
         notes: (n.data ?? []) as Note[],
+        // 0008 마이그레이션 전이면 댓글 없이
+        comments: (nc.data ?? []) as NoteComment[],
         me: members.find((x) => x.id === uid) ?? { id: uid, name: null },
         members,
       }
@@ -170,8 +178,31 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async deleteNote(id) {
       check(await sb.from('notes').delete().eq('id', id))
     },
-    async restoreNote(note) {
+    async restoreNote(note, comments) {
       check(await sb.from('notes').insert(note))
+      if (comments.length) await sb.from('note_comments').insert(comments)
+    },
+    async addComment(noteId, body) {
+      const { data: auth } = await sb.auth.getSession()
+      const uid = auth.session?.user.id
+      const { data: m } = await sb
+        .from('household_members')
+        .select('display_name')
+        .eq('household_id', hid)
+        .eq('user_id', uid ?? '')
+        .maybeSingle()
+      const { data: c } = check(
+        await sb
+          .from('note_comments')
+          .insert({ note_id: noteId, household_id: hid, body, author_name: m?.display_name || null })
+          .select('id')
+          .single(),
+      )
+      // 메모 쓴 사람(과 앞서 댓글 단 식구)에게 알림. 기다리지 않는다
+      sb.functions.invoke('note-notify', { body: { comment_id: c!.id } }).catch(() => {})
+    },
+    async deleteComment(id) {
+      check(await sb.from('note_comments').delete().eq('id', id))
     },
     async renameMe(name) {
       const { data: auth } = await sb.auth.getSession()
@@ -184,7 +215,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     },
     subscribe(onChange) {
       const channel = sb.channel(`household-${hid}`)
-      for (const table of ['fridges', 'compartments', 'items', 'notes']) {
+      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments']) {
         channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `household_id=eq.${hid}` }, onChange)
       }
       channel.subscribe()
@@ -212,7 +243,7 @@ export function createLocalRepo(): Repo {
   const read = (): Stored => {
     const raw = localStorage.getItem(LOCAL_KEY)
     const s = raw ? JSON.parse(raw) : {}
-    return { fridges: [], compartments: [], items: [], notes: [], ...s }
+    return { fridges: [], compartments: [], items: [], notes: [], comments: [], ...s }
   }
   const write = (s: Stored) => localStorage.setItem(LOCAL_KEY, JSON.stringify(s))
   const mutate = async (fn: (s: Stored) => void) => {
@@ -323,10 +354,28 @@ export function createLocalRepo(): Repo {
     deleteNote: (nid) =>
       mutate((s) => {
         s.notes = s.notes.filter((n) => n.id !== nid)
+        s.comments = s.comments.filter((c) => c.note_id !== nid)
       }),
-    restoreNote: (note) =>
+    restoreNote: (note, comments) =>
       mutate((s) => {
         s.notes = [note, ...s.notes].sort((a, b) => b.created_at.localeCompare(a.created_at))
+        s.comments = [...s.comments, ...comments].sort((a, b) => a.created_at.localeCompare(b.created_at))
+      }),
+    addComment: (noteId, body) =>
+      mutate((s) => {
+        s.comments.push({
+          id: id(),
+          note_id: noteId,
+          household_id: LOCAL_HID,
+          body,
+          author_id: LOCAL_ME_ID,
+          author_name: localMe().name,
+          created_at: now(),
+        })
+      }),
+    deleteComment: (cid) =>
+      mutate((s) => {
+        s.comments = s.comments.filter((c) => c.id !== cid)
       }),
     markNotesRead: async () => {},
     async renameMe(name) {

@@ -1,11 +1,11 @@
-import { Check } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { useState } from 'react'
 import { isMine, NOTE_COLORS, NOTE_SUGGESTIONS, notePaper, timeAgo } from '../lib/notes'
-import type { Me, Member, Note, NoteColor, NoteInput } from '../lib/types'
+import type { Me, Member, Note, NoteColor, NoteComment, NoteInput } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Sheet } from './Sheet'
 import { NoteText } from './StickyNote'
-import { Button, Chip, Field } from './ui'
+import { Button, Chip, Field, TextInput } from './ui'
 
 const MAX = 200
 const LAST_COLOR_KEY = 'fridge-last-note-color'
@@ -128,16 +128,42 @@ export function NoteWriteSheet({
 /** 메모 크게 보기, 떼기 */
 export function NoteViewSheet({
   note,
+  comments,
   me,
   onClose,
   onRemove,
+  onComment,
+  onDeleteComment,
 }: {
   note: Note
+  /** 이 메모에 달린 댓글, 오래된 것부터 */
+  comments: NoteComment[]
   me: Me
   onClose: () => void
   onRemove: () => Promise<void>
+  onComment: (body: string) => Promise<void>
+  onDeleteComment: (id: string) => Promise<void>
 }) {
   const mine = isMine(note, me)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const text = draft.trim()
+
+  const send = async () => {
+    if (!text || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onComment(text)
+      setDraft('')
+    } catch {
+      setError('댓글을 달지 못했어요. 잠시 뒤 다시 해 주세요.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Sheet
       title={mine ? '내가 남긴 메모' : `${note.author_name ?? '누군가'}의 메모`}
@@ -162,6 +188,57 @@ export function NoteViewSheet({
         {note.author_name ?? '누군가'} · {timeAgo(note.created_at)}
         {mine && (note.read_at ? ` · ${timeAgo(note.read_at)} 읽음` : ' · 아직 안 읽음')}
       </p>
+
+      <section className="mt-5 border-t border-line pt-4" aria-label="댓글">
+        <h3 className="text-[13px] font-bold text-muted">댓글{comments.length > 0 && ` ${comments.length}`}</h3>
+        {comments.length > 0 && (
+          <ul className="mt-2 flex flex-col gap-2">
+            {comments.map((c) => {
+              const own = isMine(c, me)
+              return (
+                <li key={c.id} className={cx('rounded-2xl px-3.5 py-2.5', own ? 'bg-accent-soft' : 'bg-sunken')}>
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    <span className="font-bold text-ink">{c.author_name ?? '누군가'}</span>
+                    <span className="flex-1">{timeAgo(c.created_at)}</span>
+                    {own && (
+                      <button
+                        onClick={() => onDeleteComment(c.id).catch(() => setError('댓글을 지우지 못했어요.'))}
+                        aria-label="내 댓글 지우기"
+                        className="-my-1 -mr-1.5 grid h-7 w-7 place-items-center rounded-full text-faint transition active:bg-ink/10"
+                      >
+                        <X size={14} strokeWidth={2.4} />
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[15px] leading-snug break-keep whitespace-pre-wrap text-ink">
+                    <NoteText body={c.body} />
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        <form
+          className="mt-3 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            send()
+          }}
+        >
+          <TextInput
+            value={draft}
+            maxLength={MAX}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={comments.length ? '댓글 달기' : '첫 댓글을 남겨 보세요'}
+            aria-label="댓글 쓰기"
+            enterKeyHint="send"
+          />
+          <Button type="submit" className="h-12 shrink-0" disabled={!text || busy}>
+            달기
+          </Button>
+        </form>
+        {error && <p className="mt-2 text-sm text-expired">{error}</p>}
+      </section>
     </Sheet>
   )
 }

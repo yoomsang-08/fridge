@@ -99,6 +99,17 @@ export interface Note {
 
 export type NoteInput = Pick<Note, 'body' | 'color'>
 
+/** 메모에 단 댓글 */
+export interface NoteComment {
+  id: string
+  note_id: string
+  household_id: string
+  body: string
+  author_id: string | null
+  author_name: string | null
+  created_at: string
+}
+
 /** 이 기기를 쓰는 사람 */
 export interface Me {
   id: string

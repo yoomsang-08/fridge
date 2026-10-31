@@ -1,10 +1,11 @@
 import { Plus } from 'lucide-react'
 import { isMine } from '../lib/notes'
-import type { Me, Note } from '../lib/types'
+import type { Me, Note, NoteComment } from '../lib/types'
 import { StickyNote } from './StickyNote'
 
 interface Props {
   notes: Note[]
+  comments: NoteComment[]
   me: Me
   /** 이번에 메모 탭을 열기 전까지 안 봤던 메모. 탭에 있는 동안 '새 메모'로 보인다 */
   fresh: Set<string>
@@ -13,7 +14,9 @@ interface Props {
 }
 
 /** 메모 탭: 냉장고 문 한 짝에 메모가 붙어 있는 모양 */
-export function NoteBoard({ notes, me, fresh, onOpen, onWrite }: Props) {
+export function NoteBoard({ notes, comments, me, fresh, onOpen, onWrite }: Props) {
+  const countOf = new Map<string, number>()
+  for (const c of comments) countOf.set(c.note_id, (countOf.get(c.note_id) ?? 0) + 1)
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -39,6 +42,7 @@ export function NoteBoard({ notes, me, fresh, onOpen, onWrite }: Props) {
               key={n.id}
               note={n}
               onClick={() => onOpen(n)}
+              comments={countOf.get(n.id) ?? 0}
               status={fresh.has(n.id) ? 'new' : isMine(n, me) ? (n.read_at ? 'read' : 'unread') : undefined}
             />
           ))}
