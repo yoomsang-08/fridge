@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashtagsOf } from './notes'
 import type { Compartment, Fridge, Household, Item, ItemInput, Me, Member, Note, NoteInput, Zone } from './types'
 import type { FridgeTemplate } from './templates'
+import { DEFAULT_CATEGORIES, setCategories, type Category } from './categories'
 
 export interface Snapshot {
   fridges: Fridge[]
@@ -62,14 +63,17 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async load() {
       const { data: auth } = await sb.auth.getSession()
       const uid = auth.session?.user.id ?? ''
-      const [f, c, i, h, n, m] = await Promise.all([
+      const [f, c, i, h, n, m, k] = await Promise.all([
         sb.from('fridges').select('*').eq('household_id', hid).order('sort_order').order('created_at'),
         sb.from('compartments').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
         sb.from('items').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(300),
         sb.from('notes').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100),
         sb.from('household_members').select('user_id, display_name').eq('household_id', hid).order('created_at'),
+        sb.from('categories').select('id, label, emoji, tint, hidden').eq('household_id', hid).order('sort_order'),
       ])
+      // 0007 마이그레이션 전이면 테이블이 없으니 기본 분류로
+      setCategories((k.data as Category[] | null) ?? DEFAULT_CATEGORIES)
       const members: Member[] = (check(m).data ?? []).map((r) => ({ id: r.user_id, name: r.display_name || null }))
       return {
         fridges: check(f).data as Fridge[],
@@ -222,6 +226,7 @@ export function createLocalRepo(): Repo {
   return {
     async load() {
       const s = read()
+      setCategories(DEFAULT_CATEGORIES)
       const history = [...s.items].sort((a, b) => b.created_at.localeCompare(a.created_at))
       const me = localMe()
       return { ...s, items: s.items.filter((i) => i.status === 'active'), history, me, members: [me] }

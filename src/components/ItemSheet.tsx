@@ -5,7 +5,7 @@ import { useDialog } from './Dialog'
 import { Sheet } from './Sheet'
 import { cx } from '../lib/cx'
 import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
-import { CATEGORIES, UNITS } from '../lib/categories'
+import { CONTAINERS, UNITS, useCategories } from '../lib/categories'
 import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE } from '../lib/expiry'
 import {
   foodSearchAvailable,
@@ -16,7 +16,7 @@ import {
 } from '../lib/foodSearch'
 import { ZONE_LABEL } from '../lib/templates'
 import type { ItemAction } from '../lib/repo'
-import type { Compartment, Fridge, Item, ItemInput, Member } from '../lib/types'
+import type { Compartment, Container, Fridge, Item, ItemInput, Member } from '../lib/types'
 
 const QUICK_VISIBLE = 5
 
@@ -75,6 +75,8 @@ export function ItemSheet({
   const [category, setCategory] = useState(item?.category ?? 'etc')
   const [quantity, setQuantity] = useState(item?.quantity ?? 1)
   const [unit, setUnit] = useState(item?.unit ?? '개')
+  const [container, setContainer] = useState<Container | null>(item?.container ?? null)
+  const categories = useCategories().filter((c) => !c.hidden || c.id === item?.category)
   const [expiry, setExpiry] = useState<string | null>(item?.expiry_date ?? null)
   const [expiryType, setExpiryType] = useState(item?.expiry_type ?? 'use_by')
   const [opened, setOpened] = useState(item?.opened ?? false)
@@ -194,11 +196,23 @@ export function ItemSheet({
     setExpiryType(h.expiry_type)
   }
 
+  // 식품안전나라에서 고른 이름 그대로면 원본 정보도 남긴다 (나중에 일괄 재분류 근거)
+  const fromProduct = picked && name.trim() === picked.name ? picked : null
+  /** 새 칸은 값이 있을 때만 보낸다: 0007 마이그레이션 전에도 기본 저장은 되도록 */
+  const productFields = (): Partial<ItemInput> => {
+    const f: Partial<ItemInput> = {}
+    if (container || item?.container) f.container = container
+    if (fromProduct?.foodType) f.food_type = fromProduct.foodType
+    if (fromProduct?.barcode) f.barcode = fromProduct.barcode
+    return f
+  }
+
   const reset = () => {
     setName('')
     setQuantity(1)
     setExpiry(null)
     setOpened(false)
+    setContainer(null)
     setMemo('')
     setPicked(null)
     setFound(null)
@@ -221,6 +235,7 @@ export function ItemSheet({
           expiry_type: expiryType,
           opened,
           memo: memo.trim() || null,
+          ...productFields(),
         },
         keepOpen,
       )
@@ -335,7 +350,7 @@ export function ItemSheet({
               </div>
             )}
             <div className="-mx-5 mt-3 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <Chip key={c.id} active={c.id === category} onClick={() => setCategory(c.id)}>
                   <span aria-hidden>{c.emoji}</span> {c.label}
                 </Chip>
@@ -432,6 +447,18 @@ export function ItemSheet({
               >
                 개봉함
               </Chip>
+            </div>
+            <div className="-mx-5 mt-2 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+              {CONTAINERS.map((c) => (
+                <Chip
+                  key={c.id}
+                  active={c.id === container}
+                  aria-pressed={c.id === container}
+                  onClick={() => setContainer(c.id === container ? null : c.id)}
+                >
+                  {c.label}
+                </Chip>
+              ))}
             </div>
           </Field>
 

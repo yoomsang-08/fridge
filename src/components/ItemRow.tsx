@@ -21,7 +21,10 @@ export function ItemRow({
   return (
     <li className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
       <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onOpen(i)}>
-        <span className={cx('grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[22px]', cat.tint)}>
+        <span
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[22px]"
+          style={{ backgroundColor: cat.tint }}
+        >
           {cat.emoji}
         </span>
         <span className="min-w-0 flex-1">
