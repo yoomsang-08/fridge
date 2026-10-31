@@ -19,7 +19,6 @@ create table if not exists categories (
 
 alter table categories enable row level security;
 drop policy if exists "members all categories" on categories;
-drop policy if exists "members all categories" on categories;
 create policy "members all categories" on categories
   for all using (is_member(household_id)) with check (is_member(household_id));
 
@@ -53,7 +52,6 @@ begin
   return new;
 end $$;
 
-drop trigger if exists households_seed_categories on households;
 drop trigger if exists households_seed_categories on households;
 create trigger households_seed_categories after insert on households
   for each row execute function seed_categories_on_household();
