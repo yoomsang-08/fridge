@@ -34,6 +34,9 @@
   --color-note-mint: #dcf1e4;
   --color-note-sky: #dceaf6;
 
+  /* 국경일 태극기 자석의 파랑. 명절 장식에만 쓴다 */
+  --color-festive-blue: #2c4f9e;
+
   --radius-card: 1.125rem;
   --shadow-card: 0 1px 2px rgb(23 32 28 / 0.04), 0 1px 1px rgb(23 32 28 / 0.03);
   --shadow-float: 0 12px 28px -10px rgb(30 107 82 / 0.55);

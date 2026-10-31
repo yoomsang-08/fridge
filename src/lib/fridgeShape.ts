@@ -238,6 +238,7 @@ const TOKEN_FALLBACK = {
   'note-pink': '#fde0e3',
   'note-mint': '#dcf1e4',
   'note-sky': '#dceaf6',
+  'festive-blue': '#2c4f9e',
 } as const
 
 export type Token = keyof typeof TOKEN_FALLBACK

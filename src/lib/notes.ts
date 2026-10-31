@@ -1,3 +1,4 @@
+import type { MagnetKind } from './magnets'
 import type { Me, Note, NoteColor } from './types'
 
 export const NOTE_COLORS: { id: NoteColor; label: string; paper: string }[] = [
@@ -46,11 +47,14 @@ export const NOTE_SUGGESTIONS = [
 ]
 
 /** 사랑 표현엔 하트 자석, 계란 얘기엔 계란 프라이 자석, 축하엔 케이크 자석 */
-export function magnetOf(body: string): 'heart' | 'egg' | 'cake' | 'dot' {
+export function magnetOf(body: string, day?: MagnetKind): MagnetKind {
   if (/사랑|고마워|고맙|좋아해|보고 ?싶|♥|❤|love/i.test(body)) return 'heart'
   if (/생일|축하|기념일|케이크|생축/.test(body)) return 'cake'
   if (/계란|달걀|에그|써니|sunny/i.test(body)) return 'egg'
-  return 'dot'
+  if (/배고파|배고프|배고픔|출출/.test(body)) return 'spoon'
+  if (/잘 ?자|굿 ?나잇|굿밤|good ?night|꿀잠/i.test(body)) return 'moon'
+  // 명절·국경일에는 동그라미 대신 그날의 자석
+  return day ?? 'dot'
 }
 
 /** 메모 속 #이름. supabase/functions/note-notify 와 같은 규칙 */

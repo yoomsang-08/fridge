@@ -1,10 +1,11 @@
 import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square, ZoomOut } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
 import { expandSlots, fitPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
 import { ZONE_LABEL } from '../lib/templates'
 import { celebrationToday, hourKST } from '../lib/celebrations'
 import { DOOR_NOTE_COUNT } from '../lib/notes'
+import { burst, eggToast } from '../lib/eggToast'
 import type { Compartment, Fridge, FridgePhoto, Item, Note } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Fridge2D } from './Fridge2D'
@@ -114,11 +115,18 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
     setHintSeen(true)
     localStorage.setItem(DOOR_HINT_KEY, '1')
   }
+  // 문을 짧은 시간에 다섯 번 여닫으면 한마디 (이스터에그)
+  const flaps = useRef<number[]>([])
+  const flap = () => {
+    if (burst(flaps.current, Date.now(), 2500, 5)) eggToast('문 고장 아니에요, 지선 님')
+  }
   const setAllDoors = (open: boolean) => {
+    flap()
     if (open) seeHint()
     setDoorOpen(Object.fromEntries(shape.doors.map((d) => [d.id, open])))
   }
   const toggleDoor = (id: string) => {
+    flap()
     seeHint()
     setDoorOpen((s) => ({ ...s, [id]: !(s[id] ?? false) }))
   }

@@ -22,6 +22,7 @@ import {
 } from '../lib/fridgeShape'
 import { BUNTING, type Celebration } from '../lib/celebrations'
 import { magnetOf } from '../lib/notes'
+import { drawArt, isArt, type MagnetKind } from '../lib/magnets'
 import { bodyColor, SHAPE_HEIGHT } from '../lib/container3d'
 import { Container3D } from './Container3D'
 import type { Compartment, FridgePhoto, Item, Note } from '../lib/types'
@@ -147,17 +148,19 @@ function satinTexture(base: string) {
 }
 
 /** 냉장고 문에 붙은 메모: 종이색 + 자석 + 앞 몇 줄 */
-function noteTexture(note: Note) {
+function noteTexture(note: Note, day?: MagnetKind) {
   return cachedTexture(
-    `note|${note.id}|${note.color}|${note.body}`,
+    `note|${note.id}|${note.color}|${note.body}|${day ?? ''}`,
     (g) => {
       g.fillStyle = token(`note-${note.color}`)
       g.beginPath()
       g.roundRect(0, 0, 256, 256, 10)
       g.fill()
-      const magnet = magnetOf(note.body)
+      const magnet = magnetOf(note.body, day)
       g.textAlign = 'center'
-      if (magnet === 'heart') {
+      if (isArt(magnet)) {
+        drawArt(g, magnet, 128, 28, 50, token)
+      } else if (magnet === 'heart') {
         g.fillStyle = token('accent')
         g.font = `44px ${FONT}`
         g.fillText('♥', 128, 46)
@@ -284,7 +287,7 @@ function DoorPhoto({ photo, position, tilt, onOpen }: { photo: FridgePhoto; posi
 /** 기념일 현수막: 위에는 깃발 가랜드, 아래에는 축하 문구 */
 function bannerTexture(c: Celebration) {
   return cachedTexture(
-    `banner|${c.id}`,
+    `banner|${c.id}|${c.title}`,
     (g) => {
       const w = 1040
       // 가랜드: 처진 줄에 깃발
@@ -294,12 +297,32 @@ function bannerTexture(c: Celebration) {
       g.moveTo(10, 8)
       g.quadraticCurveTo(w / 2, 58, w - 10, 8)
       g.stroke()
+      if (c.snow) {
+        g.fillStyle = token('note-sky')
+        for (const [x, y, r] of [[40, 70, 9], [150, 120, 6], [980, 60, 8], [900, 130, 6], [60, 200, 7], [1000, 210, 9]]) {
+          g.beginPath()
+          g.arc(x, y, r, 0, Math.PI * 2)
+          g.fill()
+        }
+      }
       const n = 13
       for (let i = 0; i < n; i++) {
         const t = (i + 0.5) / n
         const x = 10 + (w - 20) * t
         const y = 8 + 100 * t * (1 - t)
         const fw = ((w - 20) / n) * 0.78
+        const charm = c.charms?.[i % c.charms.length]
+        if (charm) {
+          // 명절: 깃발 대신 그날의 장식
+          g.strokeStyle = token('muted')
+          g.lineWidth = 2
+          g.beginPath()
+          g.moveTo(x, y)
+          g.lineTo(x, y + 6)
+          g.stroke()
+          drawArt(g, charm, x, y + 6 + fw * 0.5, fw * 1.05, token)
+          continue
+        }
         g.fillStyle = token(BUNTING[i % BUNTING.length])
         g.strokeStyle = token('line')
         g.lineWidth = 2
@@ -651,6 +674,8 @@ function Door({
   notes = [],
   photos = [],
   drop = 0,
+  dayMagnet,
+  bounce = 0,
   onOpenNotes,
 }: {
   door: DoorSpec
@@ -661,6 +686,10 @@ function Door({
   photos?: FridgePhoto[]
   /** 기념일 현수막이 걸리면 메모·사진을 그만큼 아래로 (m) */
   drop?: number
+  /** 명절·국경일 자석 */
+  dayMagnet?: MagnetKind
+  /** 바뀔 때마다 메모·사진이 한 번 통통 튄다 (냉장고 한 바퀴 이스터에그) */
+  bounce?: number
   onOpenNotes?: () => void
   pockets: Compartment[]
   itemsByCompartment: Map<string, Item[]>
@@ -684,7 +713,24 @@ function Door({
   const cy = H - (door.rect.y + door.rect.h / 2) * H
   const target = open ? (left ? -OPEN_ANGLE : OPEN_ANGLE) : 0
 
+  const magnets = useRef<THREE.Group>(null)
+  const hop = useRef(-1)
+  useEffect(() => {
+    if (bounce && !matchMedia('(prefers-reduced-motion: reduce)').matches) hop.current = 0
+  }, [bounce])
   useFrame((state, dt) => {
+    const m = magnets.current
+    if (m && hop.current >= 0) {
+      // 400ms 동안 두 번 통통
+      hop.current += dt
+      const t = Math.min(1, hop.current / 0.4)
+      m.position.y = Math.abs(Math.sin(t * Math.PI * 2)) * 0.03 * (1 - t)
+      if (t >= 1) {
+        m.position.y = 0
+        hop.current = -1
+      }
+      state.invalidate()
+    }
     const g = ref.current
     if (!g) return
     const diff = target - g.rotation.y
@@ -751,6 +797,7 @@ function Door({
             />
           </sprite>
         )}
+        <group ref={magnets}>
         {notes.map((n, i) => (
           <mesh
             key={n.id}
@@ -764,7 +811,7 @@ function Door({
             }}
           >
             <planeGeometry args={[NOTE_SIZE, NOTE_SIZE]} />
-            <meshBasicMaterial map={noteTexture(n)} toneMapped={false} />
+            <meshBasicMaterial map={noteTexture(n, dayMagnet)} toneMapped={false} />
           </mesh>
         ))}
         {photos.map((p, i) => (
@@ -777,6 +824,7 @@ function Door({
             onOpen={onOpenNotes}
           />
         ))}
+        </group>
         {pockets.map((p) => (
           <Pocket
             key={p.id}
@@ -1001,12 +1049,14 @@ function CameraRig({
   nonce,
   closed,
   focus,
+  onSpin,
 }: {
   shape: FridgeShape
   preset: CameraPreset
   nonce: number
   closed: boolean
   focus: Focus | null
+  onSpin?: () => void
 }) {
   // 매 렌더마다 새 객체가 와도 같은 칸이면 다시 움직이지 않게 숫자로 비교한다
   const fx0 = focus?.x
@@ -1084,9 +1134,33 @@ function CameraRig({
     } else state.invalidate()
   })
 
+  // 손으로 돌린 각도를 모아 한 바퀴(360°)가 되면 알린다. 2초 쉬면 처음부터
+  const spin = useRef({ sum: 0, last: 0, at: 0 })
+  const onChange = () => {
+    const c = controls.current
+    if (!c || !onSpin) return
+    const a = c.getAzimuthalAngle()
+    const s = spin.current
+    const now = performance.now()
+    if (now - s.at > 2000) s.sum = 0
+    else {
+      let d = a - s.last
+      if (d > Math.PI) d -= Math.PI * 2
+      if (d < -Math.PI) d += Math.PI * 2
+      s.sum += d
+    }
+    s.last = a
+    s.at = now
+    if (Math.abs(s.sum) >= Math.PI * 2) {
+      s.sum = 0
+      onSpin()
+    }
+  }
+
   return (
     <OrbitControls
       ref={controls}
+      onChange={onChange}
       makeDefault
       enableDamping={false}
       minDistance={0.25}
@@ -1103,6 +1177,9 @@ export default function Fridge3D(props: Props) {
   const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg, notes = [], onOpenNotes, photos = [], celebration } =
     props
   const H = shape.height / 1000
+  const banner = celebration && celebration.banner !== false ? celebration : null
+  // 냉장고를 한 바퀴 돌리면 문 자석이 통통 (이스터에그)
+  const [spins, setSpins] = useState(0)
 
   const placed = compartments.filter((c) => c.layout)
   // 몸체 칸을 고르면 그 칸으로 다가간다. 큰 구역은 그림 자리 여러 개로 펼쳐져 있으니 모두 감싸는 상자로. 문 포켓은 문과 함께 움직여서 제외
@@ -1159,10 +1236,11 @@ export default function Fridge3D(props: Props) {
         nonce={cameraNonce}
         closed={shape.doors.length > 0 && !shape.doors.some((d) => doorOpen[d.id])}
         focus={focus}
+        onSpin={() => setSpins((n) => n + 1)}
       />
 
       <Cabinet shape={shape} />
-      {celebration && !shape.doors.some((d) => doorOpen[d.id]) && <CelebrationBanner shape={shape} celebration={celebration} />}
+      {banner && !shape.doors.some((d) => doorOpen[d.id]) && <CelebrationBanner shape={shape} celebration={banner} />}
       <CeilingLight shape={shape} onEgg={onEgg} />
       {egg && (
         <sprite position={[0, H * 0.9, 0.05]} scale={[0.14, 0.14, 1]}>
@@ -1195,7 +1273,9 @@ export default function Fridge3D(props: Props) {
           onOpen={onOpenItem}
           notes={d === shape.doors[0] ? notes : undefined}
           photos={d === (shape.doors[1] ?? shape.doors[0]) ? photos : undefined}
-          drop={celebration ? 0.035 : 0}
+          drop={banner ? 0.035 : 0}
+          dayMagnet={celebration?.magnet}
+          bounce={spins}
           onOpenNotes={onOpenNotes}
         />
       ))}
