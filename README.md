@@ -75,7 +75,7 @@ npx supabase functions deploy food-search
 - 구성: `push_subscriptions` 테이블(0005), 공용 헬퍼 `supabase/functions/_shared/push.ts` 의 `sendToHousehold()`, 아침 알림 함수 `expiry-digest`, 예약 실행 `.github/workflows/expiry-digest.yml`, 서비스워커 수신 `public/push-sw.js`.
 - 다른 알림을 보낼 함수는 `sendToHousehold(hid, { title, body, url, tag }, { onlyDisplayNames, onlyUserIds, excludeUserIds })` 만 부르면 됩니다.
 - 서명 키(VAPID)는 처음 알림을 켤 때 `push-key` 함수가 만들어 `push_config` 테이블(service role 전용)에 저장합니다. 저장소에 넣을 키는 없습니다.
-- 필요한 저장소 Secret: `CRON_SECRET`(아무 긴 무작위 문자열). 아침 알림 예약 실행과 함수가 같은 값을 씁니다.
+- 따로 넣을 Secret 은 없습니다. 아침 알림 호출 확인값(`CRON_SECRET`)은 두 워크플로가 `SUPABASE_ACCESS_TOKEN` 에서 같은 방식으로 만들어 씁니다. 직접 정하고 싶으면 저장소 Secret `CRON_SECRET` 에 넣으면 그 값을 씁니다.
 
 ## 다음 단계
 
