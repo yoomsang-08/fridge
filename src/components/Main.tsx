@@ -210,6 +210,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             onOpen={(item) => setSheet({ mode: 'edit', item })}
             onUseOne={(item) => mutate(() => repo.act(item, 'use'))}
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
+            notes={snap.notes}
+            onOpenNotes={() => openTab('notes')}
           />
         )}
 

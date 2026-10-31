@@ -3,7 +3,8 @@ import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 're
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
 import { isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
 import { ZONE_LABEL } from '../lib/templates'
-import type { Compartment, Fridge, Item } from '../lib/types'
+import { DOOR_NOTE_COUNT } from '../lib/notes'
+import type { Compartment, Fridge, Item, Note } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Fridge2D } from './Fridge2D'
 import type { CameraPreset } from './Fridge3D'
@@ -43,9 +44,12 @@ interface Props {
   onAddTo: (compartmentId: string) => void
   /** 맨 위 카드 자리 (냉장고 상태 등) */
   header?: ReactNode
+  /** 냉장고 문 메모. 첫 번째 냉장고 문 앞면에 최근 몇 장을 붙인다 */
+  notes?: Note[]
+  onOpenNotes?: () => void
 }
 
-export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onAddTo, header }: Props) {
+export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onAddTo, header, notes = [], onOpenNotes }: Props) {
   const [webgl] = useState(hasWebGL)
   const [fridgeId, setFridgeId] = useState(fridges[0]?.id)
   const [mode, setMode] = useState<Mode>(() =>
@@ -74,6 +78,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const fridgeItems = mine.flatMap((c) => byComp.get(c.id) ?? [])
   const urgent = sortByUrgency(fridgeItems).filter((i) => ['expired', 'urgent', 'soon'].includes(expiryLevel(i.expiry_date)))
   const selectedItems = selected ? sortByUrgency(byComp.get(selected.id) ?? []) : []
+  // 메모는 집에 하나인 메인 냉장고(첫 번째)에만 붙인다
+  const doorNotes = fridge.id === fridges[0]?.id ? notes.slice(0, DOOR_NOTE_COUNT) : []
   const nameOf = (i: Item) => mine.find((c) => c.id === i.compartment_id)?.name
 
   const changeMode = (m: Mode) => {
@@ -159,6 +165,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
                 onOpenItem={onOpen}
                 onEgg={() => setEgg(true)}
                 egg={egg}
+                notes={doorNotes}
+                onOpenNotes={onOpenNotes}
               />
             </Suspense>
           </div>
@@ -173,6 +181,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
               onSelect={setSelectedId}
               onOpenItem={onOpen}
               onOpenDoors={() => setAllDoors(true)}
+              notes={doorNotes}
+              onOpenNotes={onOpenNotes}
             />
           </div>
         )}
