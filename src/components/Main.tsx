@@ -1,24 +1,34 @@
-import { List, Plus, Settings as SettingsIcon, Thermometer, type LucideIcon } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { List, Plus, Settings as SettingsIcon, StickyNote as NoteIcon, Thermometer, type LucideIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
 import type { SmartThings } from '../lib/smartthings'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
-import type { Household, Item } from '../lib/types'
+import { isUnread } from '../lib/notes'
+import type { Household, Item, Note } from '../lib/types'
 import { FridgeStatus } from './FridgeStatus'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
+import { NoteBanner } from './NoteBanner'
+import { NoteBoard } from './NoteBoard'
+import { NoteViewSheet, NoteWriteSheet } from './NoteSheet'
 import { Settings } from './Settings'
 import { cx } from '../lib/cx'
 import { Button, Card, Logo, SunnyEgg } from './ui'
 
-type Tab = 'list' | 'device' | 'settings'
+type Tab = 'list' | 'notes' | 'device' | 'settings'
 /** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: 'list', label: '재고', icon: List },
+  { id: 'notes', label: '메모', icon: NoteIcon },
   { id: 'device', label: '온도', icon: Thermometer },
   { id: 'settings', label: '설정', icon: SettingsIcon },
 ]
-type SheetState = { mode: 'add'; compartmentId?: string } | { mode: 'edit'; item: Item } | null
+type SheetState =
+  | { mode: 'add'; compartmentId?: string }
+  | { mode: 'edit'; item: Item }
+  | { mode: 'note-write' }
+  | { mode: 'note-view'; note: Note }
+  | null
 
 const LAST_COMPARTMENT_KEY = 'fridge-last-compartment'
 
@@ -35,6 +45,10 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('list')
   const [sheet, setSheet] = useState<SheetState>(null)
+  /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
+  const [fresh, setFresh] = useState<Set<string>>(new Set())
+  /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
+  const [removed, setRemoved] = useState<Note | null>(null)
   const egg = useSunnyEgg()
 
   const reload = useCallback(async () => {
@@ -56,6 +70,27 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
       document.removeEventListener('visibilitychange', onFocus)
     }
   }, [repo, reload])
+
+  const unread = useMemo(() => (snap ? snap.notes.filter((n) => isUnread(n, snap.me)) : []), [snap])
+
+  // 메모 탭을 보고 있으면 상대 메모를 읽음으로 표시 (탭에 있는 동안 새로 온 것도)
+  useEffect(() => {
+    if (tab !== 'notes' || unread.length === 0) return
+    const ids = unread.map((n) => n.id)
+    setFresh((prev) => new Set([...prev, ...ids]))
+    repo.markNotesRead(ids).catch(() => {})
+  }, [tab, unread, repo])
+
+  useEffect(() => {
+    if (!removed) return
+    const timer = setTimeout(() => setRemoved(null), 4000)
+    return () => clearTimeout(timer)
+  }, [removed])
+
+  const openTab = (t: Tab) => {
+    if (t !== 'notes') setFresh(new Set())
+    setTab(t)
+  }
 
   const mutate = useCallback(
     async (fn: () => Promise<void>) => {
@@ -103,7 +138,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           {TABS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => openTab(t.id)}
               className={cx(
                 'flex items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
                 tab === t.id ? 'bg-surface font-bold shadow-card' : 'text-muted',
@@ -111,6 +146,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             >
               <t.icon size={16} strokeWidth={2.2} />
               {t.label}
+              {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && <Badge count={unread.length} />}
             </button>
           ))}
         </nav>
@@ -135,10 +171,22 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             >
               삼성 비스포크 + 쿠쿠 냉동고 등록
             </Button>
-            <button className="mt-2 w-full py-2 text-sm font-semibold text-muted" onClick={() => setTab('settings')}>
+            <button className="mt-2 w-full py-2 text-sm font-semibold text-muted" onClick={() => openTab('settings')}>
               다른 냉장고로 직접 등록하기
             </button>
           </Card>
+        )}
+
+        {tab === 'list' && <NoteBanner unread={unread} onOpen={() => openTab('notes')} />}
+
+        {tab === 'notes' && (
+          <NoteBoard
+            notes={snap.notes}
+            me={snap.me}
+            fresh={fresh}
+            onOpen={(note) => setSheet({ mode: 'note-view', note })}
+            onWrite={() => setSheet({ mode: 'note-write' })}
+          />
         )}
 
         {tab === 'list' && !noFridge && (
@@ -184,20 +232,68 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         {TABS.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => openTab(t.id)}
             aria-current={tab === t.id ? 'page' : undefined}
             className={cx(
               'flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
               tab === t.id ? 'text-accent' : 'text-faint',
             )}
           >
-            <t.icon size={23} strokeWidth={tab === t.id ? 2.3 : 1.9} />
+            <span className="relative">
+              <t.icon size={23} strokeWidth={tab === t.id ? 2.3 : 1.9} />
+              {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && (
+                <Badge count={unread.length} className="absolute -top-1.5 -right-2.5" />
+              )}
+            </span>
             {t.label}
           </button>
         ))}
       </nav>
 
-      {sheet && (
+      {sheet?.mode === 'note-write' && (
+        <NoteWriteSheet
+          onClose={() => setSheet(null)}
+          onSave={async (input) => {
+            await mutate(() => repo.addNote(input))
+            setSheet(null)
+          }}
+        />
+      )}
+
+      {sheet?.mode === 'note-view' && (
+        <NoteViewSheet
+          note={sheet.note}
+          me={snap.me}
+          onClose={() => setSheet(null)}
+          onRemove={async () => {
+            const note = sheet.note
+            await mutate(() => repo.deleteNote(note.id))
+            setSheet(null)
+            setRemoved(note)
+          }}
+        />
+      )}
+
+      {removed && (
+        <div
+          role="status"
+          className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card sm:bottom-8"
+        >
+          <span className="flex-1">메모를 뗐어요</span>
+          <button
+            className="h-9 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
+            onClick={() => {
+              const note = removed
+              setRemoved(null)
+              mutate(() => repo.restoreNote(note))
+            }}
+          >
+            되돌리기
+          </button>
+        </div>
+      )}
+
+      {(sheet?.mode === 'add' || sheet?.mode === 'edit') && (
         <ItemSheet
           key={sheet.mode === 'edit' ? sheet.item.id : 'add'}
           fridges={snap.fridges}
@@ -216,6 +312,20 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         />
       )}
     </div>
+  )
+}
+
+/** 탭 아이콘 위 안 읽은 개수 */
+function Badge({ count, className }: { count: number; className?: string }) {
+  return (
+    <span
+      className={cx(
+        'tabular grid h-[18px] min-w-[18px] place-items-center rounded-full bg-accent px-1 text-[10px] leading-none font-bold text-white',
+        className,
+      )}
+    >
+      {count > 9 ? '9+' : count}
+    </span>
   )
 }
 

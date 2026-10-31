@@ -29,6 +29,7 @@ npm run dev
 3. **Project Settings → API** 에서 Project URL 과 anon(publishable) key 를 복사해 `.env` 작성 (`cp .env.example .env`)
 4. 이어서 `supabase/migrations/0002_code_access.sql` 도 실행
 5. **Authentication → Sign In / Providers** 에서 **Allow anonymous sign-ins** 켜기
+6. 냉장고 문 메모를 쓰려면 `supabase/migrations/0003_notes.sql` 도 실행
 
 로그인 화면은 없습니다. 각 기기는 익명 계정으로 자동 접속하고, 처음 한 번 **우리 집 코드**(12자리)를 넣어야 데이터가 열립니다. 첫 기기에서 "우리 집 새로 만들기"를 누르면 설정 화면에 코드가 나옵니다.
 
