@@ -2,7 +2,7 @@
 //
 // 브라우저에서 식품안전나라 Open API 를 바로 부르지 않는 이유:
 //  - 인증키가 앱 코드에 그대로 노출된다
-//  - CORS 허용 헤더가 없고, http 주소는 https 페이지에서 mixed content 로 막힌다
+//  - http 로만 열려 있어(https 는 403, 2026-10 확인) https 페이지에서 mixed content 로 막힌다
 //
 // GET /functions/v1/food-search?q=신라면        제품명 검색 (품목제조보고 I1250)
 // GET /functions/v1/food-search?barcode=880...  바코드 조회 (바코드연계제품정보 C005 → Open Food Facts)
@@ -30,7 +30,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
-const FOODSAFETY_HOSTS = ['https://openapi.foodsafetykorea.go.kr', 'http://openapi.foodsafetykorea.go.kr']
+// https 는 403 을 돌려주므로 http 만 쓴다
+const FOODSAFETY_BASE = 'http://openapi.foodsafetykorea.go.kr'
 
 type Row = Record<string, string | null | undefined>
 
@@ -53,26 +54,22 @@ async function foodsafety(service: string, params: Record<string, string>, size:
     .join('&')
   const path = `/api/${key}/${service}/json/1/${size}${filters ? `/${filters}` : ''}`
 
-  let lastError: unknown
-  for (const host of FOODSAFETY_HOSTS) {
-    try {
-      const res = await fetch(host + path, { signal: AbortSignal.timeout(8000) })
-      if (!res.ok) throw new UpstreamError(`식품안전나라 응답 ${res.status}`)
-      const body = await res.json()
-      const data = body[service]
-      // 키가 틀리면 서비스 이름 대신 RESULT 만 온다
-      const result = data?.RESULT ?? body.RESULT
-      const code: string | undefined = result?.CODE
-      if (code === 'INFO-200') return [] // 해당하는 데이터가 없습니다
-      if (code && code !== 'INFO-000') throw new UpstreamError(result?.MSG ?? code, code)
-      return (data?.row ?? []) as Row[]
-    } catch (e) {
-      // 응답을 받았는데 거절된 경우(키 오류 등)는 http 로 다시 시도해도 같다
-      if (e instanceof UpstreamError) throw e
-      lastError = e
-    }
+  let res: Response
+  try {
+    res = await fetch(FOODSAFETY_BASE + path, { signal: AbortSignal.timeout(8000) })
+  } catch (e) {
+    throw new UpstreamError(`식품안전나라 연결 실패: ${String(e)}`, 'NETWORK')
   }
-  throw new UpstreamError(`식품안전나라 연결 실패: ${String(lastError)}`, 'NETWORK')
+  if (!res.ok) throw new UpstreamError(`식품안전나라 응답 ${res.status}`, 'HTTP')
+  const body = await res.json()
+  const data = body[service]
+  // 키가 틀리면 서비스 이름 대신 RESULT 만 온다
+  const result = data?.RESULT ?? body.RESULT
+  const code: string | undefined = result?.CODE
+  if (code === 'INFO-200') return [] // 해당하는 데이터가 없습니다
+  // INFO-110: 키는 맞지만 이 서비스를 활용신청하지 않음 (서비스마다 따로 신청해야 한다)
+  if (code && code !== 'INFO-000') throw new UpstreamError(result?.MSG ?? code, code)
+  return (data?.row ?? []) as Row[]
 }
 
 function fromFoodsafety(source: 'I1250' | 'C005', r: Row): FoodProduct {
@@ -89,13 +86,30 @@ function fromFoodsafety(source: 'I1250' | 'C005', r: Row): FoodProduct {
   }
 }
 
+/**
+ * I1250 은 부분 일치로 찾고 순서가 제멋대로라 ("신라면" → 144건, 수출용 스프 원료가 먼저 나옴)
+ * 넉넉히 받아서 장바구니에 있을 법한 제품이 먼저 오도록 점수를 매긴다.
+ */
+function rank(q: string, r: Row): number {
+  const name = (r.PRDLST_NM ?? '').replace(/\s+/g, '')
+  const term = q.replace(/\s+/g, '')
+  let score = 0
+  if (name === term) score += 100
+  else if (name.startsWith(term)) score += 50
+  if (r.PRODUCTION === '아니오') score -= 30 // 생산 중단
+  if (/수출|원료|스프|분말|혼합/.test(name)) score -= 40 // 업체용 원료, 수출품
+  if (/복합조미식품|식품첨가물/.test(r.PRDLST_DCNM ?? '')) score -= 20
+  score -= name.length / 10 // 비슷하면 짧은 이름이 먼저
+  return score
+}
+
 async function searchByName(q: string, size: number): Promise<FoodProduct[]> {
-  const rows = await foodsafety('I1250', { PRDLST_NM: q }, size)
-  // 생산 종료된 품목은 뒤로
+  const rows = await foodsafety('I1250', { PRDLST_NM: q }, 200)
   return rows
-    .map((r) => ({ p: fromFoodsafety('I1250', r), ended: r.PRODUCTION === '아니오' }))
-    .sort((a, b) => Number(a.ended) - Number(b.ended))
-    .map((x) => x.p)
+    .map((r) => ({ r, score: rank(q, r) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, size)
+    .map(({ r }) => fromFoodsafety('I1250', r))
 }
 
 async function openFoodFacts(barcode: string): Promise<FoodProduct | null> {
@@ -124,10 +138,10 @@ async function openFoodFacts(barcode: string): Promise<FoodProduct | null> {
 }
 
 async function searchByBarcode(barcode: string): Promise<FoodProduct[]> {
+  // C005 가 안 되더라도(키 없음, 활용신청 안 함, 장애) Open Food Facts 로 넘어간다
   const rows = await foodsafety('C005', { BAR_CD: barcode }, 5).catch((e) => {
-    // 키가 없어도 Open Food Facts 는 쓸 수 있게
-    if (e instanceof UpstreamError && e.code === 'NO_KEY') return [] as Row[]
-    throw e
+    console.warn('C005 실패', e instanceof UpstreamError ? e.code : '', String(e))
+    return [] as Row[]
   })
   if (rows.length > 0) return rows.map((r) => fromFoodsafety('C005', r))
   const off = await openFoodFacts(barcode).catch(() => null)
