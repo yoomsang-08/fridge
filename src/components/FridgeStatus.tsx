@@ -9,6 +9,7 @@ import {
   type FridgeState,
   type SmartThings,
   type Zone,
+  takeOAuthResult,
 } from '../lib/smartthings'
 import { useDialog } from './Dialog'
 import { Button, Card, Field, IconButton, Switch, TextInput } from './ui'
@@ -26,7 +27,9 @@ const DOOR_WARN_MS = 60_000
  * 냉장고 탭 맨 위에 한 장짜리 요약으로 보이고, 누르면 펼쳐서 온도를 바꾸거나 급속냉동을 켠다
  */
 export function FridgeStatus({ st }: { st: SmartThings }) {
-  const [open, setOpen] = useState(false)
+  // 삼성 계정 로그인에서 돌아왔으면 결과를 펼친 상태로 보여준다
+  const [notice, setNotice] = useState(takeOAuthResult)
+  const [open, setOpen] = useState(notice !== null)
   const [status, setStatus] = useState<DeviceStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadedAt, setLoadedAt] = useState<number>(0)
@@ -93,8 +96,14 @@ export function FridgeStatus({ st }: { st: SmartThings }) {
     }
     return (
       <div className="flex flex-col gap-4">
-        {error && <ErrorNote text={error} />}
-        <ConnectCard st={st} onConnected={load} onCancel={() => setOpen(false)} />
+        {notice && <Notice {...notice} onClose={() => setNotice(null)} />}
+        {error && !notice && <ErrorNote text={error} />}
+        <ConnectCard
+          st={st}
+          oauth={status?.oauth !== false}
+          onConnected={load}
+          onCancel={() => setOpen(false)}
+        />
       </div>
     )
   }
@@ -104,6 +113,7 @@ export function FridgeStatus({ st }: { st: SmartThings }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {notice && <Notice {...notice} onClose={() => setNotice(null)} />}
       <div className="flex items-center justify-between px-1">
         <h2 className="text-[15px] font-extrabold">냉장고 상태</h2>
         <button className="flex h-9 items-center gap-0.5 text-sm font-semibold text-accent" onClick={() => setOpen(false)}>
@@ -188,7 +198,16 @@ export function FridgeStatus({ st }: { st: SmartThings }) {
         </div>
       </Card>
 
-      {!st.demo && <LinkCard st={st} linkedAt={status.linkedAt} now={loadedAt} onChanged={load} />}
+      {!st.demo && (
+        <LinkCard
+          st={st}
+          oauthLinked={status.auth === 'oauth'}
+          oauthAvailable={!!status.oauth}
+          linkedAt={status.linkedAt}
+          now={loadedAt}
+          onChanged={load}
+        />
+      )}
     </div>
   )
 }
@@ -368,106 +387,168 @@ function DoorCard({ state: s, now }: { state: FridgeState; now: number }) {
 
 const TOKEN_PAGE = 'https://account.smartthings.com/tokens'
 
-function ConnectCard({ st, onConnected, onCancel }: { st: SmartThings; onConnected: () => void; onCancel: () => void }) {
+function ConnectCard({
+  st,
+  oauth,
+  onConnected,
+  onCancel,
+}: {
+  st: SmartThings
+  oauth: boolean
+  onConnected: () => void
+  onCancel: () => void
+}) {
   const [token, setToken] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [manual, setManual] = useState(!oauth)
 
-  const connect = async () => {
+  const run = async (fn: () => Promise<void>) => {
     setBusy(true)
     setError(null)
     try {
-      await st.connect(token)
-      setToken('')
-      onConnected()
+      await fn()
     } catch (e) {
       setError(errorText(e))
-    } finally {
       setBusy(false)
     }
   }
+  const connectToken = () =>
+    run(async () => {
+      await st.connect(token)
+      setToken('')
+      setBusy(false)
+      onConnected()
+    })
+  const connectOAuth = () => run(async () => location.assign(await st.oauthStart()))
 
   return (
     <Card className="flex flex-col gap-4 p-5">
       <div>
         <h2 className="text-[17px] font-extrabold">스마트싱스 냉장고 연결</h2>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-1 text-sm break-keep text-muted">
           연결하면 냉장고 온도와 문 상태를 보고, 급속냉동을 켜거나 온도를 바꿀 수 있어요.
         </p>
       </div>
-      <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
-        <li>
-          <a href={TOKEN_PAGE} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent">
-            스마트싱스 토큰 페이지
-            <ExternalLink size={14} />
-          </a>
-          에서 삼성 계정으로 로그인
-        </li>
-        <li>새 토큰 만들기 → Devices 항목 모두 체크</li>
-        <li>만든 토큰을 아래에 붙여 넣기</li>
-      </ol>
-      <Field label="토큰">
-        <TextInput
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="예: 1a2b3c4d-…"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </Field>
+
+      {oauth && (
+        <Button disabled={busy} onClick={connectOAuth}>
+          {busy && !manual ? '삼성 계정으로 가는 중…' : '삼성 계정으로 연결'}
+        </Button>
+      )}
+
+      {manual ? (
+        <div className="flex flex-col gap-3">
+          <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
+            <li>
+              <a href={TOKEN_PAGE} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent">
+                스마트싱스 토큰 페이지
+                <ExternalLink size={14} />
+              </a>
+              에서 삼성 계정으로 로그인
+            </li>
+            <li>새 토큰 만들기 → Devices 항목 모두 체크</li>
+            <li>만든 토큰을 아래에 붙여 넣기</li>
+          </ol>
+          <Field label="토큰">
+            <TextInput
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="예: 1a2b3c4d-…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
+          <Button
+            variant={oauth ? 'secondary' : 'primary'}
+            disabled={busy || token.trim().length < 20}
+            onClick={connectToken}
+          >
+            {busy ? '연결하는 중…' : '토큰으로 연결'}
+          </Button>
+          <p className="text-xs break-keep text-muted">
+            토큰은 우리 집 서버에만 저장되고 앱에서는 다시 볼 수 없어요. 토큰은 하루가 지나면 만료돼서 그때 새로 넣어야 해요.
+          </p>
+        </div>
+      ) : (
+        <button className="self-center py-1 text-sm font-semibold text-muted" onClick={() => setManual(true)}>
+          토큰으로 직접 연결하기
+        </button>
+      )}
+
       {error && <ErrorNote text={error} />}
-      <div className="flex gap-2">
-        <Button variant="ghost" onClick={onCancel}>
-          닫기
-        </Button>
-        <Button className="flex-1" disabled={busy || token.trim().length < 20} onClick={connect}>
-          {busy ? '연결하는 중…' : '연결'}
-        </Button>
-      </div>
-      <p className="text-xs text-muted">
-        토큰은 우리 집 서버에만 저장되고 앱에서는 다시 볼 수 없어요. 지금 방식의 토큰은 하루가 지나면 만료돼서 그때 새로
-        넣어야 해요.
-      </p>
+      <Button variant="ghost" size="md" onClick={onCancel}>
+        닫기
+      </Button>
     </Card>
   )
 }
 
 function LinkCard({
   st,
+  oauthLinked,
+  oauthAvailable,
   linkedAt,
   now,
   onChanged,
 }: {
   st: SmartThings
+  oauthLinked: boolean
+  oauthAvailable: boolean
   linkedAt: string
   now: number
   onChanged: () => void
 }) {
   const { confirm, dialog } = useDialog()
-  const expires = Date.parse(linkedAt) + 24 * 3600_000
-  const left = expires - now
+  const left = Date.parse(linkedAt) + 24 * 3600_000 - now
   return (
-    <Card className="flex items-center gap-3 p-5">
-      <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-bold">스마트싱스 연결됨</p>
-        <p className="text-xs text-muted">
-          {left > 0 ? `토큰이 약 ${Math.max(1, Math.round(left / 3600_000))}시간 뒤 만료돼요` : '토큰이 만료됐을 수 있어요'}
-        </p>
+    <Card className="flex flex-col gap-3 p-5">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-bold">{oauthLinked ? '삼성 계정으로 연결됨' : '토큰으로 연결됨'}</p>
+          <p className="text-xs break-keep text-muted">
+            {oauthLinked
+              ? '서버가 알아서 갱신해서 다시 연결하지 않아도 돼요'
+              : left > 0
+                ? `토큰이 약 ${Math.max(1, Math.round(left / 3600_000))}시간 뒤 만료돼요`
+                : '토큰이 만료됐을 수 있어요'}
+          </p>
+        </div>
+        <Button
+          variant="danger"
+          size="md"
+          onClick={async () => {
+            if (await confirm('스마트싱스 연결을 해제할까요?', '저장된 연결 정보를 지워요. 다시 쓰려면 새로 연결해야 해요.', '연결 해제')) {
+              await st.disconnect()
+              onChanged()
+            }
+          }}
+        >
+          연결 해제
+        </Button>
       </div>
-      <Button
-        variant="danger"
-        size="md"
-        onClick={async () => {
-          if (await confirm('스마트싱스 연결을 해제할까요?', '저장된 토큰을 지워요. 다시 쓰려면 새 토큰을 넣어야 해요.', '연결 해제')) {
-            await st.disconnect()
-            onChanged()
-          }
-        }}
-      >
-        연결 해제
-      </Button>
+      {!oauthLinked && oauthAvailable && (
+        <Button variant="secondary" size="md" onClick={async () => location.assign(await st.oauthStart())}>
+          삼성 계정으로 바꾸고 만료 없이 쓰기
+        </Button>
+      )}
       {dialog}
     </Card>
+  )
+}
+
+/** 삼성 계정 로그인에서 돌아온 결과 */
+function Notice({ ok, text, onClose }: { ok: boolean; text: string; onClose: () => void }) {
+  return (
+    <button
+      onClick={onClose}
+      className={cx(
+        'rounded-2xl p-3 text-left text-sm break-keep',
+        ok ? 'bg-accent-soft font-semibold text-accent' : 'bg-expired-soft text-expired',
+      )}
+    >
+      {text}
+    </button>
   )
 }
 

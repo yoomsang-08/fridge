@@ -1,7 +1,7 @@
 import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
-import type { SmartThings } from '../lib/smartthings'
+import { cameBackFromOAuth, type SmartThings } from '../lib/smartthings'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
 import { isUnread } from '../lib/notes'
 import type { Household, Item, Note } from '../lib/types'
@@ -44,7 +44,8 @@ interface Props {
 export function Main({ repo, household, smartthings, isLocal = false, onSignOut }: Props) {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('list')
+  // 삼성 계정 로그인에서 돌아오면(?smartthings=…) 냉장고 상태가 있는 냉장고 탭으로
+  const [tab, setTab] = useState<Tab>(() => (cameBackFromOAuth() ? 'view' : 'list'))
   const [sheet, setSheet] = useState<SheetState>(null)
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())

@@ -44,7 +44,18 @@ npm run dev
 2. Edge Function 배포: 저장소 Secrets 에 `SUPABASE_ACCESS_TOKEN` 을 한 번 넣으면, `supabase/functions` 가 바뀌어 main 에 머지될 때마다 GitHub Actions(`supabase-functions.yml`)가 모든 함수를 배포합니다. 바로 배포하려면 Actions 탭에서 **Deploy Supabase Edge Functions → Run workflow**
 3. 앱 **냉장고** 탭의 냉장고 상태 → **연결** 에서 [스마트싱스 토큰](https://account.smartthings.com/tokens)을 붙여 넣고 연결 (Devices 권한 모두 체크)
 
-지금 쓰는 개인 토큰(PAT)은 24시간이면 만료돼서 하루에 한 번 새로 넣어야 합니다. 다음 단계에서 OAuth 로 바꿔 만료 없이 쓰게 할 예정입니다.
+개인 토큰(PAT)은 24시간이면 만료됩니다. 만료 없이 쓰려면 **삼성 계정으로 연결(OAuth)** 을 설정하세요.
+
+### 삼성 계정으로 연결 (만료 없음)
+
+1. SQL Editor 에서 `supabase/migrations/0005_smartthings_oauth.sql` 실행
+2. 맥에서 SmartThings CLI 로 OAuth 앱 등록 (`npm i -g @smartthings/cli` → `smartthings apps:create` → OAuth-In App)
+   - Scopes: `r:devices:*`, `x:devices:*`
+   - Redirect URI: `https://aiwqfqfswuehxqferrpn.supabase.co/functions/v1/smartthings`
+3. 나온 OAuth Client Id / Secret 을 저장소 Secrets 에 `SMARTTHINGS_CLIENT_ID`, `SMARTTHINGS_CLIENT_SECRET` 으로 추가하고 **Deploy Supabase Edge Functions** 실행
+4. 앱 냉장고 상태 → **삼성 계정으로 연결**
+
+서버가 접근 토큰(24시간)을 갱신 토큰으로 알아서 바꿔 씁니다. 갱신 토큰은 29일 동안 안 쓰면 끊기므로 `smartthings-keepalive.yml` 이 매주 한 번 갱신합니다.
 
 ## 배포
 
