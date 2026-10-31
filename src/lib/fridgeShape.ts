@@ -1,5 +1,6 @@
 import { expiryLevel, type ExpiryLevel } from './expiry'
-import type { Compartment, Fridge, Item, Layout } from './types'
+import { guessContainer } from './categories'
+import type { Compartment, Container, Fridge, Item, Layout } from './types'
 
 /**
  * 3D·2D 그림을 그리기 위한 냉장고 외형.
@@ -220,4 +221,39 @@ export function itemsBy(items: Item[]): Map<string, Item[]> {
     else m.set(i.compartment_id, [i])
   }
   return m
+}
+
+/** 3D 에서 그릴 용기 모양. 달걀은 분류로 따로 그리는 달걀판 */
+export type Shape3D = Container | 'egg'
+
+const UNIT_CONTAINER: Record<string, Container> = { 병: 'bottle', 팩: 'carton', 통: 'tub', 봉지: 'bag' }
+const CATEGORY_CONTAINER: Record<string, Container> = {
+  meat: 'tray',
+  seafood: 'tray',
+  vegetable: 'loose',
+  fruit: 'loose',
+  dairy: 'carton',
+  side: 'tub',
+  sauce: 'bottle',
+  drink: 'bottle',
+  frozen: 'bag',
+  processed: 'box',
+}
+
+/** 고른 용기 → 이름으로 짐작 → 단위 → 분류 순. 달걀은 상자로 골랐거나 안 골랐으면 달걀판 */
+export function shapeOfItem(item: Item): Shape3D {
+  const picked = item.container ?? null
+  if (item.category === 'egg' && (!picked || picked === 'box')) return 'egg'
+  return picked ?? guessContainer(item.name, item.unit) ?? UNIT_CONTAINER[item.unit] ?? CATEGORY_CONTAINER[item.category] ?? 'box'
+}
+
+/**
+ * 팬트리는 가상의 공간이라 모자라면 안 된다. 칸 하나에 식품이 많으면 선반장을 옆으로 늘린다.
+ * 한 베이(800mm) 선반에 8개쯤이 보기 좋은 양. 넘치면 베이를 하나 더 붙이고(폰 화면을 생각해 최대 2베이), 그 뒤로는 식품을 작게 줄여 다 채운다
+ */
+export function fitPantry(shape: FridgeShape, perCompartment: number[]): FridgeShape {
+  if (!shape.wood) return shape
+  const most = Math.max(0, ...perCompartment)
+  const bays = most > 8 ? 2 : 1
+  return bays === 1 ? shape : { ...shape, width: shape.width * bays }
 }

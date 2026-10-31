@@ -12,6 +12,7 @@ import {
   isDoorCompartment,
   LEVEL_RING,
   pocketRectInDoor,
+  shapeOfItem,
   sortByUrgency,
   tintHex,
   token,
@@ -19,6 +20,7 @@ import {
   type FridgeShape,
 } from '../lib/fridgeShape'
 import { magnetOf } from '../lib/notes'
+import { bodyColor, Container3D, SHAPE_HEIGHT } from './Container3D'
 import type { Compartment, Item, Note } from '../lib/types'
 
 export type CameraPreset = 'front' | 'left' | 'right' | 'top'
@@ -206,12 +208,13 @@ function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; 
   const lv = expiryLevel(item.expiry_date)
   const ring = LEVEL_RING[lv]
   const cat = categoryOf(item.category)
-  const tint = tintHex(cat.tint)
-  const s = size * (hover ? 1.12 : 1)
+  const kind = shapeOfItem(item)
+  const color = bodyColor(tintHex(cat.tint), kind)
+  const s = size * (hover ? 1.08 : 1)
+  const h = SHAPE_HEIGHT[kind] * s
   return (
     <group
       position={position}
-      userData={{ item: true }}
       onClick={(e) => {
         if (!isTap(e)) return
         e.stopPropagation()
@@ -227,11 +230,22 @@ function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; 
         document.body.style.cursor = ''
       }}
     >
-      <RoundedBox args={[s * 0.92, s * 0.8, s * 0.92]} radius={s * 0.12} smoothness={2} userData={{ item: true }}>
-        <meshStandardMaterial color={tint} roughness={0.6} />
-      </RoundedBox>
-      <sprite position={[0, s * 0.12, s * 0.5]} scale={[s * 0.85, s * 0.85, 1]} userData={{ item: true }}>
-        <spriteMaterial map={chipTexture(cat.emoji, tint, ring && token(ring))} transparent depthWrite={false} />
+      <Container3D shape={kind} s={s} color={color} />
+      {/* 누르는 자리: 모양과 상관없이 바닥 한 칸 크기 상자 */}
+      <mesh position={[0, Math.max(h, s * 0.4) / 2, 0]} userData={{ item: true }}>
+        <boxGeometry args={[s, Math.max(h, s * 0.4), s * 0.8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      {/* 기한 링: 지남·3일·7일만, 바닥에 얇게 */}
+      {ring && (
+        <mesh position={[0, 0.003, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[s * 0.44, s * 0.52, 32]} />
+          <meshBasicMaterial color={token(ring)} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {/* 이름표: 작게, 늘 카메라 쪽 */}
+      <sprite position={[0, Math.max(h * 0.5, s * 0.3), s * 0.42]} scale={[s * 0.4, s * 0.4, 1]}>
+        <spriteMaterial map={chipTexture(cat.emoji, '#ffffff')} transparent depthWrite={false} />
       </sprite>
     </group>
   )
@@ -239,7 +253,7 @@ function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; 
 
 function MoreBadge({ count, size, position }: { count: number; size: number; position: [number, number, number] }) {
   return (
-    <sprite position={position} scale={[size * 1.2, size * 0.6, 1]}>
+    <sprite position={[position[0], position[1] + size * 0.3, position[2]]} scale={[size * 1.2, size * 0.6, 1]}>
       <spriteMaterial map={pillTexture(`+${count}`, token('sunken'), token('muted'))} transparent depthWrite={false} />
     </sprite>
   )
@@ -265,8 +279,9 @@ function ItemGrid({
   spread?: boolean
 }) {
   if (!items.length) return null
-  // 넓게 놓을 땐 크게 그리되, 좁은 바구니에도 세 개까지는 한 줄에 들어가게 줄인다
-  const size = Math.max(0.04, Math.min(spread ? 0.13 : 0.1, maxSize, spread ? width / 1.2 / Math.min(items.length, 3) : Infinity))
+  // 넓게 놓을 땐 크게 그리되, 팬트리는 모자라면 안 되니 칸 바닥에 전부 들어갈 때까지 줄인다
+  let size = Math.max(0.035, Math.min(spread ? 0.13 : 0.1, maxSize, spread ? width / 1.2 / Math.min(items.length, 3) : Infinity))
+  while (spread && size > 0.035 && Math.floor(width / (size * 1.2)) * Math.max(1, Math.floor(depth / (size * 1.2))) < items.length) size *= 0.92
   const pitch = size * 1.2
   const cols = Math.max(1, Math.floor(width / pitch))
   const rows = Math.max(1, Math.floor(depth / pitch))
@@ -278,7 +293,7 @@ function ItemGrid({
     const row = Math.floor(i / cols)
     const used = Math.min(cols, shown.length + (sorted.length > capacity ? 1 : 0))
     const x = spread ? (col + 0.5) * (width / used) - width / 2 : (col - (used - 1) / 2) * pitch
-    return [x, floorY + size * 0.4, depth / 2 - pitch / 2 - row * pitch]
+    return [x, floorY, depth / 2 - pitch / 2 - row * pitch]
   }
   return (
     <>

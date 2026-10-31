@@ -1,7 +1,7 @@
 import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
-import { isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
+import { fitPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
 import { ZONE_LABEL } from '../lib/templates'
 import { DOOR_NOTE_COUNT } from '../lib/notes'
 import type { Compartment, Fridge, Item, Note } from '../lib/types'
@@ -73,9 +73,13 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   }, [egg])
 
   const fridge = fridges.find((f) => f.id === fridgeId) ?? fridges[0]
-  const shape = useMemo(() => shapeOf(fridge), [fridge])
   const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
   const byComp = useMemo(() => itemsBy(items), [items])
+  // 팬트리는 물건이 많으면 옆으로 늘어난다
+  const shape = useMemo(
+    () => fitPantry(shapeOf(fridge), mine.map((c) => byComp.get(c.id)?.length ?? 0)),
+    [fridge, mine, byComp],
+  )
   // 팬트리처럼 문이 없으면 늘 열린 것처럼 보여 준다
   const noDoors = shape.doors.length === 0
   const anyOpen = noDoors || shape.doors.some((d) => doorOpen[d.id] ?? false)
