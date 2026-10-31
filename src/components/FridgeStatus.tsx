@@ -1,4 +1,4 @@
-import { DoorClosed, DoorOpen, ExternalLink, Minus, Plus, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronUp, DoorClosed, DoorOpen, ExternalLink, Minus, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import {
@@ -22,10 +22,11 @@ const SETTLE_MS = 2_000
 const DOOR_WARN_MS = 60_000
 
 /**
- * 스마트싱스로 연결한 실제 냉장고의 온도·문·급속 기능 패널.
- * 지금은 '온도' 탭에 있고, 냉장고 보기 탭이 생기면 그 맨 위 '냉장고 상태'로 옮길 수 있게 탭과 분리해 둔다
+ * 스마트싱스로 연결한 실제 냉장고의 온도·문·급속 기능.
+ * 냉장고 탭 맨 위에 한 장짜리 요약으로 보이고, 누르면 펼쳐서 온도를 바꾸거나 급속냉동을 켠다
  */
 export function FridgeStatus({ st }: { st: SmartThings }) {
+  const [open, setOpen] = useState(false)
   const [status, setStatus] = useState<DeviceStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadedAt, setLoadedAt] = useState<number>(0)
@@ -71,21 +72,45 @@ export function FridgeStatus({ st }: { st: SmartThings }) {
   }
 
   if (!status && !error) {
-    return <div className="py-20 text-center text-muted">불러오는 중…</div>
+    return <Card className="p-5 text-sm text-muted">냉장고 상태 불러오는 중…</Card>
   }
 
   if (!status?.connected) {
+    if (!open) {
+      return (
+        <Card className="flex items-center gap-3 p-5">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[15px] font-extrabold">냉장고 상태</h2>
+            <p className="text-xs break-keep text-muted">
+              {error ?? '스마트싱스를 연결하면 온도와 문 상태가 여기 보여요'}
+            </p>
+          </div>
+          <Button variant="secondary" size="md" onClick={() => setOpen(true)}>
+            연결
+          </Button>
+        </Card>
+      )
+    }
     return (
       <div className="flex flex-col gap-4">
         {error && <ErrorNote text={error} />}
-        <ConnectCard st={st} onConnected={load} />
+        <ConnectCard st={st} onConnected={load} onCancel={() => setOpen(false)} />
       </div>
     )
   }
 
   const s = status.state
+  if (!open) return <SummaryCard state={s} now={loadedAt} onOpen={() => setOpen(true)} />
+
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-[15px] font-extrabold">냉장고 상태</h2>
+        <button className="flex h-9 items-center gap-0.5 text-sm font-semibold text-accent" onClick={() => setOpen(false)}>
+          접기
+          <ChevronUp size={16} />
+        </button>
+      </div>
       {st.demo && (
         <p className="rounded-2xl bg-sunken p-3 text-sm break-keep text-muted">
           체험 모드라 예시 값이에요. Supabase를 연결하고 스마트싱스 토큰을 넣으면 우리 집 냉장고가 보여요.
@@ -274,10 +299,49 @@ function SwitchRow({
   )
 }
 
-function DoorCard({ state: s, now }: { state: FridgeState; now: number }) {
+function doorInfo(s: FridgeState, now: number) {
   const changed = s.doorChangedAt ? Date.parse(s.doorChangedAt) : null
   const openFor = s.doorOpen && changed ? now - changed : 0
-  const warn = openFor >= DOOR_WARN_MS
+  return { changed, openFor, warn: openFor >= DOOR_WARN_MS }
+}
+
+/** 접힌 상태: 온도 두 개와 문 상태만. 누르면 펼친다 */
+function SummaryCard({ state: s, now, onOpen }: { state: FridgeState; now: number; onOpen: () => void }) {
+  const { openFor, warn } = doorInfo(s, now)
+  const boost = [s.powerFreeze && '급속냉동', s.powerCool && '급속냉장'].filter(Boolean).join('·')
+  return (
+    <button
+      onClick={onOpen}
+      aria-expanded={false}
+      className={cx(
+        'flex w-full items-center gap-3 rounded-card p-4 text-left shadow-card transition active:brightness-95',
+        warn ? 'bg-urgent-soft' : 'bg-surface',
+      )}
+    >
+      <span
+        className={cx(
+          'grid h-11 w-11 shrink-0 place-items-center rounded-2xl',
+          warn ? 'bg-urgent text-white' : s.doorOpen ? 'bg-ink text-white' : 'bg-sunken text-muted',
+        )}
+      >
+        {s.doorOpen ? <DoorOpen size={22} /> : <DoorClosed size={22} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="tabular text-[15px] font-bold">
+          냉장 {s.cooler.current ?? '-'}°C · 냉동 {s.freezer.current ?? '-'}°C
+        </p>
+        <p className={cx('truncate text-xs', warn ? 'font-semibold text-urgent' : 'text-muted')}>
+          {warn ? `${doorText(s)} · ${Math.floor(openFor / 60_000)}분째` : doorText(s)}
+          {boost && !warn && <span className="font-semibold text-accent"> · {boost} 켜짐</span>}
+        </p>
+      </div>
+      <ChevronDown size={18} className="shrink-0 text-muted" />
+    </button>
+  )
+}
+
+function DoorCard({ state: s, now }: { state: FridgeState; now: number }) {
+  const { changed, openFor, warn } = doorInfo(s, now)
   return (
     <Card className={cx('flex items-center gap-3 p-5', warn && 'bg-urgent-soft')}>
       <span
@@ -304,7 +368,7 @@ function DoorCard({ state: s, now }: { state: FridgeState; now: number }) {
 
 const TOKEN_PAGE = 'https://account.smartthings.com/tokens'
 
-function ConnectCard({ st, onConnected }: { st: SmartThings; onConnected: () => void }) {
+function ConnectCard({ st, onConnected, onCancel }: { st: SmartThings; onConnected: () => void; onCancel: () => void }) {
   const [token, setToken] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -352,9 +416,14 @@ function ConnectCard({ st, onConnected }: { st: SmartThings; onConnected: () => 
         />
       </Field>
       {error && <ErrorNote text={error} />}
-      <Button disabled={busy || token.trim().length < 20} onClick={connect}>
-        {busy ? '연결하는 중…' : '연결'}
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="ghost" onClick={onCancel}>
+          닫기
+        </Button>
+        <Button className="flex-1" disabled={busy || token.trim().length < 20} onClick={connect}>
+          {busy ? '연결하는 중…' : '연결'}
+        </Button>
+      </div>
       <p className="text-xs text-muted">
         토큰은 우리 집 서버에만 저장되고 앱에서는 다시 볼 수 없어요. 지금 방식의 토큰은 하루가 지나면 만료돼서 그때 새로
         넣어야 해요.
