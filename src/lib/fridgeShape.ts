@@ -48,8 +48,33 @@ export interface FridgeShape {
   wood?: { inner: string; board: string; basket: string }
   doors: DoorSpec[]
   dividers: Divider[]
+  /**
+   * 그림에만 쓰는 선반·서랍·문 포켓 자리(정면 기준 비율). 칸(compartment)은 냉장·냉동·김치냉장 같은 큰 구역 하나씩이고,
+   * 그 안의 식품을 이 자리들에 나눠 놓아 실물처럼 보이게 한다. section: main(선반)·bin(서랍·바구니)·door-left/right(문 포켓)
+   */
+  slots?: Slot[]
   /** 실제 치수를 확인하지 못해 추정한 값인지 */
   estimated: boolean
+}
+
+export interface Slot {
+  section: string
+  layout: Layout
+}
+
+const shelfSlot = (y: number, h: number): Slot => ({ section: 'main', layout: { x: 0.03, y, w: 0.94, h } })
+const pocketSlot = (side: 'left' | 'right', y: number): Slot => ({
+  section: `door-${side}`,
+  layout: { x: side === 'left' ? 0 : 0.5, y, w: 0.5, h: 0.09 },
+})
+/** 비스포크 하단 칸: 위 바스켓 + 서랍 2개 */
+const lowerSlots = (side: 'left' | 'right'): Slot[] => {
+  const x = side === 'left' ? 0.02 : 0.52
+  return [
+    { section: 'bin', layout: { x, y: 0.575, w: 0.46, h: 0.1 } },
+    { section: 'bin', layout: { x, y: 0.685, w: 0.46, h: 0.14 } },
+    { section: 'bin', layout: { x, y: 0.835, w: 0.46, h: 0.15 } },
+  ]
 }
 
 const SHAPES: Record<string, Omit<FridgeShape, 'width' | 'height' | 'depth' | 'estimated'> & { size: [number, number, number] }> = {
@@ -71,6 +96,17 @@ const SHAPES: Record<string, Omit<FridgeShape, 'width' | 'height' | 'depth' | 'e
       { dir: 'h', at: 0.55, from: 0, to: 1 },
       { dir: 'v', at: 0.5, from: 0.55, to: 1 },
     ],
+    // 제조사 사진 기준: 냉장 선반 3단 + 좌우 야채실, 아래 칸마다 바스켓 + 서랍 2개, 문마다 포켓 3개
+    slots: [
+      shelfSlot(0.02, 0.135),
+      shelfSlot(0.165, 0.12),
+      shelfSlot(0.295, 0.105),
+      { section: 'bin', layout: { x: 0.03, y: 0.41, w: 0.44, h: 0.125 } },
+      { section: 'bin', layout: { x: 0.53, y: 0.41, w: 0.44, h: 0.125 } },
+      ...lowerSlots('left'),
+      ...lowerSlots('right'),
+      ...[0.06, 0.2, 0.42, 0.6, 0.73, 0.86].flatMap((y) => [pocketSlot('left', y), pocketSlot('right', y)]),
+    ],
   },
   // 쿠쿠 133L 스탠드 냉동고: 앞문 하나, 손잡이 왼쪽(경첩 오른쪽).
   // 치수는 같은 133L 본체인 CKR-AD1410MS 공개 사양(515×1175×620mm)을 따름
@@ -83,6 +119,13 @@ const SHAPES: Record<string, Omit<FridgeShape, 'width' | 'height' | 'depth' | 'e
     display: { x: 0.43, y: 0.07, w: 0.12, h: 0.13 },
     doors: [{ id: 'main', label: '냉동고 문', rect: { x: 0, y: 0, w: 1, h: 1 }, hinge: 'right' }],
     dividers: [],
+    // 선반 4단 + 맨 아래 서랍, 문 위쪽 포켓 하나
+    slots: [
+      ...[0.03, 0.22, 0.41].map((y) => ({ section: 'main', layout: { x: 0.04, y, w: 0.92, h: 0.18 } })),
+      { section: 'main', layout: { x: 0.04, y: 0.6, w: 0.92, h: 0.17 } },
+      { section: 'bin', layout: { x: 0.04, y: 0.79, w: 0.92, h: 0.18 } },
+      { section: 'door-right', layout: { x: 0, y: 0.08, w: 1, h: 0.1 } },
+    ],
   },
   // 가상의 팬트리: 문 없는 원목 오픈 선반장. 선반 4단 + 바닥 바구니 2개
   pantry: {
@@ -122,7 +165,7 @@ export function shapeOf(fridge: Fridge): FridgeShape {
 export const isDoorCompartment = (c: Compartment) => c.section.startsWith('door')
 
 /** 서랍처럼 통으로 그릴 칸인지 (아니면 유리 선반) */
-export const isBin = (c: Compartment) => /서랍|야채|바스켓|바구니/.test(c.name) || c.section === 'lower'
+export const isBin = (c: Compartment) => /서랍|야채|바스켓|바구니/.test(c.name) || c.section === 'lower' || c.section === 'bin'
 
 const center = (l: Layout) => ({ x: l.x + l.w / 2, y: l.y + l.h / 2 })
 const contains = (r: Layout, p: { x: number; y: number }) =>
@@ -256,4 +299,58 @@ export function fitPantry(shape: FridgeShape, perCompartment: number[]): FridgeS
   const most = Math.max(0, ...perCompartment)
   const bays = most > 8 ? 2 : 1
   return bays === 1 ? shape : { ...shape, width: shape.width * bays }
+}
+
+/** 그림용 자리 id(`칸id#번호`)에서 실제 칸 id */
+export const baseId = (id: string) => id.split('#')[0]
+
+/** 문 포켓에 먼저 꽂을 모양 */
+const DOOR_FRIENDLY = new Set<Shape3D>(['bottle', 'carton', 'jar', 'can'])
+const POCKET_CAP = 4
+
+/**
+ * 큰 구역 칸(section 'zone')을 그림용 자리들로 펼친다. 구역 안의 선반·서랍·포켓 자리마다 가짜 칸(`id#n`)을 만들고
+ * 식품을 고르게 나눠 담는다(병·팩·캔은 문 포켓부터). 자리가 없는 모델이나 예전 세부 칸은 그대로 둔다.
+ * 고르기·하이라이트는 baseId 로 원래 칸에 묶는다
+ */
+export function expandSlots(
+  shape: FridgeShape,
+  compartments: Compartment[],
+  byComp: Map<string, Item[]>,
+): { compartments: Compartment[]; itemsByCompartment: Map<string, Item[]> } {
+  if (!shape.slots?.length) return { compartments, itemsByCompartment: byComp }
+  const out: Compartment[] = []
+  const items = new Map(byComp)
+  for (const c of compartments) {
+    const zone = c.layout
+    if (!zone || c.section !== 'zone') {
+      out.push(c)
+      continue
+    }
+    const inZone = shape.slots.filter((s) => contains(zone, center(s.layout)))
+    const body = inZone.filter((s) => !s.section.startsWith('door'))
+    if (!body.length) {
+      out.push(c)
+      continue
+    }
+    const pockets = inZone.filter((s) => s.section.startsWith('door'))
+    const slots = [...body, ...pockets]
+    const bags: Item[][] = slots.map(() => [])
+    const least = (from: number, to: number, cap = Infinity) => {
+      let best = -1
+      for (let i = from; i < to; i++) if (bags[i].length < cap && (best < 0 || bags[i].length < bags[best].length)) best = i
+      return best
+    }
+    for (const it of sortByUrgency(byComp.get(c.id) ?? [])) {
+      const pocket = pockets.length && DOOR_FRIENDLY.has(shapeOfItem(it)) ? least(body.length, slots.length, POCKET_CAP) : -1
+      bags[pocket >= 0 ? pocket : least(0, body.length)].push(it)
+    }
+    slots.forEach((s, i) => {
+      const id = `${c.id}#${i}`
+      // 이름표는 구역의 첫 자리에만 (예: 냉장실)
+      out.push({ ...c, id, name: i === 0 ? c.name : '', section: s.section, layout: s.layout })
+      items.set(id, bags[i])
+    })
+  }
+  return { compartments: out, itemsByCompartment: items }
 }

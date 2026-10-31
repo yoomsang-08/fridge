@@ -6,6 +6,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { categoryOf } from '../lib/categories'
 import { expiryLevel } from '../lib/expiry'
 import {
+  baseId,
   behindDoor,
   doorOf,
   isBin,
@@ -474,7 +475,7 @@ function hitHandlers(id: string, onSelect: (id: string | null) => void) {
       // 칸 안의 식품을 누른 경우엔 식품 쪽에서 처리
       if (e.intersections.some((h) => h.object.userData.item)) return
       e.stopPropagation()
-      onSelect(id)
+      onSelect(baseId(id))
     },
   }
 }
@@ -784,7 +785,7 @@ function Door({
             dw={dw}
             dh={dh}
             items={itemsByCompartment.get(p.id) ?? []}
-            selected={selectedId === p.id}
+            selected={selectedId === baseId(p.id)}
             onSelect={onSelect}
             onOpen={onOpen}
           />
@@ -1104,15 +1105,18 @@ export default function Fridge3D(props: Props) {
   const H = shape.height / 1000
 
   const placed = compartments.filter((c) => c.layout)
-  // 몸체 칸을 고르면 그 칸으로 다가간다. 문 포켓은 문과 함께 움직여서 제외
-  const picked = placed.find((c) => c.id === selectedId && !isDoorCompartment(c))
+  // 몸체 칸을 고르면 그 칸으로 다가간다. 큰 구역은 그림 자리 여러 개로 펼쳐져 있으니 모두 감싸는 상자로. 문 포켓은 문과 함께 움직여서 제외
+  const picked = placed.filter((c) => baseId(c.id) === selectedId && !isDoorCompartment(c))
   const focus: Focus | null = (() => {
-    if (!picked?.layout) return null
+    if (!picked.length) return null
     const W = shape.width / 1000
     const iw = W - WALL * 2
     const ih = H - WALL * 2
-    const l = picked.layout
-    return { x: -W / 2 + WALL + (l.x + l.w / 2) * iw, y: H - WALL - (l.y + l.h / 2) * ih, w: l.w * iw, h: l.h * ih }
+    const x0 = Math.min(...picked.map((c) => c.layout!.x))
+    const x1 = Math.max(...picked.map((c) => c.layout!.x + c.layout!.w))
+    const y0 = Math.min(...picked.map((c) => c.layout!.y))
+    const y1 = Math.max(...picked.map((c) => c.layout!.y + c.layout!.h))
+    return { x: -W / 2 + WALL + ((x0 + x1) / 2) * iw, y: H - WALL - ((y0 + y1) / 2) * ih, w: (x1 - x0) * iw, h: (y1 - y0) * ih }
   })()
   const cabinet = placed.filter((c) => !isDoorCompartment(c))
   const pocketsByDoor = new Map<string, Compartment[]>()
@@ -1171,7 +1175,7 @@ export default function Fridge3D(props: Props) {
           c={c}
           shape={shape}
           items={itemsByCompartment.get(c.id) ?? []}
-          selected={selectedId === c.id}
+          selected={selectedId === baseId(c.id)}
           onSelect={onSelect}
           onOpen={onOpenItem}
         />
