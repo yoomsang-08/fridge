@@ -1,5 +1,8 @@
 import { Cake, Heart, MessageCircle } from 'lucide-react'
 import { magnetOf, notePaper, shortAgo, splitHashtags } from '../lib/notes'
+import { todaysMagnet } from '../lib/celebrations'
+import { isArt } from '../lib/magnets'
+import { MagnetArt } from './MagnetArt'
 import type { Note } from '../lib/types'
 import { cx } from '../lib/cx'
 import { SunnyEgg } from './ui'
@@ -62,8 +65,9 @@ export function StickyNote({
 
 /** 자석. 메모 내용에 따라 가끔 모양이 바뀐다 (써니사이드업 팀의 작은 선물) */
 function Magnet({ body }: { body: string }) {
-  const kind = magnetOf(body)
+  const kind = magnetOf(body, todaysMagnet())
   const place = 'absolute top-1 left-1/2 -translate-x-1/2'
+  if (isArt(kind)) return <MagnetArt kind={kind} size={20} className={cx(place, '-top-0.5')} />
   if (kind === 'heart') {
     return <Heart aria-hidden size={16} strokeWidth={0} className={cx(place, 'fill-accent')} />
   }

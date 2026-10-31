@@ -1,4 +1,4 @@
-import { Plus, Search, X } from 'lucide-react'
+import { Plus, Search, ShoppingBasket, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { daysLeft, expiryLevel, isDueSoon, isExpired, LEVEL_DOT, LEVEL_GROUP, type ExpiryLevel } from '../lib/expiry'
 import type { ItemAction } from '../lib/repo'
@@ -101,14 +101,19 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
   )
 
   const visibleFridges = fridges.filter((f) => fridgeId === 'all' || f.id === fridgeId)
-  const empty = (
+  const empty = items.length ? (
     <p className="py-14 text-center text-sm text-muted">
-      {hideFocus && items.length
-        ? '나머지 식품은 위에 모두 있어요'
-        : items.length
-          ? '조건에 맞는 식품이 없어요'
-          : '아직 넣은 식품이 없어요. 식품 넣기를 눌러 시작해 보세요'}
+      {hideFocus ? '나머지 식품은 위에 모두 있어요' : '조건에 맞는 식품이 없어요'}
     </p>
+  ) : (
+    // 텅 빈 냉장고는 장바구니를 들고 기다린다 (이스터에그)
+    <div className="flex flex-col items-center gap-2 py-12 text-center">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent">
+        <ShoppingBasket size={28} strokeWidth={2} />
+      </span>
+      <p className="mt-1 font-bold">냉장고가 장 보러 가자고 해요</p>
+      <p className="text-sm text-muted">식품 넣기를 눌러 채워 보세요</p>
+    </div>
   )
 
   return (
