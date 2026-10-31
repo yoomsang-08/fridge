@@ -16,6 +16,7 @@ jobs:
         env:
           SECRET: ${{ secrets.SMARTTHINGS_CLIENT_SECRET }}
         run: |
+          SECRET=$(printf '%s' "$SECRET" | tr -d '[:space:]')
           if [ -z "$SECRET" ]; then
             echo "삼성 계정 연결을 아직 설정하지 않아 건너뜁니다."
             exit 0
