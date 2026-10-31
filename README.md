@@ -31,6 +31,7 @@ npm run dev
 4. 이어서 `supabase/migrations/0002_code_access.sql` 도 실행
 5. **Authentication → Sign In / Providers** 에서 **Allow anonymous sign-ins** 켜기
 6. 냉장고 문 메모를 쓰려면 `supabase/migrations/0003_notes.sql` 도 실행
+7. 분류를 우리 집마다 관리하고 용기(3D 모양)·식품유형을 저장하려면 `supabase/migrations/0007_categories.sql` 도 실행. 실행 전에도 앱은 기본 분류 12종으로 동작합니다. 팬트리(실온 보관 공간)를 추가하려면 이 파일이 먼저 실행돼 있어야 합니다 (칸 종류에 `pantry` 허용)
 
 로그인 화면은 없습니다. 각 기기는 익명 계정으로 자동 접속하고, 처음 한 번 **우리 집 코드**(12자리)를 넣어야 데이터가 열립니다. 첫 기기에서 "우리 집 새로 만들기"를 누르면 설정 화면에 코드가 나옵니다.
 

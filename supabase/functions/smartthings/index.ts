@@ -13,8 +13,9 @@ const STATE_TTL_MS = 10 * 60_000
 /** 만료 이만큼 전이면 미리 갱신한다 */
 const REFRESH_EARLY_MS = 5 * 60_000
 
-const CLIENT_ID = Deno.env.get('SMARTTHINGS_CLIENT_ID') ?? ''
-const CLIENT_SECRET = Deno.env.get('SMARTTHINGS_CLIENT_SECRET') ?? ''
+// 복사해 붙일 때 딸려 온 공백·줄바꿈은 지운다
+const CLIENT_ID = (Deno.env.get('SMARTTHINGS_CLIENT_ID') ?? '').trim()
+const CLIENT_SECRET = (Deno.env.get('SMARTTHINGS_CLIENT_SECRET') ?? '').trim()
 const APP_URL = Deno.env.get('APP_URL') ?? 'https://yoomsang-08.github.io/fridge/'
 const oauthReady = () => !!(CLIENT_ID && CLIENT_SECRET)
 const redirectUri = () => `${Deno.env.get('SUPABASE_URL')}/functions/v1/smartthings`
