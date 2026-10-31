@@ -234,7 +234,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           />
         )}
 
-        {tab === 'view' && (
+        {tab === 'view' && noFridge && (
           <div className="mb-4">
             <FridgeStatus st={smartthings} />
           </div>
@@ -250,6 +250,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
             notes={snap.notes}
             onOpenNotes={() => openTab('notes')}
+            header={<FridgeStatus st={smartthings} />}
           />
         )}
 

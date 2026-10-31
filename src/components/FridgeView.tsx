@@ -97,42 +97,46 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
 
   return (
     <div className="flex flex-col gap-3">
-      {header}
+      {/* 상태 카드(냉장·냉동 온도)는 냉장고를 볼 때만 */}
+      {!noDoors && header}
 
-      {fridges.length > 1 && (
-        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          {spaces.map((f) => {
-            const Icon = f.template === 'pantry' ? Archive : Refrigerator
-            return (
-              <Chip
-                key={f.id}
-                active={f.id === fridge.id}
-                onClick={() => {
-                  setFridgeId(f.id)
-                  setSelectedId(null)
-                  setSide(false)
-                }}
-              >
-                <Icon size={16} strokeWidth={2.2} />
-                {f.name}
-              </Chip>
-            )
-          })}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2">
-        {webgl && (
-          <Segmented
-            className="ml-auto"
-            value={mode}
-            options={[
-              ['3d', '3D'],
-              ['flat', '평면'],
-            ]}
-            onChange={changeMode}
-          />
+      {/* 폰은 공간 칩 줄 아래에 3D·평면, sm 이상은 한 줄 양 끝 */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {fridges.length > 1 && (
+          <div className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            {spaces.map((f) => {
+              const Icon = f.template === 'pantry' ? Archive : Refrigerator
+              return (
+                <Chip
+                  key={f.id}
+                  active={f.id === fridge.id}
+                  onClick={() => {
+                    setFridgeId(f.id)
+                    setSelectedId(null)
+                    setSide(false)
+                  }}
+                >
+                  <Icon size={16} strokeWidth={2.2} />
+                  {f.name}
+                </Chip>
+              )
+            })}
+          </div>
         )}
+
+        <div className="flex shrink-0 items-center gap-2">
+          {webgl && (
+            <Segmented
+              className="ml-auto"
+              value={mode}
+              options={[
+                ['3d', '3D'],
+                ['flat', '평면'],
+              ]}
+              onChange={changeMode}
+            />
+          )}
+        </div>
       </div>
 
       <Card className="relative overflow-hidden">
@@ -167,7 +171,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
         )}
 
         {mode === '3d' ? (
-          <div className="h-[60dvh] min-h-80 w-full touch-none">
+          <div className={cx(noDoors ? 'h-[72dvh]' : 'h-[60dvh]', 'min-h-80 w-full touch-none')}>
             <Suspense fallback={<div className="grid h-full place-items-center text-muted">불러오는 중…</div>}>
               <Fridge3D
                 shape={shape}
