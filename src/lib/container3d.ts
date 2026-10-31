@@ -18,25 +18,29 @@ export const SHAPE_HEIGHT: Record<Shape3D, number> = {
 }
 
 /**
- * 분류 tint 는 아주 옅어서 3D 에선 다 흰색처럼 보인다. 색상은 그대로 두고 채도·명도를 모양마다 조금씩 달리해
- * 나란히 놓여도 명도 차로 구분되게 한다
+ * 분류 tint 는 아주 옅어서 3D 에선 다 흰색처럼 보인다. 색상(hue)은 그대로 두고, 명도는 공간 배경과 대비되게 정한다.
+ * 냉장고(흰 내부)는 L 0.60~0.72 로 내려서 또렷하게, 팬트리(원목)는 도자기처럼 L 0.88~0.93 으로 올려 선반에서 떠 보이게.
+ * 그 범위 안에서 모양마다 명도를 조금씩 달리해 나란히 놓여도 구분되게 한다
  */
-const TONE: Record<Shape3D, [number, number]> = {
-  bottle: [0.42, 0.7],
-  jar: [0.38, 0.76],
-  carton: [0.3, 0.86],
-  can: [0.34, 0.62],
-  tub: [0.32, 0.8],
-  box: [0.36, 0.74],
-  bag: [0.44, 0.68],
-  tray: [0.4, 0.66],
-  loose: [0.5, 0.6],
-  egg: [0.3, 0.84],
+const TONE: Record<Shape3D, [saturation: number, step: number]> = {
+  bottle: [0.42, 0.5],
+  jar: [0.38, 0.8],
+  carton: [0.3, 1],
+  can: [0.34, 0.1],
+  tub: [0.32, 0.7],
+  box: [0.36, 0.6],
+  bag: [0.44, 0.3],
+  tray: [0.4, 0.2],
+  loose: [0.5, 0],
+  egg: [0.3, 0.9],
 }
 
-export function bodyColor(tint: string, shape: Shape3D): string {
+const LIGHTNESS = { fridge: [0.6, 0.72], pantry: [0.88, 0.93] } as const
+
+export function bodyColor(tint: string, shape: Shape3D, space: keyof typeof LIGHTNESS): string {
   const hsl = { h: 0, s: 0, l: 0 }
   new THREE.Color(tint).getHSL(hsl)
-  const [s, l] = TONE[shape]
-  return `#${new THREE.Color().setHSL(hsl.h, hsl.s < 0.05 ? 0.04 : s, l).getHexString()}`
+  const [s, step] = TONE[shape]
+  const [lo, hi] = LIGHTNESS[space]
+  return `#${new THREE.Color().setHSL(hsl.h, hsl.s < 0.05 ? 0.04 : s, lo + (hi - lo) * step).getHexString()}`
 }
