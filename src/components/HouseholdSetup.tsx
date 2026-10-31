@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-/** 처음 로그인했을 때: 우리 집을 새로 만들거나, 배우자가 준 초대코드로 합류 */
-export function HouseholdSetup({ sb, defaultName, onDone }: { sb: SupabaseClient; defaultName: string; onDone: () => void }) {
-  const [displayName, setDisplayName] = useState(defaultName)
+/** 이 기기에서 처음 열었을 때: 집 코드를 넣어 합류하거나, 우리 집을 새로 만들기 */
+export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () => void }) {
+  const [displayName, setDisplayName] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -17,49 +17,51 @@ export function HouseholdSetup({ sb, defaultName, onDone }: { sb: SupabaseClient
         : { p_code: code, p_display_name: displayName }
     const { error } = await sb.rpc(fn, args)
     setBusy(false)
-    if (error) setError(fn === 'join_household' ? '초대코드를 다시 확인해 주세요.' : error.message)
+    if (error) setError(fn === 'join_household' ? '집 코드를 다시 확인해 주세요.' : error.message)
     else onDone()
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6">
-      <h1 className="text-xl font-bold">처음 오셨네요</h1>
-      <label className="flex flex-col gap-1 text-sm text-slate-600">
-        앱에서 보일 내 이름
-        <input
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          className="rounded-xl border border-slate-300 px-3 py-3 text-base text-slate-900"
-        />
-      </label>
-      <div className="rounded-2xl bg-white p-4 shadow-sm">
-        <p className="font-semibold">새로 시작하기</p>
-        <p className="mt-1 text-sm text-slate-500">우리 집을 만들고, 설정에서 초대코드를 배우자에게 보내 주세요.</p>
-        <button
-          disabled={busy}
-          onClick={() => run('create_household')}
-          className="mt-3 w-full rounded-xl bg-sky-600 py-3 font-semibold text-white disabled:opacity-50"
-        >
-          우리 집 만들기
-        </button>
+    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-5 px-6">
+      <div className="text-center">
+        <div className="text-6xl">🧊</div>
+        <h1 className="mt-3 text-2xl font-extrabold">냉장고를 부탁해</h1>
+        <p className="mt-1 text-sm text-slate-500">이 기기에서 처음 여셨네요. 우리 집 코드를 한 번만 넣어 주세요.</p>
       </div>
+      <input
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        placeholder="누가 쓰나요? (예: 민상, 아내)"
+        className="rounded-xl border border-slate-300 px-3 py-3"
+      />
       <div className="rounded-2xl bg-white p-4 shadow-sm">
-        <p className="font-semibold">초대코드로 합류하기</p>
         <input
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="예: 3F9A1C2B"
-          className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 uppercase tracking-widest"
+          placeholder="우리 집 코드 12자리"
+          autoCapitalize="characters"
+          autoComplete="off"
+          className="w-full rounded-xl border border-slate-300 px-3 py-3 text-center font-mono uppercase tracking-widest"
         />
         <button
           disabled={busy || !code.trim()}
           onClick={() => run('join_household')}
-          className="mt-3 w-full rounded-xl bg-slate-800 py-3 font-semibold text-white disabled:opacity-50"
+          className="mt-3 w-full rounded-xl bg-sky-600 py-3 font-semibold text-white disabled:opacity-50"
         >
-          합류하기
+          들어가기
         </button>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-center text-sm text-red-600">{error}</p>}
+      <div className="text-center">
+        <p className="text-sm text-slate-500">아직 우리 집 코드가 없다면</p>
+        <button
+          disabled={busy}
+          onClick={() => run('create_household')}
+          className="mt-1 text-sm font-semibold text-sky-700 disabled:opacity-50"
+        >
+          우리 집 새로 만들기
+        </button>
+      </div>
     </div>
   )
 }
