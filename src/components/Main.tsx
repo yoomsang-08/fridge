@@ -1,7 +1,7 @@
 import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
-import type { SmartThings } from '../lib/smartthings'
+import { cameBackFromOAuth, type SmartThings } from '../lib/smartthings'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
 import { expiryLevel } from '../lib/expiry'
 import { setAppBadge } from '../lib/badge'
@@ -48,8 +48,9 @@ interface Props {
 export function Main({ repo, household, smartthings, isLocal = false, onSignOut }: Props) {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // 알림을 눌러 열면 ./?tab=notes 처럼 들어온다
+  // 알림을 눌러 열면 ./?tab=notes 처럼 들어온다. 삼성 계정 로그인에서 돌아오면(?smartthings=…) 냉장고 탭으로
   const [tab, setTab] = useState<Tab>(() => {
+    if (cameBackFromOAuth()) return 'view'
     const t = new URLSearchParams(location.search).get('tab')
     return TABS.some((x) => x.id === t) ? (t as Tab) : 'list'
   })

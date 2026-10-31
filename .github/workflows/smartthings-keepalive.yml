@@ -1,0 +1,27 @@
+name: SmartThings token keepalive
+
+# 삼성 계정 연결의 갱신 토큰은 29일 동안 안 쓰면 끊깁니다.
+# 앱을 한동안 안 열어도 연결이 유지되도록 매주 한 번 서버가 토큰을 갱신하게 합니다.
+
+on:
+  schedule:
+    - cron: '0 18 * * 0' # 매주 월요일 오전 3시 (한국 시간)
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh tokens
+        env:
+          SECRET: ${{ secrets.SMARTTHINGS_CLIENT_SECRET }}
+        run: |
+          if [ -z "$SECRET" ]; then
+            echo "삼성 계정 연결을 아직 설정하지 않아 건너뜁니다."
+            exit 0
+          fi
+          curl -sS --fail-with-body -X POST \
+            https://aiwqfqfswuehxqferrpn.supabase.co/functions/v1/smartthings \
+            -H "Content-Type: application/json" \
+            -H "x-keepalive: $SECRET" \
+            -d '{"action":"keepalive"}'

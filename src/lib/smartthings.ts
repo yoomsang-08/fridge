@@ -4,7 +4,10 @@ import type { FridgeCommand, FridgeState } from '../../supabase/functions/smartt
 export type { FridgeCommand, FridgeState, Zone } from '../../supabase/functions/smartthings/fridge.ts'
 export { FLEX_MODE_LABEL } from '../../supabase/functions/smartthings/fridge.ts'
 
-export type DeviceStatus = { connected: false } | { connected: true; linkedAt: string; state: FridgeState }
+/** oauth: 서버에 삼성 계정 연결이 설정돼 있어 '삼성 계정으로 연결'을 쓸 수 있음 */
+export type DeviceStatus =
+  | { connected: false; oauth?: boolean }
+  | { connected: true; auth?: 'oauth' | 'token'; oauth?: boolean; linkedAt: string; state: FridgeState }
 
 /** 스마트싱스 냉장고. 토큰은 서버(Edge Function)에만 있고 앱은 정리된 값만 받는다 */
 export interface SmartThings {
@@ -12,6 +15,8 @@ export interface SmartThings {
   demo: boolean
   status(): Promise<DeviceStatus>
   connect(token: string): Promise<void>
+  /** 삼성 계정 로그인 페이지 주소. 로그인이 끝나면 앱으로 ?smartthings=결과 를 붙여 돌아온다 */
+  oauthStart(): Promise<string>
   disconnect(): Promise<void>
   send(command: FridgeCommand): Promise<void>
 }
@@ -26,6 +31,7 @@ const ERROR_TEXT: Record<string, string> = {
   rate_limited: '요청이 너무 잦아요. 잠시 뒤에 다시 해 주세요.',
   command_not_allowed: '그 온도로는 바꿀 수 없어요.',
   forbidden: '우리 집에 합류한 기기에서만 쓸 수 있어요.',
+  oauth_unavailable: '삼성 계정 연결이 아직 설정되지 않았어요. 토큰으로 연결해 주세요.',
 }
 
 export function errorText(e: unknown): string {
@@ -48,6 +54,7 @@ export function createSmartThings(sb: SupabaseClient, householdId: string): Smar
     demo: false,
     status: () => call<DeviceStatus>('status'),
     connect: (token) => call('connect', { token }),
+    oauthStart: async () => (await call<{ url: string }>('oauth_start')).url,
     disconnect: () => call('disconnect'),
     send: (command) => call('command', { command }),
   }
@@ -69,12 +76,44 @@ export function createDemoSmartThings(): SmartThings {
   }
   return {
     demo: true,
-    status: async () => ({ connected: true, linkedAt: new Date().toISOString(), state: structuredClone(state) }),
+    status: async () => ({ connected: true, auth: 'oauth', linkedAt: new Date().toISOString(), state: structuredClone(state) }),
     connect: async () => {},
+    oauthStart: async () => location.href,
     disconnect: async () => {},
     send: async (c) => {
       if (c.kind === 'setpoint') state[c.zone].setpoint = c.value
       else state[c.kind] = c.on
     },
   }
+}
+
+/** 삼성 계정 로그인에서 돌아왔을 때 주소에 붙는 결과 */
+const OAUTH_RESULT_TEXT: Record<string, string> = {
+  connected: '삼성 계정으로 연결했어요. 이제 토큰을 다시 넣지 않아도 돼요.',
+  cancelled: '삼성 계정 연결을 취소했어요.',
+  expired: '연결 시간이 지났어요. 다시 한 번 눌러 주세요.',
+  no_refrigerator: '이 삼성 계정에서 냉장고를 찾지 못했어요. 스마트싱스 앱에 냉장고가 등록돼 있는지 확인해 주세요.',
+  failed: '삼성 계정에 연결하지 못했어요. 잠시 뒤에 다시 해 주세요.',
+}
+
+/** 주소의 ?smartthings= 결과를 읽고 주소에서 지운다 */
+function readOAuthResult(): { ok: boolean; text: string } | null {
+  const params = new URLSearchParams(location.search)
+  const r = params.get('smartthings')
+  if (!r) return null
+  params.delete('smartthings')
+  const qs = params.toString()
+  history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : '') + location.hash)
+  return { ok: r === 'connected', text: OAUTH_RESULT_TEXT[r] ?? OAUTH_RESULT_TEXT.failed }
+}
+
+// 앱이 뜰 때 한 번만 읽어 두고, 냉장고 상태 카드가 처음 그려질 때 가져간다
+let pendingOAuthResult = typeof location === 'undefined' ? null : readOAuthResult()
+
+export const cameBackFromOAuth = () => pendingOAuthResult !== null
+
+export function takeOAuthResult() {
+  const r = pendingOAuthResult
+  pendingOAuthResult = null
+  return r
 }
