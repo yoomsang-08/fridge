@@ -31,3 +31,21 @@ async function call(body: { q?: string; barcode?: string }): Promise<FoodProduct
 
 export const searchFoodByName = (q: string) => call({ q })
 export const searchFoodByBarcode = (barcode: string) => call({ barcode })
+
+const CATEGORY_RULES: [RegExp, string][] = [
+  [/음료|주스|커피|다류|생수|탄산|두유/, 'drink'],
+  [/빙과|아이스크림|냉동/, 'frozen'],
+  [/우유|발효유|치즈|버터|유가공|유크림|요구르트/, 'dairy'],
+  [/알가공|계란|달걀/, 'egg'],
+  [/김치|절임|젓갈|조림|반찬/, 'side'],
+  [/식육|햄|소시지|베이컨|육가공|양념육/, 'meat'],
+  [/장류|간장|된장|고추장|소스|조미|양념|식초|드레싱|케첩|마요네즈|식용유|참기름|소금|설탕|당류/, 'sauce'],
+  [/어육|어묵|수산|건포류/, 'seafood'],
+  [/과일|과채가공/, 'fruit'],
+]
+
+/** 식품유형(예: "유탕면", "발효유")으로 앱의 분류를 추측. 모르면 가공식품 */
+export function guessCategory(p: FoodProduct): string {
+  const text = `${p.foodType ?? ''} ${p.name}`
+  return CATEGORY_RULES.find(([re]) => re.test(text))?.[1] ?? 'processed'
+}

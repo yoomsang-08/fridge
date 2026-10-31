@@ -12,6 +12,7 @@
 - 임박 표시: 기한 지남(빨강), 3일 이내(주황), 7일 이내(노랑)
 - −1 사용, 다 먹음, 버림 기록
 - 홈 화면에 설치(PWA), 우리 집 코드로 여러 기기 실시간 공유
+- 식품안전나라 제품 검색: 이름을 치면 제품 후보(제조사, 식품유형, 소비기한 문구), 📷 바코드로 카메라 스캔 또는 숫자 입력 → 이름·분류·소비기한 제안 채우기 (아래 "식품 검색 켜기" 필요)
 
 ## 실행
 
@@ -38,9 +39,25 @@ npm run dev
 
 처음 한 번은 저장소 **Settings → Pages → Build and deployment → Source** 를 **GitHub Actions** 로 바꿔야 합니다.
 
+## 식품 검색 켜기
+
+식품안전나라 API 는 브라우저에서 바로 부를 수 없어 Supabase Edge Function 을 중계 서버로 씁니다. 자세한 내용은 `docs/food-api.md`.
+
+1. [식품안전나라 데이터활용서비스](https://www.foodsafetykorea.go.kr/apiMain.do)에서 인증키 발급, **I1250**(품목제조보고)과 **C005**(바코드연계제품정보) 각각 활용신청
+2. 배포 (Supabase 로그인 한 번 필요):
+
+```bash
+npx supabase login
+npx supabase link --project-ref <프로젝트 ref>
+npx supabase secrets set FOODSAFETY_API_KEY=<인증키>
+npx supabase functions deploy food-search
+```
+
+배포 전에는 검색 결과가 비어 있고, 바코드는 "못 찾았어요"로 나오며 직접 입력은 그대로 됩니다.
+
 ## 다음 단계
 
-- 2단계: 식품안전나라 API 연동(이름 검색, 바코드 스캔), 매일 아침 임박 알림
+- 2단계 남은 것: 매일 아침 임박 알림
 - 3단계: 2D 냉장고 그림 뷰 (정면/문 안쪽)
 - 4단계: 3D 냉장고 렌더링
 

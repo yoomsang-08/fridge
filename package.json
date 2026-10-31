@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
+    "barcode-detector": "^3.2.3",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "zxing-wasm": "^3.1.6"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
