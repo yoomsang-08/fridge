@@ -93,3 +93,27 @@ export const CONTAINERS: { id: Container; label: string }[] = [
   { id: 'tray', label: '트레이' },
   { id: 'loose', label: '낱개' },
 ]
+
+/**
+ * 팬트리(실온)에 넣을 때 추천하는 기한. 보수적으로 잡은 대략값이라 추천 칩으로만 쓴다.
+ * null 은 실온 보관을 권하지 않는 분류 (육류·해산물·유제품·반찬·냉동식품)
+ */
+export const ROOM_TEMP_DAYS: Record<string, number | null> = {
+  vegetable: 7,
+  fruit: 5,
+  meat: null,
+  seafood: null,
+  dairy: null,
+  egg: 14,
+  side: null,
+  sauce: 180,
+  drink: 180,
+  frozen: null,
+  processed: 90,
+  etc: 30,
+}
+
+/** 분류가 표에 없으면(집에서 새로 만든 분류) 추천하지 않는다 */
+export function roomTempDays(category: string): number | null | undefined {
+  return category in ROOM_TEMP_DAYS ? ROOM_TEMP_DAYS[category] : undefined
+}

@@ -5,7 +5,7 @@ import { useDialog } from './Dialog'
 import { Sheet } from './Sheet'
 import { cx } from '../lib/cx'
 import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
-import { CONTAINERS, guessContainer, UNITS, useCategories } from '../lib/categories'
+import { CONTAINERS, guessContainer, roomTempDays, UNITS, useCategories } from '../lib/categories'
 import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE } from '../lib/expiry'
 import {
   foodSearchAvailable,
@@ -68,9 +68,6 @@ export function ItemSheet({
 }: Props) {
   const initialCompartment = item?.compartment_id ?? defaultCompartmentId ?? compartments[0]?.id ?? ''
   const [compartmentId, setCompartmentId] = useState(initialCompartment)
-  const [fridgeId, setFridgeId] = useState(
-    compartments.find((c) => c.id === initialCompartment)?.fridge_id ?? fridges[0]?.id ?? '',
-  )
   const [name, setName] = useState(item?.name ?? '')
   const [category, setCategory] = useState(item?.category ?? 'etc')
   const [quantity, setQuantity] = useState(item?.quantity ?? 1)
@@ -109,7 +106,6 @@ export function ItemSheet({
   const canSearch = foodSearchAvailable && !item
 
   const { confirm, dialog } = useDialog()
-  const fridgeCompartments = compartments.filter((c) => c.fridge_id === fridgeId)
 
   const suggestions = useMemo(() => {
     const q = name.trim()
@@ -161,6 +157,10 @@ export function ItemSheet({
         : null
   const shelfDays = picked && name === picked.name ? picked.shelfLifeDays : null
   const shelfDate = shelfDays ? addDays(shelfDays) : null
+  // 팬트리 칸이면 분류별 실온 기한을 추천 (제품 소비기한이 있으면 그쪽이 우선)
+  const inPantry = compartments.find((c) => c.id === compartmentId)?.zone === 'pantry'
+  const roomDays = inPantry && !shelfDate ? roomTempDays(category) : undefined
+  const roomDate = roomDays ? addDays(roomDays) : null
 
   const pickProduct = (p: FoodProduct) => {
     setName(p.name)
@@ -359,41 +359,39 @@ export function ItemSheet({
             </div>
           </Field>
 
-          <Field
-            label="어디에 넣나요?"
-            aside={
-              fridges.length > 1 && (
-                <Segmented
-                  value={fridgeId}
-                  onChange={(id) => {
-                    setFridgeId(id)
-                    setCompartmentId(compartments.find((c) => c.fridge_id === id)?.id ?? '')
-                  }}
-                  options={fridges.map((f) => [f.id, f.name] as const)}
-                />
-              )
-            }
-          >
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-              {fridgeCompartments.map((c) => {
-                const on = c.id === compartmentId
+          <Field label="어디에 넣나요?">
+            {/* 공간(냉장고·팬트리)별로 묶는다. 공간이 하나면 제목 없이 칸만 */}
+            <div className="flex flex-col gap-3">
+              {fridges.map((f) => {
+                const comps = compartments.filter((c) => c.fridge_id === f.id)
+                if (comps.length === 0) return null
                 return (
-                  <button
-                    key={c.id}
-                    onClick={() => setCompartmentId(c.id)}
-                    aria-pressed={on}
-                    className={cx(
-                      'flex min-h-12 flex-col justify-center rounded-xl border px-3 py-1.5 text-left text-sm font-semibold transition',
-                      on
-                        ? 'border-accent bg-accent-soft text-accent ring-1 ring-accent'
-                        : 'border-line active:bg-sunken',
-                    )}
-                  >
-                    <span className={cx('text-[10px] font-semibold', on ? 'text-accent' : 'text-muted')}>
-                      {ZONE_LABEL[c.zone]}
-                    </span>
-                    <span className="truncate">{c.name}</span>
-                  </button>
+                  <div key={f.id}>
+                    {fridges.length > 1 && <p className="mb-1.5 text-xs font-bold text-muted">{f.name}</p>}
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                      {comps.map((c) => {
+                        const on = c.id === compartmentId
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => setCompartmentId(c.id)}
+                            aria-pressed={on}
+                            className={cx(
+                              'flex min-h-12 flex-col justify-center rounded-xl border px-3 py-1.5 text-left text-sm font-semibold transition',
+                              on
+                                ? 'border-accent bg-accent-soft text-accent ring-1 ring-accent'
+                                : 'border-line active:bg-sunken',
+                            )}
+                          >
+                            <span className={cx('text-[10px] font-semibold', on ? 'text-accent' : 'text-muted')}>
+                              {ZONE_LABEL[c.zone]}
+                            </span>
+                            <span className="truncate">{c.name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 )
               })}
             </div>
@@ -501,6 +499,16 @@ export function ItemSheet({
                   {picked!.shelfLifeText}. 제조일 기준이라 실제보다 길 수 있어요. 포장에 찍힌 날짜가 정확해요.
                 </p>
               </div>
+            )}
+            {roomDate && expiry !== roomDate && (
+              <div className="mt-2">
+                <Chip tone="suggest" onClick={() => setExpiry(roomDate)}>
+                  실온 기준 약 {roomDays! >= 30 ? `${Math.round(roomDays! / 30)}달` : `${roomDays}일`} · 날짜 넣기
+                </Chip>
+              </div>
+            )}
+            {roomDays === null && (
+              <p className="mt-2 text-xs text-faint">이 분류는 실온에 두면 금방 상해요. 냉장고 칸을 추천해요.</p>
             )}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {(moreExpiry ? QUICK_EXPIRY : QUICK_EXPIRY.slice(0, QUICK_VISIBLE)).map((q) => {

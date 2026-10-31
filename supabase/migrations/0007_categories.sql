@@ -1,4 +1,5 @@
--- 분류를 코드가 아닌 DB 에서 관리하고, 3D 렌더링용 용기(container)와 식품안전나라 식품유형을 저장
+-- 분류를 코드가 아닌 DB 에서 관리하고, 3D 렌더링용 용기(container)와 식품안전나라 식품유형을 저장.
+-- 실온 보관용 팬트리 칸(zone 'pantry')도 허용
 -- SQL Editor 에 붙여넣고 실행하세요. 여러 번 실행해도 안전합니다.
 
 -- 우리 집마다 분류 목록. items.category 는 이 id 를 가리킨다 (이름을 바꿔도 식품 데이터는 그대로)
@@ -60,3 +61,8 @@ alter table items add column if not exists container text
   check (container in ('bottle', 'jar', 'carton', 'can', 'tub', 'box', 'bag', 'tray', 'loose'));
 -- 식품안전나라에서 고른 경우 식품유형 원문 (예: 유탕면, 발효유). 나중에 일괄 재분류의 근거
 alter table items add column if not exists food_type text;
+
+-- 실온 보관 (가상 팬트리). 팬트리는 fridges 행 하나(template 'pantry')와 zone 'pantry' 칸으로 만든다
+alter table compartments drop constraint if exists compartments_zone_check;
+alter table compartments add constraint compartments_zone_check
+  check (zone in ('fridge', 'freezer', 'flex', 'pantry'));

@@ -1,4 +1,5 @@
-export type Zone = 'fridge' | 'freezer' | 'flex'
+/** pantry: 실온 보관 (가상 팬트리) */
+export type Zone = 'fridge' | 'freezer' | 'flex' | 'pantry'
 export type ExpiryType = 'use_by' | 'sell_by'
 /** 3D 모양용 용기. supabase/migrations/0007_categories.sql 의 check 와 같다 */
 export type Container = 'bottle' | 'jar' | 'carton' | 'can' | 'tub' | 'box' | 'bag' | 'tray' | 'loose'
