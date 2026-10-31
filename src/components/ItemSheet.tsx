@@ -4,8 +4,9 @@ import { BarcodeScanner } from './BarcodeScanner'
 import { useDialog } from './Dialog'
 import { Sheet } from './Sheet'
 import { cx } from '../lib/cx'
+import { SpaceIcon } from './SpaceIcon'
 import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
-import { CATEGORIES, UNITS } from '../lib/categories'
+import { CONTAINERS, guessContainer, roomTempDays, UNITS, useCategories } from '../lib/categories'
 import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE } from '../lib/expiry'
 import {
   foodSearchAvailable,
@@ -16,9 +17,10 @@ import {
 } from '../lib/foodSearch'
 import { ZONE_LABEL } from '../lib/templates'
 import type { ItemAction } from '../lib/repo'
-import type { Compartment, Fridge, Item, ItemInput, Member } from '../lib/types'
+import type { Compartment, Container, Fridge, Item, ItemInput, Member } from '../lib/types'
 
 const QUICK_VISIBLE = 5
+const LAST_SPACE_KEY = 'fridge-last-space'
 
 const QUICK_EXPIRY: { label: string; value: () => string }[] = [
   { label: '오늘', value: () => addDays(0) },
@@ -66,15 +68,25 @@ export function ItemSheet({
   onDelete,
   onClose,
 }: Props) {
-  const initialCompartment = item?.compartment_id ?? defaultCompartmentId ?? compartments[0]?.id ?? ''
+  // 새로 넣을 때 기본 칸: 칸별 보기에서 고른 칸 > 마지막으로 넣은 공간의 첫 칸 > 첫 냉장고의 첫 칸
+  const lastSpace = localStorage.getItem(LAST_SPACE_KEY)
+  const initialCompartment =
+    item?.compartment_id ??
+    defaultCompartmentId ??
+    compartments.find((c) => c.fridge_id === lastSpace)?.id ??
+    compartments[0]?.id ??
+    ''
   const [compartmentId, setCompartmentId] = useState(initialCompartment)
-  const [fridgeId, setFridgeId] = useState(
+  const [spaceId, setSpaceId] = useState(
     compartments.find((c) => c.id === initialCompartment)?.fridge_id ?? fridges[0]?.id ?? '',
   )
   const [name, setName] = useState(item?.name ?? '')
   const [category, setCategory] = useState(item?.category ?? 'etc')
   const [quantity, setQuantity] = useState(item?.quantity ?? 1)
   const [unit, setUnit] = useState(item?.unit ?? '개')
+  const [container, setContainer] = useState<Container | null>(item?.container ?? null)
+  const containerGuess = useMemo(() => guessContainer(name, unit), [name, unit])
+  const categories = useCategories().filter((c) => !c.hidden || c.id === item?.category)
   const [expiry, setExpiry] = useState<string | null>(item?.expiry_date ?? null)
   const [expiryType, setExpiryType] = useState(item?.expiry_type ?? 'use_by')
   const [opened, setOpened] = useState(item?.opened ?? false)
@@ -106,7 +118,6 @@ export function ItemSheet({
   const canSearch = foodSearchAvailable && !item
 
   const { confirm, dialog } = useDialog()
-  const fridgeCompartments = compartments.filter((c) => c.fridge_id === fridgeId)
 
   const suggestions = useMemo(() => {
     const q = name.trim()
@@ -158,6 +169,10 @@ export function ItemSheet({
         : null
   const shelfDays = picked && name === picked.name ? picked.shelfLifeDays : null
   const shelfDate = shelfDays ? addDays(shelfDays) : null
+  // 팬트리 칸이면 분류별 실온 기한을 추천 (제품 소비기한이 있으면 그쪽이 우선)
+  const inPantry = compartments.find((c) => c.id === compartmentId)?.zone === 'pantry'
+  const roomDays = inPantry && !shelfDate ? roomTempDays(category) : undefined
+  const roomDate = roomDays ? addDays(roomDays) : null
 
   const pickProduct = (p: FoodProduct) => {
     setName(p.name)
@@ -194,11 +209,23 @@ export function ItemSheet({
     setExpiryType(h.expiry_type)
   }
 
+  // 식품안전나라에서 고른 이름 그대로면 원본 정보도 남긴다 (나중에 일괄 재분류 근거)
+  const fromProduct = picked && name.trim() === picked.name ? picked : null
+  /** 새 칸은 값이 있을 때만 보낸다: 0007 마이그레이션 전에도 기본 저장은 되도록 */
+  const productFields = (): Partial<ItemInput> => {
+    const f: Partial<ItemInput> = {}
+    if (container || item?.container) f.container = container
+    if (fromProduct?.foodType) f.food_type = fromProduct.foodType
+    if (fromProduct?.barcode) f.barcode = fromProduct.barcode
+    return f
+  }
+
   const reset = () => {
     setName('')
     setQuantity(1)
     setExpiry(null)
     setOpened(false)
+    setContainer(null)
     setMemo('')
     setPicked(null)
     setFound(null)
@@ -210,6 +237,7 @@ export function ItemSheet({
     setBusy(true)
     setError(null)
     try {
+      if (!item && spaceId) localStorage.setItem(LAST_SPACE_KEY, spaceId)
       await onSave(
         {
           compartment_id: compartmentId,
@@ -221,6 +249,7 @@ export function ItemSheet({
           expiry_type: expiryType,
           opened,
           memo: memo.trim() || null,
+          ...productFields(),
         },
         keepOpen,
       )
@@ -335,7 +364,7 @@ export function ItemSheet({
               </div>
             )}
             <div className="-mx-5 mt-3 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <Chip key={c.id} active={c.id === category} onClick={() => setCategory(c.id)}>
                   <span aria-hidden>{c.emoji}</span> {c.label}
                 </Chip>
@@ -343,43 +372,46 @@ export function ItemSheet({
             </div>
           </Field>
 
-          <Field
-            label="어디에 넣나요?"
-            aside={
-              fridges.length > 1 && (
-                <Segmented
-                  value={fridgeId}
-                  onChange={(id) => {
-                    setFridgeId(id)
-                    setCompartmentId(compartments.find((c) => c.fridge_id === id)?.id ?? '')
-                  }}
-                  options={fridges.map((f) => [f.id, f.name] as const)}
-                />
-              )
-            }
-          >
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-              {fridgeCompartments.map((c) => {
-                const on = c.id === compartmentId
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => setCompartmentId(c.id)}
-                    aria-pressed={on}
-                    className={cx(
-                      'flex min-h-12 flex-col justify-center rounded-xl border px-3 py-1.5 text-left text-sm font-semibold transition',
-                      on
-                        ? 'border-accent bg-accent-soft text-accent ring-1 ring-accent'
-                        : 'border-line active:bg-sunken',
-                    )}
+          <Field label="어디에 넣나요?">
+            {fridges.length > 1 && (
+              <div className="-mx-5 mb-2.5 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+                {fridges.map((f) => (
+                  <Chip
+                    key={f.id}
+                    active={spaceId === f.id}
+                    onClick={() => {
+                      setSpaceId(f.id)
+                      setCompartmentId(compartments.find((c) => c.fridge_id === f.id)?.id ?? '')
+                    }}
                   >
-                    <span className={cx('text-[10px] font-semibold', on ? 'text-accent' : 'text-muted')}>
-                      {ZONE_LABEL[c.zone]}
-                    </span>
-                    <span className="truncate">{c.name}</span>
-                  </button>
-                )
-              })}
+                    <SpaceIcon fridge={f} />
+                    {f.name}
+                  </Chip>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {compartments
+                .filter((c) => c.fridge_id === spaceId)
+                .map((c) => {
+                  const on = c.id === compartmentId
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setCompartmentId(c.id)}
+                      aria-pressed={on}
+                      className={cx(
+                        'flex min-h-12 flex-col justify-center rounded-xl border px-3 py-1.5 text-left text-sm font-semibold transition',
+                        on ? 'border-accent bg-accent-soft text-accent ring-1 ring-accent' : 'border-line active:bg-sunken',
+                      )}
+                    >
+                      <span className={cx('text-[10px] font-semibold', on ? 'text-accent' : 'text-muted')}>
+                        {ZONE_LABEL[c.zone]}
+                      </span>
+                      <span className="truncate">{c.name}</span>
+                    </button>
+                  )
+                })}
             </div>
           </Field>
 
@@ -433,6 +465,22 @@ export function ItemSheet({
                 개봉함
               </Chip>
             </div>
+            <p className="mt-3 text-xs font-semibold text-muted">용기 · 안 골라도 돼요</p>
+            <div className="-mx-5 mt-1.5 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+              {CONTAINERS.map((c) => (
+                <Chip
+                  key={c.id}
+                  // 앱이 짐작한 용기는 고른 것과 구분되게 추천 칩으로
+                  tone={!container && c.id === containerGuess ? 'suggest' : 'default'}
+                  active={c.id === container}
+                  aria-pressed={c.id === container}
+                  className="h-8 text-[13px]"
+                  onClick={() => setContainer(c.id === container ? null : c.id)}
+                >
+                  {c.label}
+                </Chip>
+              ))}
+            </div>
           </Field>
 
           <Field
@@ -469,6 +517,16 @@ export function ItemSheet({
                   {picked!.shelfLifeText}. 제조일 기준이라 실제보다 길 수 있어요. 포장에 찍힌 날짜가 정확해요.
                 </p>
               </div>
+            )}
+            {roomDate && expiry !== roomDate && (
+              <div className="mt-2">
+                <Chip tone="suggest" onClick={() => setExpiry(roomDate)}>
+                  실온 기준 약 {roomDays! >= 30 ? `${Math.round(roomDays! / 30)}달` : `${roomDays}일`} · 날짜 넣기
+                </Chip>
+              </div>
+            )}
+            {roomDays === null && (
+              <p className="mt-2 text-xs text-muted">이 분류는 실온에 두면 금방 상해요. 냉장고 칸을 추천해요.</p>
             )}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {(moreExpiry ? QUICK_EXPIRY : QUICK_EXPIRY.slice(0, QUICK_VISIBLE)).map((q) => {

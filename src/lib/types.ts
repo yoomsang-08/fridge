@@ -1,5 +1,8 @@
-export type Zone = 'fridge' | 'freezer' | 'flex'
+/** pantry: 실온 보관 (가상 팬트리) */
+export type Zone = 'fridge' | 'freezer' | 'flex' | 'pantry'
 export type ExpiryType = 'use_by' | 'sell_by'
+/** 3D 모양용 용기. supabase/migrations/0007_categories.sql 의 check 와 같다 */
+export type Container = 'bottle' | 'jar' | 'carton' | 'can' | 'tub' | 'box' | 'bag' | 'tray' | 'loose'
 export type ItemStatus = 'active' | 'consumed' | 'discarded'
 
 /** 정면 기준 좌표, 냉장고 전체를 0~1 로 본 비율 */
@@ -53,6 +56,10 @@ export interface Item {
   opened: boolean
   memo: string | null
   barcode: string | null
+  /** 0007 마이그레이션 전 데이터나 체험 모드 예전 데이터에는 없을 수 있다 */
+  container?: Container | null
+  /** 식품안전나라 식품유형 원문 (예: 유탕면) */
+  food_type?: string | null
   status: ItemStatus
   /** 넣은 사람(household_members.user_id) */
   created_by: string | null
@@ -71,7 +78,9 @@ export type ItemInput = Pick<
   | 'expiry_type'
   | 'opened'
   | 'memo'
->
+> &
+  // 있을 때만 보낸다
+  Partial<Pick<Item, 'barcode' | 'container' | 'food_type'>>
 
 export type NoteColor = 'yellow' | 'pink' | 'mint' | 'sky'
 

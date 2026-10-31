@@ -104,7 +104,7 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
       )}
 
       <Card className="p-5">
-        <h2 className="text-[15px] font-extrabold">우리 집 냉장고</h2>
+        <h2 className="text-[15px] font-extrabold">보관 공간</h2>
         <ul className="mt-3 flex flex-col gap-2">
           {fridges.map((f) => {
             const comps = compartments.filter((c) => c.fridge_id === f.id)
@@ -119,7 +119,7 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
                   <div className="min-w-0 flex-1">
                     <div className="font-bold">{f.name}</div>
                     <div className="tabular text-xs text-muted">
-                      {f.model ?? '모델 미지정'} · 칸 {comps.length}개
+                      {f.template === 'pantry' ? '실온' : (f.model ?? '모델 미지정')} · 칸 {comps.length}개
                     </div>
                   </div>
                   <span className="flex items-center gap-0.5 text-sm font-semibold text-accent">
@@ -159,7 +159,10 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
                       ))}
                     </ul>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {(Object.keys(ZONE_LABEL) as Zone[]).map((z) => (
+                      {(Object.keys(ZONE_LABEL) as Zone[])
+                        // 팬트리에는 실온 칸만, 냉장고에는 실온 칸 빼고
+                        .filter((z) => (z === 'pantry') === (f.template === 'pantry'))
+                        .map((z) => (
                         <button
                           key={z}
                           className="flex h-9 items-center gap-1 rounded-xl border border-dashed border-faint/60 px-3 text-sm font-semibold text-muted active:bg-sunken"
@@ -178,7 +181,7 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
                         variant="ghost"
                         size="md"
                         onClick={async () => {
-                          const name = await ask('냉장고 이름', f.name)
+                          const name = await ask('공간 이름', f.name)
                           if (name) run(() => repo.renameFridge(f.id, name))
                         }}
                       >
@@ -193,7 +196,7 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
                             run(() => repo.deleteFridge(f.id))
                         }}
                       >
-                        냉장고 삭제
+                        {f.template === 'pantry' ? '팬트리' : '냉장고'} 삭제
                       </Button>
                     </div>
                   </div>
@@ -202,13 +205,13 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
             )
           })}
         </ul>
-        <h3 className="mt-5 text-[13px] font-bold text-muted">냉장고 추가</h3>
+        <h3 className="mt-5 text-[13px] font-bold text-muted">공간 추가</h3>
         <div className="mt-2 flex flex-col gap-1.5">
           {FRIDGE_TEMPLATES.map((t) => (
             <button
               key={t.id}
               onClick={async () => {
-                const name = await ask('냉장고 이름', t.name)
+                const name = await ask('공간 이름', t.name)
                 if (name) run(() => repo.addFridge(t, name))
               }}
               className="flex min-h-12 items-center gap-2 rounded-2xl border border-dashed border-faint/60 px-3.5 text-left text-sm font-semibold active:bg-sunken"

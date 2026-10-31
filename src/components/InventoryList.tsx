@@ -5,6 +5,7 @@ import { ZONE_LABEL } from '../lib/templates'
 import type { Compartment, Fridge, Item } from '../lib/types'
 import { cx } from '../lib/cx'
 import { ItemRow } from './ItemRow'
+import { SpaceIcon } from './SpaceIcon'
 import { Card, Chip, Segmented } from './ui'
 
 type View = 'expiry' | 'compartment'
@@ -147,6 +148,7 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
         <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           {[{ id: 'all', name: '전체' }, ...fridges].map((f) => (
             <Chip key={f.id} active={fridgeId === f.id} onClick={() => setFridgeId(f.id)}>
+              {'template' in f && <SpaceIcon fridge={f} />}
               {f.name}
             </Chip>
           ))}

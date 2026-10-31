@@ -97,6 +97,26 @@ export const FRIDGE_TEMPLATES: FridgeTemplate[] = [
     ],
   },
   {
+    // 실온 보관용 가상 팬트리: 문 없는 선반장. 선반 4단 + 맨 아래 바구니 2개
+    id: 'pantry',
+    label: '팬트리(실온 선반)',
+    name: '팬트리',
+    model: null,
+    width_mm: 800,
+    height_mm: 1800,
+    depth_mm: 400,
+    compartments: [
+      ...[0.02, 0.22, 0.42, 0.62].map((y, i) => ({
+        name: `선반 ${i + 1}단`,
+        zone: 'pantry' as const,
+        section: 'shelf',
+        layout: { x: 0.04, y, w: 0.92, h: 0.18 },
+      })),
+      { name: '왼쪽 바구니', zone: 'pantry', section: 'basket', layout: { x: 0.04, y: 0.82, w: 0.44, h: 0.16 } },
+      { name: '오른쪽 바구니', zone: 'pantry', section: 'basket', layout: { x: 0.52, y: 0.82, w: 0.44, h: 0.16 } },
+    ],
+  },
+  {
     id: 'custom',
     label: '직접 구성 (빈 냉장고)',
     name: '새 냉장고',
@@ -115,4 +135,5 @@ export const ZONE_LABEL: Record<Zone, string> = {
   fridge: '냉장',
   freezer: '냉동',
   flex: '변온',
+  pantry: '실온',
 }
