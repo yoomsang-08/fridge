@@ -55,6 +55,15 @@ Deno.serve(async (req) => {
   const targets = tags.some((t) => EVERYONE.has(t)) ? others : tags.filter((t) => names.has(t) && t !== note.author_name)
   if (targets.length === 0) return reply({ sent: 0 })
 
+  // 받는 쪽 앱 아이콘 숫자: 이 사람이 붙인 안 읽은 메모 + 3일 안에 챙길 식품 (앱의 배지와 같은 기준)
+  const soon = new Date(Date.now() + (9 + 72) * 3600 * 1000).toISOString().slice(0, 10)
+  const [{ count: notes }, { count: items }] = await Promise.all([
+    sb.from('notes').select('id', { count: 'exact', head: true })
+      .eq('household_id', note.household_id).eq('author_name', note.author_name ?? '').is('read_at', null),
+    sb.from('items').select('id', { count: 'exact', head: true })
+      .eq('household_id', note.household_id).eq('status', 'active').lte('expiry_date', soon),
+  ])
+
   const sent = await sendToHousehold(
     note.household_id,
     {
@@ -62,6 +71,7 @@ Deno.serve(async (req) => {
       body: note.body,
       url: './?tab=notes',
       tag: `note-${note.id}`,
+      badge: (notes ?? 1) + (items ?? 0),
     },
     // 이름으로 골라서, 같은 이름을 쓰는 내 다른 기기에는 가지 않는다
     { onlyDisplayNames: targets, excludeUserIds: [uid] },

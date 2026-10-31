@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
 import type { SmartThings } from '../lib/smartthings'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
+import { expiryLevel } from '../lib/expiry'
+import { setAppBadge } from '../lib/badge'
 import { isUnread } from '../lib/notes'
 import type { Household, Item, Note } from '../lib/types'
 import { FridgeStatus } from './FridgeStatus'
@@ -15,6 +17,8 @@ import { NoteViewSheet, NoteWriteSheet } from './NoteSheet'
 import { Settings } from './Settings'
 import { cx } from '../lib/cx'
 import { Button, Card, Logo, SunnyEgg } from './ui'
+
+const URGENT_LEVELS = new Set(['expired', 'urgent'])
 
 type Tab = 'list' | 'view' | 'notes' | 'device' | 'settings'
 /** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
@@ -82,6 +86,13 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   }, [repo, reload])
 
   const unread = useMemo(() => (snap ? snap.notes.filter((n) => isUnread(n, snap.me)) : []), [snap])
+
+  // 홈 화면 앱 아이콘 숫자: 안 읽은 메모 + 3일 안에 챙길 식품(지남 포함)
+  const badgeCount = snap ? unread.length + snap.items.filter((i) => URGENT_LEVELS.has(expiryLevel(i.expiry_date))).length : 0
+  useEffect(() => {
+    if (!snap) return
+    setAppBadge(badgeCount)
+  }, [snap, badgeCount])
 
   // 메모 탭을 보고 있으면 상대 메모를 읽음으로 표시 (탭에 있는 동안 새로 온 것도)
   useEffect(() => {

@@ -10,6 +10,8 @@ export interface PushPayload {
   url?: string
   /** 같은 tag 알림은 새 것으로 바뀐다 */
   tag?: string
+  /** 홈 화면 앱 아이콘 숫자(지원 기기만). 앱을 열면 앱이 다시 맞춘다 */
+  badge?: number
 }
 
 export interface PushTarget {
