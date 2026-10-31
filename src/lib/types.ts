@@ -70,3 +70,26 @@ export type ItemInput = Pick<
   | 'opened'
   | 'memo'
 >
+
+export type NoteColor = 'yellow' | 'pink' | 'mint' | 'sky'
+
+/** 냉장고 문에 붙이는 메모 */
+export interface Note {
+  id: string
+  household_id: string
+  body: string
+  color: NoteColor
+  author_id: string | null
+  author_name: string | null
+  /** 상대가 처음 본 시각. 아직 안 봤으면 null */
+  read_at: string | null
+  created_at: string
+}
+
+export type NoteInput = Pick<Note, 'body' | 'color'>
+
+/** 이 기기를 쓰는 사람 */
+export interface Me {
+  id: string
+  name: string | null
+}

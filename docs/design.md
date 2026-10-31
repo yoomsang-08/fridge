@@ -32,6 +32,7 @@ Tailwind 클래스로 토큰 이름만 씁니다. `slate-*`, `sky-*`, `red-*` �
 | `expired` / `expired-soft` | #c8372d / #fbe9e7 | 기한 지남, 삭제·위험 |
 | `urgent` / `urgent-soft` | #d2621b / #fdf0e6 | 3일 이내 |
 | `soon` / `soon-soft` | #a87a10 / #fbf3dc | 7일 이내 |
+| `note-yellow` / `note-pink` / `note-mint` / `note-sky` | #fff1b8 / #fde0e3 / #dcf1e4 / #dceaf6 | 냉장고 문 메모(포스트잇) 종이에만. `src/lib/notes.ts` 의 `notePaper()` 로 고른다 |
 
 - 기한 관련 색은 `src/lib/expiry.ts` 의 `LEVEL_STYLE`(배지: 바탕+글자), `LEVEL_TEXT`(글자만), `LEVEL_DOT`(점), 문구는 `expiryLabel()`, 묶음 이름은 `LEVEL_GROUP` 을 씁니다.
 - 기한 색을 기한이 아닌 곳(예: 단순 강조, 장식)에 쓰지 않습니다. 위험 동작(삭제)만 예외로 `expired` 를 씁니다.
@@ -67,6 +68,7 @@ Tailwind 클래스로 토큰 이름만 씁니다. `slate-*`, `sky-*`, `red-*` �
 | `TextInput` | 한 줄 입력 (높이 48, 포커스 시 초록 링) |
 | `IconButton` | 아이콘만 있는 버튼 (닫기, 편집, 바코드 스캔). `aria-label` 필수 |
 | `Logo` | 앱 로고 |
+| `StickyNote` (`StickyNote.tsx`) | 냉장고 문 메모 한 장 (종이색 + 자석 점 + 살짝 기울기). 메모 탭과 냉장고 보기 문 위에서 같이 씀 |
 | `Sheet` (`Sheet.tsx`) | 입력·상세. 폰은 아래에서 올라오고 PC 는 가운데. 주요 버튼은 `footer` 에 넣어 하단 고정 |
 | `useDialog()` (`Dialog.tsx`) | 확인·이름 입력. 브라우저 `alert/confirm/prompt` 대신 |
 
