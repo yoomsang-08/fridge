@@ -19,3 +19,14 @@ alter table push_subscriptions enable row level security;
 create policy "own push subscriptions" on push_subscriptions
   for all using (user_id = auth.uid() and is_member(household_id))
   with check (user_id = auth.uid() and is_member(household_id));
+
+-- 푸시 서명 키(VAPID). 처음 알림을 켤 때 push-key 함수가 만들어 여기 저장합니다.
+-- 정책을 만들지 않아 service role(Edge Function)만 읽고 씁니다. 비밀키가 저장소나 앱에 나가지 않습니다.
+create table push_config (
+  id int primary key default 1 check (id = 1),
+  public_key text not null,
+  private_key text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table push_config enable row level security;

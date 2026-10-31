@@ -1,5 +1,5 @@
 // 웹 푸시 공용 헬퍼. 알림을 보내는 함수는 모두 이걸 쓴다.
-// 필요한 함수 Secret: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (GitHub Secret → supabase-functions 워크플로가 옮김)
+// 서명 키(VAPID)는 push_config 테이블에 한 번 만들어 두고 계속 쓴다. 따로 넣을 Secret 은 없다.
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 
@@ -24,13 +24,23 @@ export interface PushTarget {
 }
 
 let configured = false
-function configure() {
-  if (configured) return
-  const pub = Deno.env.get('VAPID_PUBLIC_KEY')
-  const priv = Deno.env.get('VAPID_PRIVATE_KEY')
-  if (!pub || !priv) throw new Error('VAPID keys missing')
-  webpush.setVapidDetails('mailto:sunnyside-up@users.noreply.github.com', pub, priv)
-  configured = true
+
+/** 서명 키를 읽고, 없으면 만들어 저장한다. 공개키를 돌려준다 */
+export async function ensureVapid(sb: SupabaseClient = adminClient()): Promise<string> {
+  const read = () => sb.from('push_config').select('public_key, private_key').eq('id', 1).maybeSingle()
+  let { data } = await read()
+  if (!data) {
+    const keys = webpush.generateVAPIDKeys()
+    // 동시에 두 번 불려도 먼저 저장된 키 하나만 남는다
+    await sb.from('push_config').upsert({ id: 1, public_key: keys.publicKey, private_key: keys.privateKey }, { onConflict: 'id', ignoreDuplicates: true })
+    ;({ data } = await read())
+  }
+  if (!data) throw new Error('VAPID keys unavailable')
+  if (!configured) {
+    webpush.setVapidDetails('mailto:sunnyside-up@users.noreply.github.com', data.public_key, data.private_key)
+    configured = true
+  }
+  return data.public_key
 }
 
 /** service role 클라이언트. RLS 를 거치지 않으니 함수 안에서만 */
@@ -45,7 +55,7 @@ export async function sendToHousehold(
   target: PushTarget = {},
   sb: SupabaseClient = adminClient(),
 ): Promise<number> {
-  configure()
+  await ensureVapid(sb)
   let q = sb.from('push_subscriptions').select('endpoint, user_id, p256dh, auth').eq('household_id', householdId)
   if (target.expiryDigestOnly) q = q.eq('expiry_digest', true)
   const { data: subs, error } = await q
