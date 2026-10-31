@@ -1,4 +1,37 @@
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 @import "tailwindcss";
+
+/*
+ * 디자인 토큰. 화면에서는 bg-surface, text-muted, bg-accent 처럼 이 이름으로만 색을 쓴다.
+ * 포인트 색은 accent 하나, 기한 색(expired/urgent/soon)은 챙겨야 할 식품에만 쓴다.
+ */
+@theme {
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+    'Noto Sans KR', system-ui, sans-serif;
+
+  --color-bg: #f3f5f2;
+  --color-surface: #ffffff;
+  --color-sunken: #e8ece9;
+  --color-ink: #17201c;
+  --color-muted: #66726c;
+  --color-faint: #9aa59f;
+  --color-line: #e3e8e4;
+
+  --color-accent: #1e6b52;
+  --color-accent-strong: #175641;
+  --color-accent-soft: #e3f1ea;
+
+  --color-expired: #c8372d;
+  --color-expired-soft: #fbe9e7;
+  --color-urgent: #d2621b;
+  --color-urgent-soft: #fdf0e6;
+  --color-soon: #a87a10;
+  --color-soon-soft: #fbf3dc;
+
+  --radius-card: 1.125rem;
+  --shadow-card: 0 1px 2px rgb(23 32 28 / 0.04), 0 1px 1px rgb(23 32 28 / 0.03);
+  --shadow-float: 0 12px 28px -10px rgb(30 107 82 / 0.55);
+}
 
 html,
 body,
@@ -8,8 +41,49 @@ body,
 
 body {
   margin: 0;
-  background: #f1f5f9;
-  color: #0f172a;
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* 숫자 폭을 고르게 해서 목록에서 줄이 맞게 */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes egg-pop {
+  from {
+    transform: scale(0.4) rotate(-20deg);
+  }
+}
+
