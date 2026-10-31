@@ -38,7 +38,7 @@ npm run dev
 
 스마트싱스 토큰은 브라우저에 두지 않고 Supabase Edge Function 이 대신 보관·호출합니다.
 
-1. **SQL Editor** 에서 `supabase/migrations/0003_smartthings.sql` 실행
+1. **SQL Editor** 에서 `supabase/migrations/0004_smartthings.sql` 실행
 2. Edge Function 배포: `supabase functions deploy smartthings` (Supabase CLI, `supabase/functions/smartthings/` 폴더 전체)
 3. 앱 **온도** 탭에서 [스마트싱스 토큰](https://account.smartthings.com/tokens)을 붙여 넣고 연결 (Devices 권한 모두 체크)
 
