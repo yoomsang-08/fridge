@@ -115,8 +115,8 @@ export function TextInput({ className, ...props }: InputHTMLAttributes<HTMLInput
   )
 }
 
-/** className 에 글자색(text-색)이 있는지. 크기(text-sm 등)는 색이 아니다 */
-const hasTextColor = (c?: string) => /(^|\s)text-(?!xs\b|sm\b|base\b|lg\b|\d*xl\b|\[)/.test(c ?? '')
+/** className 에 글자색(text-색)이 있는지. 크기(text-sm 등)와 정렬(text-left 등)은 색이 아니다 */
+const hasTextColor = (c?: string) => /(^|\s)text-(?!xs\b|sm\b|base\b|lg\b|\d*xl\b|left\b|center\b|right\b|justify\b|start\b|end\b|\[)/.test(c ?? '')
 
 export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
