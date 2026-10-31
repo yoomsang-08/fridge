@@ -1,4 +1,4 @@
-import { List, Plus, Settings as SettingsIcon, StickyNote as NoteIcon, Thermometer, type LucideIcon } from 'lucide-react'
+import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, Thermometer, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
 import type { SmartThings } from '../lib/smartthings'
@@ -6,6 +6,7 @@ import { FRIDGE_TEMPLATES } from '../lib/templates'
 import { isUnread } from '../lib/notes'
 import type { Household, Item, Note } from '../lib/types'
 import { FridgeStatus } from './FridgeStatus'
+import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
 import { NoteBanner } from './NoteBanner'
@@ -15,10 +16,11 @@ import { Settings } from './Settings'
 import { cx } from '../lib/cx'
 import { Button, Card, Logo, SunnyEgg } from './ui'
 
-type Tab = 'list' | 'notes' | 'device' | 'settings'
+type Tab = 'list' | 'view' | 'notes' | 'device' | 'settings'
 /** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: 'list', label: '재고', icon: List },
+  { id: 'view', label: '냉장고', icon: Refrigerator },
   { id: 'notes', label: '메모', icon: NoteIcon },
   { id: 'device', label: '온도', icon: Thermometer },
   { id: 'settings', label: '설정', icon: SettingsIcon },
@@ -113,7 +115,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         ? lastCompartment
         : undefined
 
-  const showAdd = tab === 'list' && !noFridge
+  const showAdd = (tab === 'list' || tab === 'view') && !noFridge
 
   return (
     <div className="mx-auto min-h-dvh max-w-3xl pb-44 sm:pb-28">
@@ -155,7 +157,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
       <main className="px-4 pt-1 sm:px-6">
         {error && <p className="mb-3 rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
 
-        {tab === 'list' && noFridge && (
+        {(tab === 'list' || tab === 'view') && noFridge && (
           <Card className="p-5">
             <h2 className="text-lg font-extrabold">먼저 냉장고를 등록해 주세요</h2>
             <p className="mt-1 text-sm text-muted">
@@ -191,6 +193,17 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
 
         {tab === 'list' && !noFridge && (
           <InventoryList
+            fridges={snap.fridges}
+            compartments={snap.compartments}
+            items={snap.items}
+            onOpen={(item) => setSheet({ mode: 'edit', item })}
+            onUseOne={(item) => mutate(() => repo.act(item, 'use'))}
+            onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
+          />
+        )}
+
+        {tab === 'view' && !noFridge && (
+          <FridgeView
             fridges={snap.fridges}
             compartments={snap.compartments}
             items={snap.items}

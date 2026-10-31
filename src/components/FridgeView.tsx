@@ -1,0 +1,232 @@
+import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
+import { isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
+import { ZONE_LABEL } from '../lib/templates'
+import type { Compartment, Fridge, Item } from '../lib/types'
+import { cx } from '../lib/cx'
+import { Fridge2D } from './Fridge2D'
+import type { CameraPreset } from './Fridge3D'
+import { ItemRow } from './ItemRow'
+import { Card, Chip, IconButton, Segmented, SunnyEgg } from './ui'
+
+// three.js 는 크니까 3D 를 열 때만 받는다
+const Fridge3D = lazy(() => import('./Fridge3D'))
+
+type Mode = '3d' | 'flat'
+
+const MODE_KEY = 'fridge-view-mode'
+const CAMERA_ORDER: CameraPreset[] = ['front', 'left', 'right', 'top']
+const CAMERA_LABEL: Record<CameraPreset, string> = { front: '정면', left: '왼쪽', right: '오른쪽', top: '위' }
+
+const LEGEND = [
+  ['expired', '지남'],
+  ['urgent', '3일 이내'],
+  ['soon', '7일 이내'],
+] as const
+
+function hasWebGL() {
+  try {
+    const c = document.createElement('canvas')
+    return !!(c.getContext('webgl2') || c.getContext('webgl'))
+  } catch {
+    return false
+  }
+}
+
+interface Props {
+  fridges: Fridge[]
+  compartments: Compartment[]
+  items: Item[]
+  onOpen: (item: Item) => void
+  onUseOne: (item: Item) => void
+  onAddTo: (compartmentId: string) => void
+  /** 맨 위 카드 자리 (냉장고 상태 등) */
+  header?: ReactNode
+}
+
+export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onAddTo, header }: Props) {
+  const [webgl] = useState(hasWebGL)
+  const [fridgeId, setFridgeId] = useState(fridges[0]?.id)
+  const [mode, setMode] = useState<Mode>(() =>
+    webgl && localStorage.getItem(MODE_KEY) !== 'flat' ? '3d' : 'flat',
+  )
+  const [camera, setCamera] = useState<CameraPreset>('front')
+  const [cameraNonce, setCameraNonce] = useState(0)
+  const [doorOpen, setDoorOpen] = useState<Record<string, boolean>>({})
+  const [side, setSide] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [egg, setEgg] = useState(false)
+
+  useEffect(() => {
+    if (!egg) return
+    const t = setTimeout(() => setEgg(false), 3000)
+    return () => clearTimeout(t)
+  }, [egg])
+
+  const fridge = fridges.find((f) => f.id === fridgeId) ?? fridges[0]
+  const shape = useMemo(() => shapeOf(fridge), [fridge])
+  const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
+  const byComp = useMemo(() => itemsBy(items), [items])
+  const anyOpen = shape.doors.some((d) => doorOpen[d.id] ?? true)
+  const unplaced = mine.filter((c) => !c.layout)
+  const selected = mine.find((c) => c.id === selectedId) ?? null
+  const fridgeItems = mine.flatMap((c) => byComp.get(c.id) ?? [])
+  const urgent = sortByUrgency(fridgeItems).filter((i) => ['expired', 'urgent', 'soon'].includes(expiryLevel(i.expiry_date)))
+  const selectedItems = selected ? sortByUrgency(byComp.get(selected.id) ?? []) : []
+  const nameOf = (i: Item) => mine.find((c) => c.id === i.compartment_id)?.name
+
+  const changeMode = (m: Mode) => {
+    setMode(m)
+    localStorage.setItem(MODE_KEY, m)
+  }
+  const setAllDoors = (open: boolean) => setDoorOpen(Object.fromEntries(shape.doors.map((d) => [d.id, open])))
+  const nextCamera = () => {
+    setCamera((c) => CAMERA_ORDER[(CAMERA_ORDER.indexOf(c) + 1) % CAMERA_ORDER.length])
+    setCameraNonce((n) => n + 1)
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {header}
+
+      <div className="flex items-center gap-2">
+        {fridges.length > 1 && (
+          <Segmented
+            value={fridge.id}
+            options={fridges.map((f) => [f.id, f.name] as const)}
+            onChange={(id) => {
+              setFridgeId(id)
+              setSelectedId(null)
+            }}
+          />
+        )}
+        {webgl && (
+          <Segmented
+            className="ml-auto"
+            value={mode}
+            options={[
+              ['3d', '3D'],
+              ['flat', '평면'],
+            ]}
+            onChange={changeMode}
+          />
+        )}
+      </div>
+
+      <Card className="relative overflow-hidden">
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          {mode === '3d' ? (
+            <IconButton onClick={nextCamera} aria-label="각도 바꾸기" title={`각도 바꾸기 (지금 ${CAMERA_LABEL[camera]})`} className="bg-surface/80">
+              <Rotate3d size={20} />
+            </IconButton>
+          ) : (
+            anyOpen && (
+              <IconButton onClick={() => setSide((v) => !v)} aria-label={side ? '정면으로 보기' : '옆에서 보기'} className="bg-surface/80">
+                {side ? <Square size={20} /> : <PanelRight size={20} />}
+              </IconButton>
+            )
+          )}
+          <button
+            onClick={() => setAllDoors(!anyOpen)}
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-sunken px-3 text-sm font-bold text-ink transition active:brightness-95"
+          >
+            {anyOpen ? <DoorClosed size={18} /> : <DoorOpen size={18} />}
+            {anyOpen ? '문 닫기' : '문 열기'}
+          </button>
+        </div>
+
+        {egg && (
+          <div className="pointer-events-none absolute top-2 left-2 z-10 flex animate-[fade-in_200ms] items-center gap-2 rounded-full bg-surface/95 py-1 pr-3 pl-1 shadow-card">
+            <SunnyEgg size={28} />
+            <span className="text-xs font-semibold text-muted">불 켜 뒀어요, 지선 님</span>
+          </div>
+        )}
+
+        {mode === '3d' ? (
+          <div className="h-[60dvh] min-h-80 w-full touch-none">
+            <Suspense fallback={<div className="grid h-full place-items-center text-muted">불러오는 중…</div>}>
+              <Fridge3D
+                shape={shape}
+                compartments={mine}
+                itemsByCompartment={byComp}
+                selectedId={selectedId}
+                doorOpen={doorOpen}
+                camera={camera}
+                cameraNonce={cameraNonce}
+                onSelect={setSelectedId}
+                onToggleDoor={(id) => setDoorOpen((s) => ({ ...s, [id]: !(s[id] ?? true) }))}
+                onOpenItem={onOpen}
+                onEgg={() => setEgg(true)}
+                egg={egg}
+              />
+            </Suspense>
+          </div>
+        ) : (
+          <div className="px-3 pt-14 pb-3">
+            <Fridge2D
+              view={!anyOpen ? 'closed' : side ? 'side' : 'open'}
+              shape={shape}
+              compartments={mine}
+              itemsByCompartment={byComp}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onOpenItem={onOpen}
+              onOpenDoors={() => setAllDoors(true)}
+            />
+          </div>
+        )}
+      </Card>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-muted">
+        {LEGEND.map(([lv, label]) => (
+          <span key={lv} className="flex items-center gap-1.5">
+            <span className={cx('h-2 w-2 rounded-full', LEVEL_DOT[lv])} />
+            {label}
+          </span>
+        ))}
+        <span className="ml-auto text-faint">
+          {mode === '3d' ? '끌어서 돌리고, 문이나 칸을 눌러 보세요' : '칸을 누르면 그 칸의 식품을 볼 수 있어요'}
+        </span>
+      </div>
+
+      {unplaced.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto">
+          {unplaced.map((c) => (
+            <Chip key={c.id} active={selectedId === c.id} onClick={() => setSelectedId(c.id)}>
+              {c.name} {(byComp.get(c.id) ?? []).length}
+            </Chip>
+          ))}
+        </div>
+      )}
+
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2 px-1">
+          <h3 className="text-[13px] font-bold text-muted">
+            {selected
+              ? `${selected.name} · ${isDoorCompartment(selected) ? '문' : ZONE_LABEL[selected.zone]}`
+              : `챙겨 먹을 것 ${urgent.length}개`}
+          </h3>
+          {selected && (
+            <button onClick={() => onAddTo(selected.id)} className="text-sm font-bold text-accent">
+              여기에 넣기
+            </button>
+          )}
+        </div>
+        <Card className="overflow-hidden">
+          {(selected ? selectedItems : urgent).length ? (
+            <ul className="divide-y divide-line">
+              {(selected ? selectedItems : urgent).map((i) => (
+                <ItemRow key={i.id} item={i} location={selected ? undefined : nameOf(i)} onOpen={onOpen} onUseOne={onUseOne} />
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 py-6 text-center text-sm text-muted">
+              {selected ? '비어 있어요' : '급하게 먹을 건 없어요. 칸을 누르면 그 칸의 식품이 보여요'}
+            </p>
+          )}
+        </Card>
+      </section>
+    </div>
+  )
+}
