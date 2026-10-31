@@ -565,6 +565,9 @@ export function ItemSheet({
                 onChange={(e) => pickExpiry(e.target.value || null)}
                 className="tabular min-w-0 flex-1 bg-transparent text-base font-bold outline-none"
               />
+              {autoDate && !expiryTouched && (
+                <span className="shrink-0 rounded-md bg-accent-soft px-1.5 text-[11px] font-bold text-accent">자동</span>
+              )}
               <span className={cx('tabular shrink-0 rounded-lg px-2 py-1 text-[13px] font-extrabold', LEVEL_STYLE[lv])}>
                 {expiryLabel(expiryValue)}
               </span>

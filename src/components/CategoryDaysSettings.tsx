@@ -48,7 +48,7 @@ export function CategoryDaysSettings({ repo, onError }: { repo: Repo; onError: (
                 </span>
                 <span className="w-16 shrink-0 text-sm font-bold">{c.label}</span>
                 <span className="tabular min-w-0 flex-1 truncate text-xs text-muted">
-                  {PLACES.map(([k, l]) => `${l} ${c[k] ? daysLabel(c[k]) : '–'}`).join(' · ')}
+                  {PLACES.map(([k, l]) => `${l} ${daysLabel(c[k])}`).join(' · ')}
                 </span>
                 <ChevronDown size={16} className={cx('shrink-0 text-faint transition', on && 'rotate-180')} />
               </button>
