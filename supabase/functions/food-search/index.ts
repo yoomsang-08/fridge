@@ -143,7 +143,21 @@ async function searchByBarcode(barcode: string): Promise<FoodProduct[]> {
     console.warn('C005 실패', e instanceof UpstreamError ? e.code : '', String(e))
     return [] as Row[]
   })
-  if (rows.length > 0) return rows.map((r) => fromFoodsafety('C005', r))
+  if (rows.length > 0) {
+    // 같은 바코드가 공장마다 따로 보고되어 여러 건 나온다 (신라면 4건).
+    // 생산 중이고 폐업하지 않은 것을 먼저, 이름이 같으면 하나만 남긴다.
+    const live = (r: Row) => Number(!r.END_DT) + Number(!r.CLSBIZ_DT)
+    const seen = new Set<string>()
+    return rows
+      .sort((a, b) => live(b) - live(a))
+      .map((r) => fromFoodsafety('C005', r))
+      .filter((p) => {
+        const k = p.name.replace(/[\s()辛]/g, '')
+        if (seen.has(k)) return false
+        seen.add(k)
+        return true
+      })
+  }
   const off = await openFoodFacts(barcode).catch(() => null)
   return off ? [off] : []
 }
