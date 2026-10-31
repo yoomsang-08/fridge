@@ -42,5 +42,7 @@ export function bodyColor(tint: string, shape: Shape3D, space: keyof typeof LIGH
   new THREE.Color(tint).getHSL(hsl)
   const [s, step] = TONE[shape]
   const [lo, hi] = LIGHTNESS[space]
-  return `#${new THREE.Color().setHSL(hsl.h, hsl.s < 0.05 ? 0.04 : s, lo + (hi - lo) * step).getHexString()}`
+  // 흰 냉장고 안에서는 채도를 한 단계 올려야 희끗해 보이지 않는다
+  const sat = hsl.s < 0.05 ? 0.04 : space === 'fridge' ? Math.min(0.62, s + 0.12) : s
+  return `#${new THREE.Color().setHSL(hsl.h, sat, lo + (hi - lo) * step).getHexString()}`
 }
