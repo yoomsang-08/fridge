@@ -347,8 +347,8 @@ export function expandSlots(
     }
     slots.forEach((s, i) => {
       const id = `${c.id}#${i}`
-      // 이름표는 구역의 첫 자리에만 (예: 냉장실)
-      out.push({ ...c, id, name: i === 0 ? c.name : '', section: s.section, layout: s.layout })
+      // 이름표는 구역의 첫 자리와 첫 문 포켓에만 (예: 냉장실). 아래 문 포켓이 어느 구역인지 보이게
+      out.push({ ...c, id, name: i === 0 || i === body.length ? c.name : '', section: s.section, layout: s.layout })
       items.set(id, bags[i])
     })
   }
