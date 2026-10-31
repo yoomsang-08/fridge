@@ -84,7 +84,11 @@ function fitText(text: string, width: number, fontSize: number): string {
 
 /** 칸 사각형 안에 식품 동그라미(분류 tint + 기한 단계 테두리)를 채운다. 넘치면 마지막 자리에 +N */
 function Chips({ box, items, onOpen, label }: { box: Box; items: Item[]; onOpen: (i: Item) => void; label?: string }) {
-  const labelH = label ? Math.min(LABEL * 1.3, box.h * 0.4) : 0
+  // 좁은 칸에서 이름이 잘리면 띄어쓰기에서 두 줄로 나눈다
+  const fitted = label ? fitText(label, box.w - 20, LABEL) : ''
+  const twoLines = !!label && fitted !== label && label.includes(' ') && box.h > LABEL * 5
+  const lines = twoLines ? [label!.slice(0, label!.indexOf(' ')), label!.slice(label!.indexOf(' ') + 1)] : [label ?? '']
+  const labelH = label ? Math.min(LABEL * 1.3 * lines.length, box.h * 0.4) : 0
   const pad = 10
   const area = { x: box.x + pad, y: box.y + labelH + pad / 2, w: box.w - pad * 2, h: box.h - labelH - pad }
   const d = Math.max(34, Math.min(104, area.h * 0.92, area.w / 2.2))
@@ -100,16 +104,21 @@ function Chips({ box, items, onOpen, label }: { box: Box; items: Item[]; onOpen:
   })
   return (
     <g>
-      {label && (
-        <text
-          x={box.x + pad}
-          y={box.y + labelH * 0.8}
-          fontSize={Math.min(LABEL, labelH * 0.8)}
-          className="pointer-events-none fill-muted font-semibold select-none"
-        >
-          {fitText(label, box.w - pad * 2, Math.min(LABEL, labelH * 0.8))}
-        </text>
-      )}
+      {label &&
+        lines.map((line, i) => {
+          const fs = Math.min(LABEL, (labelH / lines.length) * 0.8)
+          return (
+            <text
+              key={i}
+              x={box.x + pad}
+              y={box.y + (labelH / lines.length) * (i + 0.8)}
+              fontSize={fs}
+              className="pointer-events-none fill-muted font-semibold select-none"
+            >
+              {fitText(line, box.w - pad * 2, fs)}
+            </text>
+          )
+        })}
       {shown.map((it, i) => {
         const { cx: x, cy: y } = pos(i)
         const lv = expiryLevel(it.expiry_date)
@@ -416,7 +425,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
 
   // 측면 단면: 왼쪽이 뒤, 오른쪽이 앞(문)
   const D = shape.depth
-  const doorD = 240
+  const doorD = shape.doors.length ? 240 : 0
   const bodyD = D - doorD
   const inner = { x: wall, y: wall, w: bodyD - wall, h: H - wall * 2 }
   const bands = new Map<string, Compartment[]>()

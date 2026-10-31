@@ -43,6 +43,8 @@ export interface FridgeShape {
   handle: 'groove-h' | 'edge-v'
   /** 문 앞 표시창 위치(정면 기준 비율) */
   display?: Layout
+  /** 문 없는 선반장(팬트리)의 나무 색. 있으면 안쪽·선반·바구니를 이 색으로 */
+  wood?: { inner: string; board: string; basket: string }
   doors: DoorSpec[]
   dividers: Divider[]
   /** 실제 치수를 확인하지 못해 추정한 값인지 */
@@ -81,6 +83,17 @@ const SHAPES: Record<string, Omit<FridgeShape, 'width' | 'height' | 'depth' | 'e
     doors: [{ id: 'main', label: '냉동고 문', rect: { x: 0, y: 0, w: 1, h: 1 }, hinge: 'right' }],
     dividers: [],
   },
+  // 가상의 팬트리: 문 없는 원목 오픈 선반장. 선반 4단 + 바닥 바구니 2개
+  pantry: {
+    size: [800, 1800, 400],
+    doorDepth: 0,
+    body: '#e6d7bf',
+    door: { color: '#e6d7bf', metal: false, frame: '#e6d7bf' },
+    handle: 'edge-v',
+    wood: { inner: '#f3ebdd', board: '#d6c2a2', basket: '#dcd5c9' },
+    doors: [],
+    dividers: [],
+  },
 }
 
 const FALLBACK = {
@@ -108,7 +121,7 @@ export function shapeOf(fridge: Fridge): FridgeShape {
 export const isDoorCompartment = (c: Compartment) => c.section.startsWith('door')
 
 /** 서랍처럼 통으로 그릴 칸인지 (아니면 유리 선반) */
-export const isBin = (c: Compartment) => /서랍|야채|바스켓/.test(c.name) || c.section === 'lower'
+export const isBin = (c: Compartment) => /서랍|야채|바스켓|바구니/.test(c.name) || c.section === 'lower'
 
 const center = (l: Layout) => ({ x: l.x + l.w / 2, y: l.y + l.h / 2 })
 const contains = (r: Layout, p: { x: number; y: number }) =>

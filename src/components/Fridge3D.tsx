@@ -253,6 +253,7 @@ function ItemGrid({
   maxSize,
   floorY,
   onOpen,
+  spread = false,
 }: {
   items: Item[]
   width: number
@@ -260,9 +261,12 @@ function ItemGrid({
   maxSize: number
   floorY: number
   onOpen: (i: Item) => void
+  /** 팬트리처럼 칸이 넓고 얕으면 크게, 칸 폭 전체에 고르게 */
+  spread?: boolean
 }) {
   if (!items.length) return null
-  const size = Math.max(0.04, Math.min(0.1, maxSize))
+  // 넓게 놓을 땐 크게 그리되, 좁은 바구니에도 세 개까지는 한 줄에 들어가게 줄인다
+  const size = Math.max(0.04, Math.min(spread ? 0.13 : 0.1, maxSize, spread ? width / 1.2 / Math.min(items.length, 3) : Infinity))
   const pitch = size * 1.2
   const cols = Math.max(1, Math.floor(width / pitch))
   const rows = Math.max(1, Math.floor(depth / pitch))
@@ -273,7 +277,7 @@ function ItemGrid({
     const col = i % cols
     const row = Math.floor(i / cols)
     const used = Math.min(cols, shown.length + (sorted.length > capacity ? 1 : 0))
-    const x = (col - (used - 1) / 2) * pitch
+    const x = spread ? (col + 0.5) * (width / used) - width / 2 : (col - (used - 1) / 2) * pitch
     return [x, floorY + size * 0.4, depth / 2 - pitch / 2 - row * pitch]
   }
   return (
@@ -328,7 +332,8 @@ function CabinetCompartment({
   const yTop = H - WALL - l.y * ih
   const yBot = H - WALL - (l.y + l.h) * ih
   const z0 = -D / 2 + WALL + 0.01
-  const z1 = D / 2 - PANEL - POCKET_DEPTH - 0.015
+  // 문 없는 선반장은 문 포켓 자리가 없으니 앞까지 쓴다
+  const z1 = D / 2 - PANEL - (shape.doors.length ? POCKET_DEPTH : 0) - 0.015
   const w = x1 - x0
   const h = yTop - yBot
   const d = z1 - z0
@@ -337,7 +342,17 @@ function CabinetCompartment({
 
   return (
     <group position={[(x0 + x1) / 2, yBot, (z0 + z1) / 2]}>
-      {bin ? (
+      {shape.wood ? (
+        bin ? (
+          <Basket w={w} h={Math.min(h * 0.45, 0.12)} d={d} color={shape.wood.basket} selected={selected} />
+        ) : (
+          <mesh position={[0, 0.009, 0]}>
+            <boxGeometry args={[w + 0.024, 0.018, d + 0.01]} />
+            <meshStandardMaterial color={shape.wood.board} roughness={0.75} />
+            {selected && <Edges color={token('accent')} />}
+          </mesh>
+        )
+      ) : bin ? (
         <mesh position={[0, binH / 2, 0]}>
           <boxGeometry args={[w, binH, d]} />
           <meshStandardMaterial {...glass} opacity={0.18} depthWrite={false} />
@@ -355,7 +370,35 @@ function CabinetCompartment({
         <boxGeometry args={[w, h, d]} />
         <meshBasicMaterial color={token('accent')} transparent opacity={selected ? 0.12 : 0} depthWrite={false} />
       </mesh>
-      <ItemGrid items={items} width={w - 0.02} depth={d} maxSize={h * 0.6} floorY={0.008} onOpen={onOpen} />
+      <ItemGrid items={items} width={w - 0.02} depth={d} maxSize={h * 0.6} floorY={shape.wood && !bin ? 0.018 : 0.008} onOpen={onOpen} spread={!!shape.wood} />
+    </group>
+  )
+}
+
+/** 팬트리 바구니: 바닥과 네 벽만 있는 둥근 통. 앞 벽을 낮게 해 안의 식품이 보이게 */
+function Basket({ w, h, d, color, selected }: { w: number; h: number; d: number; color: string; selected: boolean }) {
+  const t = 0.012
+  const front = h * 0.4
+  const mat = <meshStandardMaterial color={color} roughness={0.85} />
+  const edge = selected ? <Edges color={token('accent')} /> : null
+  return (
+    <group>
+      <RoundedBox args={[w, t, d]} radius={t / 2} position={[0, t / 2, 0]}>
+        {mat}
+      </RoundedBox>
+      {[-1, 1].map((side) => (
+        <RoundedBox key={side} args={[t, h, d]} radius={t / 2} position={[side * (w / 2 - t / 2), h / 2, 0]}>
+          {mat}
+          {edge}
+        </RoundedBox>
+      ))}
+      <RoundedBox args={[w, h, t]} radius={t / 2} position={[0, h / 2, -d / 2 + t / 2]}>
+        {mat}
+      </RoundedBox>
+      <RoundedBox args={[w, front, t]} radius={t / 2} position={[0, front / 2, d / 2 - t / 2]}>
+        {mat}
+        {edge}
+      </RoundedBox>
     </group>
   )
 }
@@ -635,8 +678,17 @@ function Cabinet({ shape }: { shape: FridgeShape }) {
   const D = shape.depth / 1000
   const bodyD = D - PANEL
   const zc = -PANEL / 2
-  const mat = <meshStandardMaterial color={shape.body} metalness={0.3} roughness={0.5} />
-  const inner = <meshStandardMaterial color="#f8fafc" roughness={0.8} />
+  const mat = shape.wood ? (
+    <meshStandardMaterial color={shape.body} roughness={0.75} />
+  ) : (
+    <meshStandardMaterial color={shape.body} metalness={0.3} roughness={0.5} />
+  )
+  // 팬트리 안쪽은 그늘져도 밝게 보이도록 같은 색으로 살짝 빛나게 해서 식품이 앞으로 떠 보이게
+  const inner = shape.wood ? (
+    <meshStandardMaterial color={shape.wood.inner} emissive={shape.wood.inner} emissiveIntensity={0.35} roughness={0.9} />
+  ) : (
+    <meshStandardMaterial color="#f8fafc" roughness={0.8} />
+  )
   const iw = W - WALL * 2
   const ih = H - WALL * 2
   return (
@@ -738,7 +790,8 @@ function CeilingLight({ shape, onEgg }: { shape: FridgeShape; onEgg: () => void 
       }}
     >
       <planeGeometry args={[W * 0.4, D * 0.3]} />
-      <meshBasicMaterial color="#ffffff" />
+      {/* 팬트리엔 조명이 없으니 안 보이게만 두고 누르는 자리는 그대로 */}
+      <meshBasicMaterial color="#ffffff" transparent={!!shape.wood} opacity={shape.wood ? 0 : 1} />
     </mesh>
   )
 }
@@ -768,9 +821,12 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
     const aspect = size.width / size.height
     const fov = (cam.fov * Math.PI) / 180
     // 문을 연 상태(폭 ≈ 2.6배)까지 화면에 들어오게
-    const fitH = (H * 1.08) / 2 / Math.tan(fov / 2)
+    const open = shape.doors.length === 0
+    const fitH = (H * (open ? 1.02 : 1.08)) / 2 / Math.tan(fov / 2)
     // 비스듬히 볼 땐 열린 문이 화면 옆으로 더 나오니 여유를 둔다
-    const fitW = (W * (preset === 'left' || preset === 'right' ? 2.9 : 1.7)) / 2 / Math.tan(fov / 2) / aspect
+    // 문 없는 선반장은 문 몫의 여유가 필요 없어 카드 폭 80~85%까지 당긴다
+    const spanW = open ? (preset === 'left' || preset === 'right' ? 1.5 : 1.2) : preset === 'left' || preset === 'right' ? 2.9 : 1.7
+    const fitW = (W * spanW) / 2 / Math.tan(fov / 2) / aspect
     const fitClosed = W / 0.85 / 2 / Math.tan(fov / 2) / aspect
     const dist = closeUp
       ? (portrait ? fitClosed : Math.max(fitClosed, fitH)) + shape.depth / 2000
@@ -846,11 +902,13 @@ export default function Fridge3D(props: Props) {
       onPointerMissed={(e) => e.type === 'click' && onSelect(null)}
     >
       <color attach="background" args={[token('bg')]} />
-      <hemisphereLight args={['#ffffff', '#cbd5e1', 1.4]} />
+      {/* 팬트리는 냉장고보다 살짝 따뜻한 빛 */}
+      <hemisphereLight args={shape.wood ? ['#fff6ea', '#d9cbb6', 1.4] : ['#ffffff', '#cbd5e1', 1.4]} />
       <directionalLight position={[2, 4, 5]} intensity={1.6} />
       <directionalLight position={[-3, 2, 2]} intensity={0.5} />
-      <pointLight position={[0, (shape.height / 1000) * 0.9, 0]} intensity={0.6} distance={2} />
-      <CameraRig shape={shape} preset={camera} nonce={cameraNonce} closed={!shape.doors.some((d) => doorOpen[d.id])} />
+      {!shape.wood && <pointLight position={[0, (shape.height / 1000) * 0.9, 0]} intensity={0.6} distance={2} />}
+      {/* 문 없는 팬트리는 '닫힘' 클로즈업 대상이 아니다 */}
+      <CameraRig shape={shape} preset={camera} nonce={cameraNonce} closed={shape.doors.length > 0 && !shape.doors.some((d) => doorOpen[d.id])} />
 
       <Cabinet shape={shape} />
       <CeilingLight shape={shape} onEgg={onEgg} />
