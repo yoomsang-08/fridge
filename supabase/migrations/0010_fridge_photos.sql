@@ -1,7 +1,7 @@
 -- 냉장고 문 사진
 -- 냉장고 문에 자석으로 사진을 붙이듯, 집마다 사진을 몇 장(최대 10장) 붙여 둘 수 있게 합니다.
 -- 사진은 앱이 긴 변 1600px, 장당 약 300KB 로 줄여서 올립니다.
--- Supabase 대시보드 > SQL Editor 에 붙여넣고 실행하세요. (0008 다음에)
+-- Supabase 대시보드 > SQL Editor 에 붙여넣고 실행하세요. (0008 다음에, 0009 와는 순서 상관없음)
 
 -- 사진 파일: 비공개 버킷. 경로는 '<household_id>/<파일>' 이고, 같은 집 식구만 보고 올리고 지운다
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
