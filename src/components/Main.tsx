@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
 import type { Household, Item } from '../lib/types'
+import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
 import { Settings } from './Settings'
 
-type Tab = 'list' | 'settings'
+type Tab = 'list' | 'view' | 'settings'
 type SheetState = { mode: 'add'; compartmentId?: string } | { mode: 'edit'; item: Item } | null
 
 const LAST_COMPARTMENT_KEY = 'fridge-last-compartment'
@@ -79,6 +80,7 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
           {(
             [
               ['list', '재고'],
+              ['view', '냉장고'],
               ['settings', '설정'],
             ] as const
           ).map(([t, label]) => (
@@ -96,7 +98,7 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
       <main className="px-4">
         {error && <p className="mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-        {tab === 'list' && noFridge && (
+        {(tab === 'list' || tab === 'view') && noFridge && (
           <div className="rounded-2xl bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold">먼저 냉장고를 등록해 주세요</h2>
             <p className="mt-1 text-sm text-slate-500">우리 집 냉장고 모델의 칸 구성으로 바로 만들어요. 칸은 나중에 설정에서 바꿀 수 있어요.</p>
@@ -127,6 +129,16 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
           />
         )}
 
+        {tab === 'view' && !noFridge && (
+          <FridgeView
+            fridges={snap.fridges}
+            compartments={snap.compartments}
+            items={snap.items}
+            onOpen={(item) => setSheet({ mode: 'edit', item })}
+            onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
+          />
+        )}
+
         {tab === 'settings' && (
           <Settings
             repo={repo}
@@ -140,7 +152,7 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
         )}
       </main>
 
-      {tab === 'list' && !noFridge && (
+      {(tab === 'list' || tab === 'view') && !noFridge && (
         <button
           onClick={() => setSheet({ mode: 'add' })}
           className="fixed bottom-6 right-6 z-30 flex h-16 w-16 items-center justify-center rounded-full bg-sky-600 text-4xl text-white shadow-lg active:scale-95 sm:right-[max(1.5rem,calc(50vw-24rem+1.5rem))]"
