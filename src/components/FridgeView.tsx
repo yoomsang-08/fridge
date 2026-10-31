@@ -204,7 +204,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
         )}
 
         {showHint && (
-          <p className="pointer-events-none absolute inset-x-0 bottom-2 z-10 text-center text-xs text-muted">문을 누르면 안이 보여요</p>
+          <p className="pointer-events-none absolute inset-x-0 bottom-2 z-10 mx-auto w-fit rounded-full bg-surface/90 px-2.5 py-0.5 text-xs text-muted">문을 누르면 안이 보여요</p>
         )}
       </Card>
 
