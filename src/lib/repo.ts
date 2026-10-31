@@ -115,7 +115,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         notes: (n.data ?? []) as Note[],
         // 0008 마이그레이션 전이면 댓글 없이
         comments: (nc.data ?? []) as NoteComment[],
-        // 0010 마이그레이션 전이면 사진 없이
+        // 0011 마이그레이션 전이면 사진 없이
         photos: await signPhotos((ph.data ?? []) as Omit<FridgePhoto, 'url'>[]),
         me: members.find((x) => x.id === uid) ?? { id: uid, name: null },
         members,
