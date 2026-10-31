@@ -1,6 +1,7 @@
 import { categoryOf } from '../lib/categories'
 import { expiryLevel, type ExpiryLevel } from '../lib/expiry'
 import {
+  baseId,
   behindDoor,
   doorOf,
   isDoorCompartment,
@@ -184,7 +185,7 @@ function Region({
   label?: string
 }) {
   return (
-    <g onClick={() => onSelect(c.id)} className="cursor-pointer">
+    <g onClick={() => onSelect(baseId(c.id))} className="cursor-pointer">
       <rect
         {...rectProps(box)}
         rx={12}
@@ -502,7 +503,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
             box={boxOf(c)}
             c={c}
             items={itemsOf(c)}
-            selected={selectedId === c.id}
+            selected={selectedId === baseId(c.id)}
             onSelect={onSelect}
             onOpen={onOpenItem}
           />
@@ -521,7 +522,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
                   box={scale(pocketRectInDoor(d, c), door)}
                   c={c}
                   items={itemsOf(c)}
-                  selected={selectedId === c.id}
+                  selected={selectedId === baseId(c.id)}
                   onSelect={onSelect}
                   onOpen={onOpenItem}
                   label={c.name.replace(/^.*문 /, '')}
@@ -562,7 +563,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
               box={{ x: inner.x + i * w, y: inner.y + l.y * inner.h, w, h: l.h * inner.h }}
               c={c}
               items={itemsOf(c)}
-              selected={selectedId === c.id}
+              selected={selectedId === baseId(c.id)}
               onSelect={onSelect}
               onOpen={onOpenItem}
             />
@@ -588,7 +589,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
                 box={scale(pocketRectInDoor(doorOf(shape, cs[0])!, cs[0]), door)}
                 c={cs[0]}
                 items={cs.flatMap(itemsOf)}
-                selected={cs.some((c) => c.id === selectedId)}
+                selected={cs.some((c) => baseId(c.id) === selectedId)}
                 onSelect={onSelect}
                 onOpen={onOpenItem}
                 label=""

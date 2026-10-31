@@ -1,7 +1,7 @@
 import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square, ZoomOut } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
-import { fitPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
+import { expandSlots, fitPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
 import { ZONE_LABEL } from '../lib/templates'
 import { celebrationToday, hourKST } from '../lib/celebrations'
 import { DOOR_NOTE_COUNT } from '../lib/notes'
@@ -84,6 +84,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
     () => fitPantry(shapeOf(fridge), mine.map((c) => byComp.get(c.id)?.length ?? 0)),
     [fridge, mine, byComp],
   )
+  // 냉장·냉동·김치냉장 같은 큰 구역을 그림에서는 선반·서랍·포켓 자리로 나눠 보여 준다
+  const drawn = useMemo(() => expandSlots(shape, mine, byComp), [shape, mine, byComp])
   // 팬트리처럼 문이 없으면 늘 열린 것처럼 보여 준다
   const noDoors = shape.doors.length === 0
   const anyOpen = noDoors || shape.doors.some((d) => doorOpen[d.id] ?? false)
@@ -220,8 +222,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
             <Suspense fallback={<div className="grid h-full place-items-center text-muted">불러오는 중…</div>}>
               <Fridge3D
                 shape={shape}
-                compartments={mine}
-                itemsByCompartment={byComp}
+                compartments={drawn.compartments}
+                itemsByCompartment={drawn.itemsByCompartment}
                 selectedId={selectedId}
                 doorOpen={doorOpen}
                 camera={camera}
@@ -243,8 +245,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
             <Fridge2D
               view={!anyOpen ? 'closed' : side ? 'side' : 'open'}
               shape={shape}
-              compartments={mine}
-              itemsByCompartment={byComp}
+              compartments={drawn.compartments}
+              itemsByCompartment={drawn.itemsByCompartment}
               selectedId={selectedId}
               onSelect={setSelectedId}
               onOpenItem={onOpen}
