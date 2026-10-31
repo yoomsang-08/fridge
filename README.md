@@ -32,6 +32,12 @@ npm run dev
 
 처음 로그인한 사람이 "우리 집 만들기"를 누르고, 설정 화면의 초대코드를 배우자에게 전달하면 배우자는 "초대코드로 합류하기"로 같은 냉장고를 공유합니다.
 
+## 배포
+
+`main` 에 머지되면 GitHub Actions 가 GitHub Pages 로 배포합니다: https://yoomsang-08.github.io/fridge/
+
+처음 한 번은 저장소 **Settings → Pages → Build and deployment → Source** 를 **GitHub Actions** 로 바꿔야 합니다.
+
 ## 다음 단계
 
 - 2단계: 식품안전나라 API 연동(이름 검색, 바코드 스캔), 매일 아침 임박 알림
