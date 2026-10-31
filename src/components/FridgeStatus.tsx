@@ -293,6 +293,7 @@ function DoorCard({ state: s, now }: { state: FridgeState; now: number }) {
           {doorText(s)}
           {warn && ` · ${Math.floor(openFor / 60_000)}분째`}
         </p>
+        {warn && <p className="text-xs text-urgent/80">닫히면 자동으로 사라져요</p>}
         {changed && !warn && (
           <p className="text-xs text-muted">{s.doorOpen ? '방금 열렸어요' : `${ago(changed, now)} 닫혔어요`}</p>
         )}
