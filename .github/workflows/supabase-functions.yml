@@ -1,0 +1,52 @@
+name: Deploy Supabase Edge Functions
+
+# supabase/functions 아래가 바뀌어 main 에 머지되면 모든 함수를 Supabase 에 배포합니다.
+# 처음 한 번 저장소 Settings → Secrets and variables → Actions 에 SUPABASE_ACCESS_TOKEN 을 넣어야 합니다.
+# (https://supabase.com/dashboard/account/tokens 에서 발급)
+# 식품 검색(food-search)용 FOODSAFETY_API_KEY 도 Secret 에 넣으면 함수 Secret 으로 함께 설정합니다.
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/functions/**']
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: aiwqfqfswuehxqferrpn
+      FOODSAFETY_API_KEY: ${{ secrets.FOODSAFETY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Check token
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::저장소 Secrets 에 SUPABASE_ACCESS_TOKEN 을 먼저 넣어 주세요."
+            exit 1
+          fi
+      # 함수가 쓰는 비밀값: GitHub Secret 에 있으면 Supabase 함수 Secret 으로 옮긴다
+      - name: Sync function secrets
+        run: |
+          if [ -n "$FOODSAFETY_API_KEY" ]; then
+            supabase secrets set FOODSAFETY_API_KEY="$FOODSAFETY_API_KEY" --project-ref "$SUPABASE_PROJECT_ID"
+          else
+            echo "FOODSAFETY_API_KEY 없음: 건너뜀"
+          fi
+      # _shared 처럼 밑줄로 시작하는 폴더는 공용 코드라 배포하지 않습니다
+      - name: Deploy
+        run: |
+          for dir in supabase/functions/*/; do
+            name=$(basename "$dir")
+            case "$name" in _*) continue ;; esac
+            echo "▶ $name"
+            supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_ID" --use-api
+          done
