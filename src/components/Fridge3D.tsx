@@ -182,7 +182,7 @@ function noteTexture(note: Note) {
         g.fill()
       }
       g.fillStyle = token('ink')
-      g.font = `bold 46px ${FONT}`
+      g.font = `bold 44px ${FONT}`
       g.textAlign = 'left'
       // 어절(띄어쓰기) 단위로 줄바꿈(keep-all). 한 어절이 한 줄보다 길 때만 글자 단위로 자른다
       const MAX = 226
@@ -204,9 +204,9 @@ function noteTexture(note: Note) {
         }
       }
       lines.push(line)
-      const shown = lines.slice(0, 3)
-      if (lines.length > 3) shown[2] = shown[2].slice(0, -1) + '…'
-      shown.forEach((l, i) => g.fillText(l, 15, 100 + i * 56))
+      const shown = lines.slice(0, 4)
+      if (lines.length > 4) shown[3] = shown[3].slice(0, -1) + '…'
+      shown.forEach((l, i) => g.fillText(l, 15, 90 + i * 50))
     },
     256,
     256,

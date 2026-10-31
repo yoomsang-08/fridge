@@ -261,7 +261,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
             {label}
           </span>
         ))}
-        <span className="ml-auto text-faint">
+        {/* 폰에서는 아래 줄로 내려 '식품 넣기' 버튼에 가리지 않게 */}
+        <span className="basis-full text-faint sm:ml-auto sm:basis-auto">
           {/* 이스터에그: 한밤중(0–4시)에 열면 */}
           {hourKST() < 5
             ? '야식 시간이네요. 문은 살짝만 열어요'
