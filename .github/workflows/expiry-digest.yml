@@ -1,0 +1,23 @@
+name: Morning expiry digest
+
+# 매일 아침 8시 반(한국 시간)쯤 기한 임박 알림을 보냅니다. GitHub 예약 실행은 몇 분~수십 분 늦을 수 있어요.
+# 저장소 Secret CRON_SECRET 이 Supabase 함수 Secret 과 같아야 합니다(supabase-functions 워크플로가 옮김).
+on:
+  schedule:
+    - cron: '27 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call expiry-digest
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::저장소 Secrets 에 CRON_SECRET 을 먼저 넣어 주세요."
+            exit 1
+          fi
+          curl -fsS -X POST https://aiwqfqfswuehxqferrpn.supabase.co/functions/v1/expiry-digest \
+            -H "x-cron-secret: $CRON_SECRET"

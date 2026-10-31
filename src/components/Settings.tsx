@@ -5,6 +5,7 @@ import { FRIDGE_TEMPLATES, ZONE_LABEL } from '../lib/templates'
 import type { Repo } from '../lib/repo'
 import type { Compartment, Fridge, Household, Me, Member, Zone } from '../lib/types'
 import { useDialog } from './Dialog'
+import { PushSettings } from './PushSettings'
 import { cx } from '../lib/cx'
 import { Button, Card, IconButton } from './ui'
 
@@ -75,6 +76,8 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
           })}
         </ul>
       </Card>
+
+      {!isLocal && <PushSettings householdId={household.id} />}
 
       {!isLocal && (
         <Card className="p-5">

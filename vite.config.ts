@@ -14,6 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: false,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      // 푸시 알림 수신(public/push-sw.js)을 생성된 서비스워커에 붙인다
+      workbox: { importScripts: ['push-sw.js'] },
       manifest: {
         name: '냉장고를 부탁해',
         short_name: '냉장고',

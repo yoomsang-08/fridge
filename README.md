@@ -68,6 +68,13 @@ npx supabase functions deploy food-search
 
 배포 전에는 검색 결과가 비어 있고, 바코드는 "못 찾았어요"로 나오며 직접 입력은 그대로 됩니다.
 
+## 알림 (웹 푸시)
+
+- 설정 → **아침 알림**을 켠 기기에 매일 아침 8시 반쯤 '오늘까지 · 3일 안에 · 기한 지남' 식품을 알려 줍니다. 아이폰은 홈 화면에 추가한 앱에서만 받을 수 있습니다.
+- 구성: `push_subscriptions` 테이블(0005), 공용 헬퍼 `supabase/functions/_shared/push.ts` 의 `sendToHousehold()`, 아침 알림 함수 `expiry-digest`, 예약 실행 `.github/workflows/expiry-digest.yml`, 서비스워커 수신 `public/push-sw.js`.
+- 다른 알림을 보낼 함수는 `sendToHousehold(hid, { title, body, url, tag }, { onlyDisplayNames, onlyUserIds, excludeUserIds })` 만 부르면 됩니다.
+- 필요한 저장소 Secret: `VAPID_PRIVATE_KEY`, `CRON_SECRET`. 공개키는 `deploy.yml` 과 `supabase-functions.yml` 에 들어 있습니다.
+
 ## 다음 단계
 
 - 2단계 남은 것: 매일 아침 임박 알림
