@@ -5,7 +5,7 @@ import { useDialog } from './Dialog'
 import { Sheet } from './Sheet'
 import { cx } from '../lib/cx'
 import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
-import { CONTAINERS, UNITS, useCategories } from '../lib/categories'
+import { CONTAINERS, guessContainer, UNITS, useCategories } from '../lib/categories'
 import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE } from '../lib/expiry'
 import {
   foodSearchAvailable,
@@ -76,6 +76,7 @@ export function ItemSheet({
   const [quantity, setQuantity] = useState(item?.quantity ?? 1)
   const [unit, setUnit] = useState(item?.unit ?? '개')
   const [container, setContainer] = useState<Container | null>(item?.container ?? null)
+  const containerGuess = useMemo(() => guessContainer(name, unit), [name, unit])
   const categories = useCategories().filter((c) => !c.hidden || c.id === item?.category)
   const [expiry, setExpiry] = useState<string | null>(item?.expiry_date ?? null)
   const [expiryType, setExpiryType] = useState(item?.expiry_type ?? 'use_by')
@@ -448,12 +449,16 @@ export function ItemSheet({
                 개봉함
               </Chip>
             </div>
-            <div className="-mx-5 mt-2 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+            <p className="mt-3 text-xs font-semibold text-muted">용기 · 안 골라도 돼요</p>
+            <div className="-mx-5 mt-1.5 flex gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
               {CONTAINERS.map((c) => (
                 <Chip
                   key={c.id}
+                  // 앱이 짐작한 용기는 고른 것과 구분되게 추천 칩으로
+                  tone={!container && c.id === containerGuess ? 'suggest' : 'default'}
                   active={c.id === container}
                   aria-pressed={c.id === container}
+                  className="h-8 text-[13px]"
                   onClick={() => setContainer(c.id === container ? null : c.id)}
                 >
                   {c.label}
