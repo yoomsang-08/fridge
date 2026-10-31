@@ -59,7 +59,8 @@ export function NoteBoard({ notes, comments, photos, me, fresh, onOpen, onWrite,
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">냉장고 문</h2>
+        {/* 열 장이 넘게 붙으면 제목이 살짝 바뀐다 (이스터에그) */}
+        <h2 className="text-2xl font-extrabold tracking-tight">{notes.length + photos.length > 10 ? '냉장고 문이 꽉 찼어요' : '냉장고 문'}</h2>
         <p className="mt-0.5 text-sm text-muted">
           {notes.length + photos.length > 0
             ? [notes.length && `메모 ${notes.length}개`, photos.length && `사진 ${photos.length}장`].filter(Boolean).join(' · ') + ' 붙어 있어요'

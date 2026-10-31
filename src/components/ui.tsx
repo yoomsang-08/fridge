@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { cx } from '../lib/cx'
+import { onEggToast } from '../lib/eggToast'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 
 /** 화면 공통 부품. 색은 index.css 의 디자인 토큰만 쓴다 */
@@ -203,5 +205,31 @@ export function Logo({ size = 36 }: { size?: number }) {
         <circle cx="564" cy="642" r="50" fill="#f6c343" />
       </svg>
     </span>
+  )
+}
+
+/** 이스터에그 한 줄. 화면 위쪽에 3초 떴다가 사라지고, 누름은 통과 */
+export function EggToast() {
+  const [text, setText] = useState<string | null>(null)
+  useEffect(() => {
+    let timer = 0
+    const off = onEggToast((t) => {
+      setText(t)
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => setText(null), 3000)
+    })
+    return () => {
+      off()
+      window.clearTimeout(timer)
+    }
+  }, [])
+  if (!text) return null
+  return (
+    <p
+      role="status"
+      className="pointer-events-none fixed inset-x-0 top-[calc(4.75rem+env(safe-area-inset-top))] z-40 mx-auto w-fit max-w-[calc(100%-2rem)] animate-[sheet-up_200ms_ease-out] rounded-xl bg-accent-soft px-4 py-2 text-center text-sm font-semibold break-keep text-accent shadow-card"
+    >
+      {text}
+    </p>
   )
 }

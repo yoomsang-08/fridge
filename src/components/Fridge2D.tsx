@@ -12,6 +12,8 @@ import {
 } from '../lib/fridgeShape'
 import type { Celebration } from '../lib/celebrations'
 import { magnetOf, notePaper } from '../lib/notes'
+import { isArt, type MagnetKind } from '../lib/magnets'
+import { MagnetArt } from './MagnetArt'
 import type { Compartment, FridgePhoto, Item, Layout, Note } from '../lib/types'
 import { cx } from '../lib/cx'
 
@@ -209,8 +211,9 @@ function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpen
 }) {
   const W = shape.width
   const H = shape.height
+  const banner = celebration && celebration.banner !== false ? celebration : null
   return (
-    <svg viewBox={`${-(frameW - W) / 2 - 10} ${celebration ? -GARLAND_H : -10} ${frameW + 20} ${H + 20 + (celebration ? GARLAND_H - 10 : 0)}`} className="mx-auto block max-h-[64dvh] w-full" role="img" aria-label="문 닫힌 정면">
+    <svg viewBox={`${-(frameW - W) / 2 - 10} ${banner ? -GARLAND_H : -10} ${frameW + 20} ${H + 20 + (banner ? GARLAND_H - 10 : 0)}`} className="mx-auto block max-h-[64dvh] w-full" role="img" aria-label="문 닫힌 정면">
       <rect x={0} y={0} width={W} height={H} rx={16} className={cx('fill-sunken', OUTLINE)} strokeWidth={4} />
       {shape.doors.map((d) => {
         const b = scale(d.rect, { x: 0, y: 0, w: W, h: H })
@@ -256,12 +259,12 @@ function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpen
       {shape.display && (
         <rect {...rectProps(scale(shape.display, { x: 0, y: 0, w: W, h: H }))} rx={8} className="fill-ink" />
       )}
-      {celebration && <Garland W={W} celebration={celebration} />}
+      {banner && <Garland W={W} celebration={banner} />}
       {photos.length > 0 && (
         <DoorPhotos door={scale((shape.doors[1] ?? shape.doors[0]).rect, { x: 0, y: 0, w: W, h: H })} photos={photos} onOpen={onOpenNotes} />
       )}
       {notes.length > 0 && (
-        <DoorNotes door={scale(shape.doors[0].rect, { x: 0, y: 0, w: W, h: H })} notes={notes} onOpen={onOpenNotes} />
+        <DoorNotes door={scale(shape.doors[0].rect, { x: 0, y: 0, w: W, h: H })} notes={notes} onOpen={onOpenNotes} dayMagnet={celebration?.magnet} />
       )}
     </svg>
   )
@@ -269,6 +272,8 @@ function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpen
 
 /** 기념일에 냉장고 위로 비워 두는 높이(mm) */
 const GARLAND_H = 420
+/** 크리스마스 눈송이 자리 [폭 비율, 위에서 mm, 반지름] */
+const SNOW = [[0.04, 40, 10], [0.15, 120, 7], [0.9, 30, 9], [0.97, 130, 11], [0.08, 200, 6], [0.86, 190, 7], [0.5, 20, 6], [0.24, 30, 8], [0.76, 110, 6]] as const
 const FLAG_FILL = ['fill-note-yellow', 'fill-note-pink', 'fill-note-mint', 'fill-note-sky']
 
 /** 기념일 장식: 냉장고 위에 축하 문구, 그 아래로 깃발 가랜드가 문 위쪽에 걸린다 */
@@ -287,9 +292,22 @@ function Garland({ W, celebration }: { W: number; celebration: Celebration }) {
         {celebration.message}
       </text>
       <path d={`M 0 ${y0 - sag / 2} Q ${W / 2} ${y0 + sag * 1.5} ${W} ${y0 - sag / 2}`} fill="none" className="stroke-faint" strokeWidth={4} />
+      {celebration.snow &&
+        SNOW.map(([sx, sy, r], i) => <circle key={`s${i}`} cx={W * sx} cy={-GARLAND_H + sy} r={r} className="fill-note-sky" />)}
       {Array.from({ length: n }, (_, i) => {
         const p = at((i + 0.5) / n)
         const fw = (W / n) * 0.78
+        const charm = celebration.charms?.[i % celebration.charms.length]
+        if (charm) {
+          // 명절: 깃발 대신 그날의 장식을 짧은 끈에 매단다
+          const s = fw * 1.05
+          return (
+            <g key={i}>
+              <line x1={p.x} y1={p.y} x2={p.x} y2={p.y + 14} className="stroke-faint" strokeWidth={3} />
+              <MagnetArt kind={charm} x={p.x - s / 2} y={p.y + 10} width={s} height={s} />
+            </g>
+          )
+        }
         return (
           <path
             key={i}
@@ -349,7 +367,7 @@ const NOTE_TILT = [-2, 1.5, -1]
 const NOTE_SHIFT = [-20, 18, -8]
 
 /** 문 닫힌 정면: 첫 번째 문 아래쪽에 포스트잇 메모. 누르면 메모 탭 */
-function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?: () => void }) {
+function DoorNotes({ door, notes, onOpen, dayMagnet }: { door: Box; notes: Note[]; onOpen?: () => void; dayMagnet?: MagnetKind }) {
   const cols = Math.max(1, Math.min(notes.length, Math.floor((door.w - 30) / (NOTE + 20))))
   const rowW = cols * NOTE + (cols - 1) * 20
   const rows = Math.ceil(notes.length / cols)
@@ -369,7 +387,7 @@ function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?:
         const x = door.x + (door.w - rowW) / 2 + col * (NOTE + 20) + NOTE_SHIFT[i % NOTE_SHIFT.length]
         // 문 아래쪽(손잡이 홈 위)에 살짝 겹쳐 붙이고, 최근 메모가 맨 위
         const y = door.y + door.h - 70 - NOTE - (rows - 1) * NOTE_STEP + row * NOTE_STEP
-        const magnet = magnetOf(n.body)
+        const magnet = magnetOf(n.body, dayMagnet)
         return (
           <g key={n.id} transform={`rotate(${NOTE_TILT[i % NOTE_TILT.length]} ${x + NOTE / 2} ${y + NOTE / 2})`}>
             <foreignObject x={x} y={y} width={NOTE} height={NOTE}>
@@ -382,7 +400,9 @@ function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?:
                 <p className="line-clamp-3">{n.body}</p>
               </div>
             </foreignObject>
-            {magnet === 'heart' ? (
+            {isArt(magnet) ? (
+              <MagnetArt kind={magnet} x={x + NOTE / 2 - 32} y={y - 22} width={64} height={64} />
+            ) : magnet === 'heart' ? (
               <text x={x + NOTE / 2} y={y + 26} fontSize={34} textAnchor="middle" className="fill-accent">
                 ♥
               </text>
