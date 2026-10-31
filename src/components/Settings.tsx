@@ -268,7 +268,9 @@ function Credits() {
         <Card className="w-full max-w-sm animate-[sheet-up_200ms_ease-out] p-4 text-center">
           <p className="text-sm font-bold">만든 사람들 · 써니사이드업 팀</p>
           <p className="mt-2 text-sm leading-relaxed break-keep text-muted">
-            디자인 실장 · 데이터 탐정 · 잔기능 요정
+            기반 반장 · 3D 공방장 · 디자인 실장
+            <br />
+            데이터 탐정 · 연동 기사 · 잔기능 요정
             <br />
             그리고 매일 냉장고를 채워 주는 지선 님네 식구들
           </p>
