@@ -34,7 +34,7 @@ Tailwind 클래스로 토큰 이름만 씁니다. `slate-*`, `sky-*`, `red-*` �
 | `soon` / `soon-soft` | #a87a10 / #fbf3dc | 7일 이내 |
 
 - 기한 관련 색은 `src/lib/expiry.ts` 의 `LEVEL_STYLE`(배지: 바탕+글자), `LEVEL_TEXT`(글자만), `LEVEL_DOT`(점), 문구는 `expiryLabel()`, 묶음 이름은 `LEVEL_GROUP` 을 씁니다.
-- 기한 색을 기한이 아닌 곳(예: 단순 강조, 장식)에 쓰지 않습니다. 위험 동작(삭제)만 예외로 `expired` 를 씁니다.
+- 경고색(expired/urgent/soon)은 **지금 챙겨야 하는 상태**에만 씁니다: 식품 기한, 냉장고 문이 1분 넘게 열려 있음. 단순 강조나 장식에는 쓰지 않고, 위험 동작(삭제)만 예외로 `expired` 를 씁니다.
 - 큰 면을 진한 색으로 채우지 않습니다. 진한 색은 주요 버튼 하나, 나머지는 `*-soft` 바탕 + 진한 글자.
 
 ## 글자
