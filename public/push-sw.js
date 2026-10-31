@@ -7,6 +7,10 @@ self.addEventListener('push', (event) => {
     data = { body: event.data && event.data.text() }
   }
   const scope = self.registration.scope
+  // 앱 아이콘 숫자: 보낸 쪽이 badge 를 주면 그 숫자로 (앱을 열면 앱이 다시 맞춘다)
+  if (typeof data.badge === 'number' && self.navigator.setAppBadge) {
+    self.navigator.setAppBadge(data.badge).catch(() => {})
+  }
   event.waitUntil(
     self.registration.showNotification(data.title || '냉장고를 부탁해', {
       body: data.body || '',
