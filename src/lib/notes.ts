@@ -30,6 +30,9 @@ export function timeAgo(iso: string, now = Date.now()): string {
   return new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
 
+/** 좁은 자리용: '40분', '2시간', '어제' */
+export const shortAgo = (iso: string, now = Date.now()) => timeAgo(iso, now).replace(/ 전$/, '')
+
 /** 냉장고 보기에서 문 앞면에 붙일 메모 수 (최근 것부터) */
 export const DOOR_NOTE_COUNT = 3
 

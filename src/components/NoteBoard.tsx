@@ -20,8 +20,8 @@ interface Props {
   onAddPhoto: (file: File) => Promise<void>
 }
 
-const TILE =
-  'flex min-h-36 flex-col items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-line text-sm font-bold text-accent transition active:bg-accent-soft'
+const HALF =
+  'flex flex-1 flex-col items-center justify-center gap-1 py-3 text-sm font-bold text-accent transition active:bg-accent-soft'
 
 /** 메모 탭: 냉장고 문 한 짝에 메모와 사진이 붙어 있는 모양 */
 export function NoteBoard({ notes, comments, photos, me, fresh, onOpen, onWrite, onOpenPhoto, onAddPhoto }: Props) {
@@ -69,15 +69,17 @@ export function NoteBoard({ notes, comments, photos, me, fresh, onOpen, onWrite,
 
       <div className="rounded-[1.75rem] border border-line bg-surface p-4 shadow-card sm:p-5">
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
-          <div className="grid grid-rows-2 gap-2">
-            <button onClick={onWrite} className={cx(TILE, 'min-h-0')}>
+          {/* 메모 한 장 크기의 점선 칸 하나를 위아래 반반으로 */}
+          <div className="flex min-h-36 flex-col self-start overflow-hidden rounded-md border-2 border-dashed border-line">
+            <button onClick={onWrite} className={HALF}>
               <Plus size={20} strokeWidth={2.4} />
               메모 붙이기
             </button>
+            <span aria-hidden className="mx-3 border-t-2 border-dashed border-line" />
             <button
               onClick={() => input.current?.click()}
               disabled={busy || full}
-              className={cx(TILE, 'min-h-0', (busy || full) && 'text-faint active:bg-transparent')}
+              className={cx(HALF, (busy || full) && 'text-faint active:bg-transparent')}
             >
               <ImagePlus size={20} strokeWidth={2.2} />
               {busy ? '붙이는 중…' : full ? `사진 ${PHOTO_LIMIT}장 가득` : '사진 붙이기'}

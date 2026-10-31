@@ -168,15 +168,27 @@ export function NoteViewSheet({
     <Sheet
       title={mine ? '내가 남긴 메모' : `${note.author_name ?? '누군가'}의 메모`}
       onClose={onClose}
+      // 댓글 입력은 채팅처럼 늘 손 닿는 아래에
       footer={
-        <>
-          <Button variant="ghost" className="flex-1" onClick={onClose}>
-            닫기
+        <form
+          className="flex flex-1 gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            send()
+          }}
+        >
+          <TextInput
+            value={draft}
+            maxLength={MAX}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={comments.length ? '댓글 달기' : '첫 댓글을 남겨 보세요'}
+            aria-label="댓글 쓰기"
+            enterKeyHint="send"
+          />
+          <Button type="submit" className="h-12 shrink-0" disabled={!text || busy}>
+            달기
           </Button>
-          <Button variant="danger" className="flex-1" onClick={onRemove}>
-            떼기
-          </Button>
-        </>
+        </form>
       }
     >
       <div className={cx('rounded-md px-5 pt-6 pb-4 shadow-card', notePaper(note.color))}>
@@ -218,27 +230,10 @@ export function NoteViewSheet({
             })}
           </ul>
         )}
-        <form
-          className="mt-3 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            send()
-          }}
-        >
-          <TextInput
-            value={draft}
-            maxLength={MAX}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={comments.length ? '댓글 달기' : '첫 댓글을 남겨 보세요'}
-            aria-label="댓글 쓰기"
-            enterKeyHint="send"
-          />
-          <Button type="submit" className="h-12 shrink-0" disabled={!text || busy}>
-            달기
-          </Button>
-        </form>
+        {comments.length === 0 && <p className="mt-1 text-sm text-faint">아직 댓글이 없어요.</p>}
         {error && <p className="mt-2 text-sm text-expired">{error}</p>}
       </section>
+      <RemoveButton onRemove={onRemove} />
     </Sheet>
   )
 }
@@ -255,39 +250,11 @@ export function PhotoViewSheet({
   onClose: () => void
   onRemove: () => Promise<void>
 }) {
-  // 사진은 되돌리기가 없으니 한 번 더 눌러야 뗀다
-  const [confirm, setConfirm] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const mine = isMine(photo, me)
   return (
     <Sheet
       title={mine ? '내가 붙인 사진' : `${photo.author_name ?? '누군가'}의 사진`}
       onClose={onClose}
-      footer={
-        <>
-          <Button variant="ghost" className="flex-1" onClick={onClose}>
-            닫기
-          </Button>
-          <Button
-            variant="danger"
-            className="flex-1"
-            disabled={busy}
-            onClick={async () => {
-              if (!confirm) return setConfirm(true)
-              setBusy(true)
-              try {
-                await onRemove()
-              } catch {
-                setError('사진을 떼지 못했어요. 잠시 뒤 다시 해 주세요.')
-                setBusy(false)
-              }
-            }}
-          >
-            {confirm ? '정말 뗄까요?' : '떼기'}
-          </Button>
-        </>
-      }
     >
       <div className="rounded-[4px] bg-white p-2.5 shadow-card">
         <img
@@ -301,7 +268,44 @@ export function PhotoViewSheet({
       <p className="mt-3 text-sm text-muted">
         {photo.author_name ?? '누군가'} · {timeAgo(photo.created_at)}
       </p>
-      {error && <p className="mt-2 text-sm text-expired">{error}</p>}
+      {/* 사진은 되돌리기가 없으니 한 번 더 눌러야 뗀다 */}
+      <RemoveButton onRemove={onRemove} confirm="정말 뗄까요? 되돌릴 수 없어요" failText="사진을 떼지 못했어요. 잠시 뒤 다시 해 주세요." />
     </Sheet>
+  )
+}
+
+/** 시트 맨 아래의 작은 '떼기'. confirm 이 있으면 두 번 눌러야 뗀다 */
+function RemoveButton({
+  onRemove,
+  confirm,
+  failText = '떼지 못했어요. 잠시 뒤 다시 해 주세요.',
+}: {
+  onRemove: () => Promise<void>
+  confirm?: string
+  failText?: string
+}) {
+  const [asked, setAsked] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <div className="mt-6 flex flex-col items-center gap-1">
+      <button
+        disabled={busy}
+        onClick={async () => {
+          if (confirm && !asked) return setAsked(true)
+          setBusy(true)
+          try {
+            await onRemove()
+          } catch {
+            setError(failText)
+            setBusy(false)
+          }
+        }}
+        className="h-9 rounded-xl px-3 text-[13px] font-semibold text-expired/80 transition active:bg-expired-soft"
+      >
+        {asked ? confirm : '냉장고에서 떼기'}
+      </button>
+      {error && <p className="text-sm text-expired">{error}</p>}
+    </div>
   )
 }

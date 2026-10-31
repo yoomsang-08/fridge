@@ -1,4 +1,4 @@
-import { timeAgo } from '../lib/notes'
+import { shortAgo } from '../lib/notes'
 import type { FridgePhoto } from '../lib/types'
 import { cx } from '../lib/cx'
 
@@ -20,7 +20,7 @@ export function PhotoMagnet({ photo, onClick, className }: { photo: FridgePhoto;
       <span aria-hidden className="absolute -top-1 left-1/2 z-10 h-3 w-3 -translate-x-1/2 rounded-full bg-accent ring-2 ring-surface/70" />
       <img src={photo.url} alt="" loading="lazy" decoding="async" className="aspect-[4/5] w-full rounded-[2px] bg-sunken object-cover" />
       <span className="mt-2 truncate text-xs text-muted">
-        {photo.author_name ?? '누군가'} · {timeAgo(photo.created_at)}
+        {photo.author_name ?? '누군가'} · {shortAgo(photo.created_at)}
       </span>
     </button>
   )
