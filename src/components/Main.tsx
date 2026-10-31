@@ -1,3 +1,4 @@
+import { deviceLabel } from '../lib/device'
 import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
@@ -81,7 +82,19 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   useEffect(() => {
     reload()
     const unsubscribe = repo.subscribe(reload)
-    const onFocus = () => document.visibilityState === 'visible' && reload()
+    // 식구 목록의 '마지막 사용': 열 때 기록하고, 다시 볼 때는 한 시간에 한 번만
+    let touchedAt = 0
+    const touch = () => {
+      if (Date.now() - touchedAt < 3_600_000) return
+      touchedAt = Date.now()
+      repo.touchDevice(deviceLabel()).catch(() => {})
+    }
+    touch()
+    const onFocus = () => {
+      if (document.visibilityState !== 'visible') return
+      reload()
+      touch()
+    }
     document.addEventListener('visibilitychange', onFocus)
     return () => {
       unsubscribe()

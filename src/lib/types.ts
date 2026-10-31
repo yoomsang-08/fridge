@@ -131,5 +131,11 @@ export interface Me {
   name: string | null
 }
 
-/** 우리 집 식구 (같은 집 코드로 들어온 사람) */
-export type Member = Me
+/** 우리 집 식구 (같은 집 코드로 들어온 사람). 기기마다 계정이 달라 한 사람이 여러 줄일 수 있다 */
+export interface Member extends Me {
+  /** 이 기기에서 마지막으로 앱을 연 때 (0016 전이거나 기록 전이면 null) */
+  lastSeenAt: string | null
+  /** 기기 종류 (아이폰, Mac 등) */
+  device: string | null
+  joinedAt: string
+}
