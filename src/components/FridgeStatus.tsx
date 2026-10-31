@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, DoorClosed, DoorOpen, ExternalLink, Minus, Plus, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronUp, DoorClosed, DoorOpen, ExternalLink, Minus, Plus, RefreshCw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import {
@@ -96,7 +96,7 @@ export function FridgeStatus({ st }: { st: SmartThings }) {
     }
     return (
       <div className="flex flex-col gap-4">
-        {notice && <Notice {...notice} onClose={() => setNotice(null)} />}
+        {notice && <Notice {...notice} st={st} onClose={() => setNotice(null)} />}
         {error && !notice && <ErrorNote text={error} />}
         <ConnectCard
           st={st}
@@ -113,7 +113,7 @@ export function FridgeStatus({ st }: { st: SmartThings }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {notice && <Notice {...notice} onClose={() => setNotice(null)} />}
+      {notice && <Notice {...notice} st={st} onClose={() => setNotice(null)} />}
       <div className="flex items-center justify-between px-1">
         <h2 className="text-[15px] font-extrabold">냉장고 상태</h2>
         <button className="flex h-9 items-center gap-0.5 text-sm font-semibold text-accent" onClick={() => setOpen(false)}>
@@ -477,9 +477,9 @@ function ConnectCard({
       )}
 
       {error && <ErrorNote text={error} />}
-      <Button variant="ghost" size="md" onClick={onCancel}>
-        닫기
-      </Button>
+      <button className="self-center py-1 text-[13px] text-muted" onClick={onCancel}>
+        나중에 할게요
+      </button>
     </Card>
   )
 }
@@ -506,12 +506,12 @@ function LinkCard({
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-bold">{oauthLinked ? '삼성 계정으로 연결됨' : '토큰으로 연결됨'}</p>
-          <p className="text-xs break-keep text-muted">
+          <p className={cx('text-xs break-keep', oauthLinked ? 'text-muted' : 'font-semibold text-urgent')}>
             {oauthLinked
               ? '서버가 알아서 갱신해서 다시 연결하지 않아도 돼요'
               : left > 0
-                ? `토큰이 약 ${Math.max(1, Math.round(left / 3600_000))}시간 뒤 만료돼요`
-                : '토큰이 만료됐을 수 있어요'}
+                ? `약 ${Math.max(1, Math.round(left / 3600_000))}시간 뒤 연결이 끊겨요`
+                : '연결이 끊겼을 수 있어요'}
           </p>
         </div>
         <Button
@@ -537,18 +537,40 @@ function LinkCard({
   )
 }
 
-/** 삼성 계정 로그인에서 돌아온 결과 */
-function Notice({ ok, text, onClose }: { ok: boolean; text: string; onClose: () => void }) {
+/** 성공 안내는 이만큼 뒤 저절로 사라진다 */
+const NOTICE_MS = 4_000
+
+/** 삼성 계정 로그인에서 돌아온 결과. 성공은 잠깐, 실패는 다시 연결할 수 있게 남겨 둔다 */
+function Notice({ ok, text, st, onClose }: { ok: boolean; text: string; st: SmartThings; onClose: () => void }) {
+  const close = useRef(onClose)
+  useEffect(() => {
+    close.current = onClose
+  })
+  useEffect(() => {
+    if (!ok) return
+    const t = setTimeout(() => close.current(), NOTICE_MS)
+    return () => clearTimeout(t)
+  }, [ok])
   return (
-    <button
-      onClick={onClose}
+    <div
+      role="status"
       className={cx(
-        'rounded-2xl p-3 text-left text-sm break-keep',
+        'flex items-center gap-2 rounded-2xl py-1.5 pr-1.5 pl-3 text-sm break-keep',
         ok ? 'bg-accent-soft font-semibold text-accent' : 'bg-expired-soft text-expired',
       )}
     >
-      {text}
-    </button>
+      <p className="min-w-0 flex-1 py-1.5">
+        {text}
+        {!ok && (
+          <button className="ml-1.5 font-bold underline" onClick={async () => location.assign(await st.oauthStart())}>
+            다시 연결
+          </button>
+        )}
+      </p>
+      <IconButton aria-label="닫기" className={cx('h-9 w-9', ok ? 'text-accent' : 'text-expired')} onClick={onClose}>
+        <X size={16} />
+      </IconButton>
+    </div>
   )
 }
 

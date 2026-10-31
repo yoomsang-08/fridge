@@ -48,7 +48,7 @@ npm run dev
 
 ### 삼성 계정으로 연결 (만료 없음)
 
-1. SQL Editor 에서 `supabase/migrations/0005_smartthings_oauth.sql` 실행
+1. SQL Editor 에서 `supabase/migrations/0006_smartthings_oauth.sql` 실행
 2. 맥에서 SmartThings CLI 로 OAuth 앱 등록 (`npm i -g @smartthings/cli` → `smartthings apps:create` → OAuth-In App)
    - Scopes: `r:devices:*`, `x:devices:*`
    - Redirect URI: `https://aiwqfqfswuehxqferrpn.supabase.co/functions/v1/smartthings`
