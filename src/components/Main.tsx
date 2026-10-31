@@ -4,7 +4,7 @@ import type { Repo, Snapshot } from '../lib/repo'
 import type { SmartThings } from '../lib/smartthings'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
 import type { Household, Item } from '../lib/types'
-import { FridgeDevice } from './FridgeDevice'
+import { FridgeStatus } from './FridgeStatus'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
 import { Settings } from './Settings'
@@ -152,7 +152,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           />
         )}
 
-        {tab === 'device' && <FridgeDevice st={smartthings} />}
+        {tab === 'device' && <FridgeStatus st={smartthings} />}
 
         {tab === 'settings' && (
           <Settings

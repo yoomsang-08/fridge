@@ -1,4 +1,4 @@
-import { DoorClosed, DoorOpen, ExternalLink, Minus, Plus, RefreshCw, X } from 'lucide-react'
+import { DoorClosed, DoorOpen, ExternalLink, Minus, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import {
@@ -11,15 +11,21 @@ import {
   type Zone,
 } from '../lib/smartthings'
 import { useDialog } from './Dialog'
-import { Button, Card, Field, IconButton, TextInput } from './ui'
+import { Button, Card, Field, IconButton, Switch, TextInput } from './ui'
 
 const ZONE_NAME: Record<Zone, string> = { cooler: '냉장실', freezer: '냉동실' }
 const REFRESH_MS = 60_000
 /** 명령을 보낸 뒤 냉장고가 바뀐 값을 알려줄 때까지 잠깐 기다린다 */
 const SETTLE_MS = 2_000
 
-/** 스마트싱스로 연결한 실제 냉장고의 온도·문·급속 기능 */
-export function FridgeDevice({ st }: { st: SmartThings }) {
+/** 문이 이만큼 넘게 열려 있으면 경고로 보여준다 */
+const DOOR_WARN_MS = 60_000
+
+/**
+ * 스마트싱스로 연결한 실제 냉장고의 온도·문·급속 기능 패널.
+ * 지금은 '온도' 탭에 있고, 냉장고 보기 탭이 생기면 그 맨 위 '냉장고 상태'로 옮길 수 있게 탭과 분리해 둔다
+ */
+export function FridgeStatus({ st }: { st: SmartThings }) {
   const [status, setStatus] = useState<DeviceStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadedAt, setLoadedAt] = useState<number>(0)
@@ -81,7 +87,7 @@ export function FridgeDevice({ st }: { st: SmartThings }) {
   return (
     <div className="flex flex-col gap-4">
       {st.demo && (
-        <p className="px-1 text-sm text-muted">
+        <p className="rounded-2xl bg-sunken p-3 text-sm break-keep text-muted">
           체험 모드라 예시 값이에요. Supabase를 연결하고 스마트싱스 토큰을 넣으면 우리 집 냉장고가 보여요.
         </p>
       )}
@@ -114,29 +120,12 @@ export function FridgeDevice({ st }: { st: SmartThings }) {
         </div>
       </Card>
 
-      <Card className="flex items-center gap-3 p-5">
-        <span
-          className={cx(
-            'grid h-11 w-11 shrink-0 place-items-center rounded-2xl',
-            s.doorOpen ? 'bg-ink text-white' : 'bg-sunken text-muted',
-          )}
-        >
-          {s.doorOpen ? <DoorOpen size={22} /> : <DoorClosed size={22} />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-bold">{doorText(s)}</p>
-          {s.doorChangedAt && (
-            <p className="text-xs text-muted">
-              {ago(Date.parse(s.doorChangedAt))} {s.doorOpen ? '열렸어요' : '닫혔어요'}
-            </p>
-          )}
-        </div>
-      </Card>
+      <DoorCard state={s} now={loadedAt} />
 
       <Card className="p-5">
         <h2 className="text-[15px] font-extrabold">빠르게 차갑게</h2>
         <div className="mt-3 flex flex-col gap-2">
-          <ToggleRow
+          <SwitchRow
             title="급속냉동"
             hint="장 본 고기·생선을 빨리 얼려요"
             on={s.powerFreeze}
@@ -147,7 +136,7 @@ export function FridgeDevice({ st }: { st: SmartThings }) {
               })
             }
           />
-          <ToggleRow
+          <SwitchRow
             title="급속냉장"
             hint="음료나 반찬을 빨리 식혀요"
             on={s.powerCool}
@@ -213,7 +202,8 @@ function ZoneTile({
       </button>
       <p className="mt-1 min-h-4 text-xs break-keep text-muted">{egg.on ? '지선 님 아이스크림 지킴이' : '지금 온도'}</p>
 
-      <div className="mt-3 flex items-center justify-between rounded-xl bg-sunken p-1">
+      <p className="mt-4 mb-1.5 text-[13px] font-bold text-muted">설정 온도</p>
+      <div className="flex items-center justify-between rounded-xl bg-sunken p-1">
         <IconButton
           aria-label={`${ZONE_NAME[zone]} 설정 온도 내리기`}
           className="text-ink active:bg-surface"
@@ -234,15 +224,15 @@ function ZoneTile({
           <Plus size={18} strokeWidth={2.4} />
         </IconButton>
       </div>
-      <p className="tabular mt-1.5 text-center text-[11px] text-faint">
-        설정 {z.min} ~ {z.max}°C
+      <p className="tabular mt-1.5 text-center text-xs text-faint">
+        {z.min} ~ {z.max}°C
       </p>
 
       {changed && (
         <div className="mt-2 flex gap-1.5">
-          <IconButton aria-label="취소" className="h-11 w-11 bg-sunken text-ink" onClick={() => setDraft(null)}>
-            <X size={18} />
-          </IconButton>
+          <Button variant="ghost" size="md" className="px-3 whitespace-nowrap" onClick={() => setDraft(null)}>
+            취소
+          </Button>
           <Button
             size="md"
             className="flex-1 px-2 whitespace-nowrap"
@@ -260,7 +250,7 @@ function ZoneTile({
   )
 }
 
-function ToggleRow({
+function SwitchRow({
   title,
   hint,
   on,
@@ -274,26 +264,40 @@ function ToggleRow({
   onToggle: (on: boolean) => void
 }) {
   return (
-    <button
-      className="flex min-h-14 items-center gap-3 rounded-2xl border border-line px-4 py-3 text-left transition active:bg-sunken disabled:opacity-60"
-      disabled={disabled || on === null}
-      onClick={() => onToggle(!on)}
-      role="switch"
-      aria-checked={!!on}
-    >
+    <label className="flex min-h-14 items-center gap-3 rounded-2xl border border-line px-4 py-3">
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-bold">{title}</p>
-        <p className="text-xs text-muted">{hint}</p>
+        <p className={cx('text-xs', on ? 'font-semibold text-accent' : 'text-muted')}>{on ? '켜져 있어요' : hint}</p>
       </div>
+      <Switch checked={!!on} disabled={disabled || on === null} onChange={onToggle} aria-label={title} />
+    </label>
+  )
+}
+
+function DoorCard({ state: s, now }: { state: FridgeState; now: number }) {
+  const changed = s.doorChangedAt ? Date.parse(s.doorChangedAt) : null
+  const openFor = s.doorOpen && changed ? now - changed : 0
+  const warn = openFor >= DOOR_WARN_MS
+  return (
+    <Card className={cx('flex items-center gap-3 p-5', warn && 'bg-urgent-soft')}>
       <span
         className={cx(
-          'shrink-0 rounded-full px-3 py-1 text-sm font-bold',
-          on ? 'bg-accent-soft text-accent' : 'bg-sunken text-muted',
+          'grid h-11 w-11 shrink-0 place-items-center rounded-2xl',
+          warn ? 'bg-urgent text-white' : s.doorOpen ? 'bg-ink text-white' : 'bg-sunken text-muted',
         )}
       >
-        {on ? '켜짐' : '꺼짐'}
+        {s.doorOpen ? <DoorOpen size={22} /> : <DoorClosed size={22} />}
       </span>
-    </button>
+      <div className="min-w-0 flex-1">
+        <p className={cx('text-[15px] font-bold', warn && 'text-urgent')}>
+          {doorText(s)}
+          {warn && ` · ${Math.floor(openFor / 60_000)}분째`}
+        </p>
+        {changed && !warn && (
+          <p className="text-xs text-muted">{s.doorOpen ? '방금 열렸어요' : `${ago(changed, now)} 닫혔어요`}</p>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -408,8 +412,8 @@ function doorText(s: FridgeState): string {
   return open.length ? `${open.join('·')} 문이 열려 있어요` : '문이 열려 있어요'
 }
 
-function ago(t: number): string {
-  const min = Math.floor((Date.now() - t) / 60_000)
+function ago(t: number, now = Date.now()): string {
+  const min = Math.floor((now - t) / 60_000)
   if (min < 1) return '방금'
   if (min < 60) return `${min}분 전`
   const h = Math.floor(min / 60)

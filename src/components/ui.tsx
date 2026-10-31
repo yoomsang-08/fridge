@@ -127,6 +127,36 @@ export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLBut
   )
 }
 
+/** 켜고 끄는 스위치. 트랙 44×26, 켜짐은 accent */
+export function Switch({
+  checked,
+  onChange,
+  disabled,
+  ...props
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'> & { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      {...props}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cx(
+        'relative h-[26px] w-11 shrink-0 rounded-full transition disabled:opacity-40',
+        checked ? 'bg-accent' : 'bg-sunken',
+      )}
+    >
+      <span
+        className={cx(
+          'absolute top-[3px] left-[3px] h-5 w-5 rounded-full bg-white shadow-card transition-transform motion-reduce:transition-none',
+          checked && 'translate-x-[18px]',
+        )}
+      />
+    </button>
+  )
+}
+
 /** 써니사이드업 팀 이스터에그: 로고를 연달아 누르면 잠깐 나오는 반숙 달걀 */
 export function SunnyEgg({ size = 36 }: { size?: number }) {
   return (
