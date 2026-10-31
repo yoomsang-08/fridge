@@ -816,7 +816,7 @@ export default function Fridge3D(props: Props) {
           key={d.id}
           door={d}
           shape={shape}
-          open={doorOpen[d.id] ?? true}
+          open={doorOpen[d.id] ?? false}
           pockets={pocketsByDoor.get(d.id) ?? []}
           itemsByCompartment={itemsByCompartment}
           hiddenWarnings={warningsBehind(d)}
