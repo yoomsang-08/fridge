@@ -39,7 +39,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 }
 
 /** 알림 켜기: 권한을 묻고, 이 기기를 우리 집 알림 대상으로 등록 */
-export async function enablePush(sb: SupabaseClient, householdId: string): Promise<PushState> {
+export async function enablePush(sb: SupabaseClient, householdId: string, retry = true): Promise<PushState> {
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return permission === 'denied' ? 'denied' : 'off'
   const reg = await navigator.serviceWorker.ready
@@ -55,6 +55,8 @@ export async function enablePush(sb: SupabaseClient, householdId: string): Promi
   })
   if (error) {
     await sub.unsubscribe()
+    // 다시 접속해 계정이 바뀐 기기는 예전 계정의 구독이 남아 있어 저장이 막힌다. 새 구독으로 한 번 더
+    if (retry) return enablePush(sb, householdId, false)
     throw error
   }
   return 'on'
