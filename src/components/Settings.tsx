@@ -243,7 +243,38 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
           이 기기 연결 해제
         </Button>
       )}
+      <Credits />
       {dialog}
+    </div>
+  )
+}
+
+const APP_VERSION = '1.0'
+
+/** 맨 아래 버전. 다섯 번 누르면 만든 사람들 (이스터에그) */
+function Credits() {
+  const [taps, setTaps] = useState(0)
+  const open = taps >= 5
+  return (
+    <div className="flex flex-col items-center gap-2 pt-2 pb-4">
+      <button
+        onClick={() => setTaps((n) => (open ? 0 : n + 1))}
+        aria-expanded={open}
+        className="rounded-lg px-3 py-1 text-xs text-faint tabular active:opacity-60"
+      >
+        냉장고를 부탁해 v{APP_VERSION}
+      </button>
+      {open && (
+        <Card className="w-full max-w-sm animate-[sheet-up_200ms_ease-out] p-4 text-center">
+          <p className="text-sm font-bold">만든 사람들 · 써니사이드업 팀</p>
+          <p className="mt-2 text-sm leading-relaxed break-keep text-muted">
+            디자인 실장 · 데이터 탐정 · 잔기능 요정
+            <br />
+            그리고 매일 냉장고를 채워 주는 지선 님네 식구들
+          </p>
+          <p className="mt-3 text-xs font-semibold text-accent">오늘도 맛있는 하루 보내세요</p>
+        </Card>
+      )}
     </div>
   )
 }

@@ -15,9 +15,11 @@ import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
 import { NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from './NoteSheet'
 import { Settings } from './Settings'
-import { celebrationToday } from '../lib/celebrations'
+import { celebrationToday, hourKST, weekdayKST, ymdKST } from '../lib/celebrations'
+import { countCleanup, eggToast } from '../lib/eggToast'
+import type { ItemAction } from '../lib/repo'
 import { cx } from '../lib/cx'
-import { Button, Card, Logo, SunnyEgg } from './ui'
+import { Button, Card, EggToast, Logo, SunnyEgg } from './ui'
 
 const URGENT_LEVELS = new Set(['expired', 'urgent'])
 
@@ -67,6 +69,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   const [removed, setRemoved] = useState<{ note: Note; comments: NoteComment[] } | null>(null)
   const egg = useSunnyEgg()
   const celebration = useMemo(() => celebrationToday(), [])
+  // 금요일 저녁 6시부터는 헤더에 불금 한 줄 (이스터에그)
+  const fridayNight = useMemo(() => weekdayKST() === 5 && hourKST() >= 18, [])
   const compactFab = useScrollingDown()
 
   const reload = useCallback(async () => {
@@ -124,6 +128,14 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     },
     [reload],
   )
+  // 식품 꺼내기. 하루에 열 번째로 다 먹으면 정리왕 (이스터에그)
+  const act = (item: Item, action: ItemAction) => {
+    const finished = action === 'consume' || (action === 'use' && item.quantity <= 1)
+    return mutate(async () => {
+      await repo.act(item, action)
+      if (finished && countCleanup(ymdKST()) === 10) eggToast('오늘 냉장고 정리왕')
+    })
+  }
 
   if (!snap) {
     return <div className="flex min-h-dvh items-center justify-center text-muted">{error ?? '불러오는 중…'}</div>
@@ -163,9 +175,11 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               <span className="block truncate text-xs text-muted">
                 {egg.on ? (
                   '써니사이드업 팀이 지선 님을 응원해요'
-                ) : celebration ? (
+                ) : celebration?.banner !== false && celebration ? (
                   // 생일·기념일에는 집 이름 대신 축하 한 줄 (냉장고 탭에는 가랜드)
                   <span className="font-semibold text-accent">{celebration.title}</span>
+                ) : fridayNight ? (
+                  '불금이에요, 냉장고 털기 좋은 날'
                 ) : (
                   <>
                     {household.name}
@@ -241,7 +255,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             compartments={snap.compartments}
             items={snap.items}
             onOpen={(item) => setSheet({ mode: 'edit', item })}
-            onUseOne={(item) => mutate(() => repo.act(item, 'use'))}
+            onUseOne={(item) => act(item, 'use')}
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
           />
         )}
@@ -258,7 +272,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             compartments={snap.compartments}
             items={snap.items}
             onOpen={(item) => setSheet({ mode: 'edit', item })}
-            onUseOne={(item) => mutate(() => repo.act(item, 'use'))}
+            onUseOne={(item) => act(item, 'use')}
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
             notes={snap.notes}
             photos={snap.photos}
@@ -363,6 +377,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         />
       )}
 
+      <EggToast />
       {removed && (
         <div
           role="status"
@@ -395,9 +410,10 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           onSave={async (input, keepOpen) => {
             localStorage.setItem(LAST_COMPARTMENT_KEY, input.compartment_id)
             await mutate(() => (sheet.mode === 'edit' ? repo.updateItem(sheet.item.id, input) : repo.addItem(input)))
+            if (sheet.mode === 'add' && input.name.includes('아이스크림')) eggToast('지선 님 아이스크림 지킴이 출동')
             if (!keepOpen) setSheet(null)
           }}
-          onAction={(item, action) => mutate(() => repo.act(item, action))}
+          onAction={(item, action) => act(item, action)}
           onDelete={(item) => mutate(() => repo.deleteItem(item.id))}
         />
       )}
