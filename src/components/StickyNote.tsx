@@ -1,4 +1,5 @@
-import { notePaper, timeAgo } from '../lib/notes'
+import { Heart } from 'lucide-react'
+import { magnetOf, notePaper, timeAgo } from '../lib/notes'
 import type { Note } from '../lib/types'
 import { cx } from '../lib/cx'
 
@@ -31,11 +32,7 @@ export function StickyNote({
         className,
       )}
     >
-      {/* 자석 */}
-      <span
-        aria-hidden
-        className="absolute top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-accent ring-2 ring-surface/70"
-      />
+      <Magnet body={note.body} />
       <p className="line-clamp-5 flex-1 text-[15px] leading-snug font-semibold break-keep whitespace-pre-wrap text-ink">
         {note.body}
       </p>
@@ -51,4 +48,24 @@ export function StickyNote({
       </div>
     </button>
   )
+}
+
+/** 자석. 메모 내용에 따라 가끔 모양이 바뀐다 (써니사이드업 팀의 작은 선물) */
+function Magnet({ body }: { body: string }) {
+  const kind = magnetOf(body)
+  const place = 'absolute top-1 left-1/2 -translate-x-1/2'
+  if (kind === 'heart') {
+    return <Heart aria-hidden size={16} strokeWidth={0} className={cx(place, 'fill-accent')} />
+  }
+  if (kind === 'egg') {
+    return (
+      <span
+        aria-hidden
+        className={cx(place, 'grid h-[18px] w-5 place-items-center rounded-[45%] bg-surface shadow-card ring-1 ring-ink/10')}
+      >
+        <span className="h-2 w-2 rounded-full bg-note-yellow ring-1 ring-ink/25" />
+      </span>
+    )
+  }
+  return <span aria-hidden className={cx('absolute top-1.5 left-1/2 -translate-x-1/2 h-3 w-3 rounded-full bg-accent ring-2 ring-surface/70')} />
 }

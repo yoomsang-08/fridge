@@ -38,3 +38,10 @@ export const NOTE_SUGGESTIONS = [
   '내 거니까 남겨 줘요',
   '반찬 해 놨어요',
 ]
+
+/** 사랑 표현엔 하트 자석, 계란 얘기엔 계란 프라이 자석 */
+export function magnetOf(body: string): 'heart' | 'egg' | 'dot' {
+  if (/사랑|고마워|고맙|좋아해|보고 ?싶|♥|❤|love/i.test(body)) return 'heart'
+  if (/계란|달걀|에그|써니|sunny/i.test(body)) return 'egg'
+  return 'dot'
+}
