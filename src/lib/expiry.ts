@@ -94,3 +94,13 @@ export const LEVEL_DOT: Record<ExpiryLevel, string> = {
   ok: 'bg-faint/60',
   none: 'bg-faint/40',
 }
+
+/** 3일 안에 먹어야 하는 것 (오늘 포함) */
+export const isDueSoon = (i: { expiry_date: string | null }) => {
+  const d = daysLeft(i.expiry_date)
+  return d !== null && d >= 0 && d <= 3
+}
+export const isExpired = (i: { expiry_date: string | null }) => {
+  const d = daysLeft(i.expiry_date)
+  return d !== null && d < 0
+}

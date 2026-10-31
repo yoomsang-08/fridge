@@ -272,6 +272,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             items={snap.items}
             onOpen={(item) => setSheet({ mode: 'edit', item })}
             onUseOne={(item) => act(item, 'use')}
+            onAct={(item, action) => act(item, action)}
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
           />
         )}
