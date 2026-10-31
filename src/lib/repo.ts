@@ -3,7 +3,7 @@ import { hashtagsOf } from './notes'
 import { blobToDataUrl, PHOTO_LIMIT, preparePhoto } from './photos'
 import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, Me, Member, Note, NoteComment, NoteInput, Zone } from './types'
 import type { FridgeTemplate } from './templates'
-import { DEFAULT_CATEGORIES, setCategories, type Category } from './categories'
+import { DEFAULT_CATEGORIES, getCategories, setCategories, type Category, type CategoryDays } from './categories'
 
 export interface Snapshot {
   fridges: Fridge[]
@@ -53,6 +53,8 @@ export interface Repo {
   markNotesRead(ids: string[]): Promise<void>
   /** 이 기기를 쓰는 사람의 이름 바꾸기 */
   renameMe(name: string): Promise<void>
+  /** 분류별 자동 기한(일) 바꾸기. null 이면 그 보관 위치에서는 자동으로 안 채움 */
+  setCategoryDays(id: string, days: CategoryDays): Promise<void>
   /** 다른 기기에서 바뀌면 호출. 반환값은 구독 해제 */
   subscribe(onChange: () => void): () => void
 }
@@ -99,7 +101,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('items').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(300),
         sb.from('notes').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100),
         sb.from('household_members').select('user_id, display_name').eq('household_id', hid).order('created_at'),
-        sb.from('categories').select('id, label, emoji, tint, hidden').eq('household_id', hid).order('sort_order'),
+        sb.from('categories').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('note_comments').select('*').eq('household_id', hid).order('created_at').limit(500),
         sb.from('fridge_photos').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(PHOTO_LIMIT),
       ])
@@ -261,6 +263,10 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       const uid = auth.session?.user.id ?? ''
       check(await sb.from('household_members').update({ display_name: name }).eq('household_id', hid).eq('user_id', uid))
     },
+    async setCategoryDays(id, days) {
+      check(await sb.from('categories').update({ ...days, days_set: true }).eq('household_id', hid).eq('id', id))
+      setCategories(getCategories().map((c) => (c.id === id ? { ...c, ...days } : c)))
+    },
     async markNotesRead(ids) {
       if (ids.length === 0) return
       check(await sb.from('notes').update({ read_at: new Date().toISOString() }).in('id', ids).is('read_at', null))
@@ -298,6 +304,10 @@ export const LOCAL_HOUSEHOLD: Household = { id: LOCAL_HID, name: '우리 집 (�
 /** 체험 모드는 혼자 쓰니 메모는 모두 '내 메모' */
 const LOCAL_ME_ID = 'local-me'
 const LOCAL_NAME_KEY = 'fridge-demo-name'
+/** 체험 모드에서 바꾼 자동 기한 */
+const LOCAL_DAYS_KEY = 'fridge-demo-category-days'
+const localDays = (): Record<string, CategoryDays> => JSON.parse(localStorage.getItem(LOCAL_DAYS_KEY) || '{}')
+const applyLocalDays = () => DEFAULT_CATEGORIES.map((c) => ({ ...c, ...localDays()[c.id] }))
 const localMe = (): Me => ({ id: LOCAL_ME_ID, name: localStorage.getItem(LOCAL_NAME_KEY) || '나' })
 
 export function createLocalRepo(): Repo {
@@ -319,7 +329,7 @@ export function createLocalRepo(): Repo {
   return {
     async load() {
       const s = read()
-      setCategories(DEFAULT_CATEGORIES)
+      setCategories(applyLocalDays())
       const history = [...s.items].sort((a, b) => b.created_at.localeCompare(a.created_at))
       const me = localMe()
       return { ...s, items: s.items.filter((i) => i.status === 'active'), history, me, members: [me] }
@@ -466,6 +476,11 @@ export function createLocalRepo(): Repo {
     markNotesRead: async () => {},
     async renameMe(name) {
       localStorage.setItem(LOCAL_NAME_KEY, name)
+    },
+    async setCategoryDays(id, days) {
+      const all = { ...localDays(), [id]: { ...localDays()[id], ...days } }
+      localStorage.setItem(LOCAL_DAYS_KEY, JSON.stringify(all))
+      setCategories(applyLocalDays())
     },
     subscribe(onChange) {
       // 같은 브라우저의 다른 탭에서 바뀐 경우

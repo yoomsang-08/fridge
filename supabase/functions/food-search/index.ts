@@ -105,12 +105,31 @@ function rank(q: string, r: Row): number {
 
 async function searchByName(q: string, size: number): Promise<FoodProduct[]> {
   const rows = await foodsafety('I1250', { PRDLST_NM: q }, 200)
+  // 같은 제품도 공장마다 따로 품목제조보고를 해서 여러 건 나온다 (신라면: 안양·구미·부산·녹산공장).
+  // 이름과 회사(공장 이름을 뗀 것)가 같으면 하나만 남긴다
+  const seen = new Set<string>()
   return rows
     .map((r) => ({ r, score: rank(q, r) }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, size)
     .map(({ r }) => fromFoodsafety('I1250', r))
+    .filter((p) => {
+      const k = `${productKey(p.name)}|${companyKey(p.maker)}`
+      if (seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+    .slice(0, size)
 }
+
+/** 띄어쓰기·괄호 차이는 같은 제품으로 본다 */
+const productKey = (name: string) => name.replace(/[\s()（）\[\]辛]/g, '').toLowerCase()
+
+/** '(주)농심 안양공장' → '농심' */
+const companyKey = (maker: string | null) =>
+  (maker ?? '')
+    .replace(/\s*(제?\d+|[가-힣]{0,2})(공장|사업장|지점)$/, '')
+    .replace(/\(주\)|㈜|주식회사|\(유\)|유한회사|농업회사법인|영농조합법인/g, '')
+    .replace(/\s/g, '')
 
 async function openFoodFacts(barcode: string): Promise<FoodProduct | null> {
   const url =
