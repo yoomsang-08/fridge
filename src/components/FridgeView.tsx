@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 're
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
 import { fitPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
 import { ZONE_LABEL } from '../lib/templates'
+import { celebrationToday, hourKST } from '../lib/celebrations'
 import { DOOR_NOTE_COUNT } from '../lib/notes'
 import type { Compartment, Fridge, FridgePhoto, Item, Note } from '../lib/types'
 import { cx } from '../lib/cx'
@@ -98,6 +99,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const doorNotes = fridge.id === fridges[0]?.id ? notes.slice(0, DOOR_NOTE_COUNT) : []
   // 사진도 메인 냉장고 문에 최근 두 장만
   const doorPhotos = fridge.id === fridges[0]?.id ? photos.slice(0, 2) : []
+  // 생일·기념일에는 메인 냉장고를 꾸민다 (이스터에그)
+  const celebration = useMemo(() => (fridge.id === fridges[0]?.id ? celebrationToday() : null), [fridge.id, fridges])
   const nameOf = (i: Item) => mine.find((c) => c.id === i.compartment_id)?.name
 
   const changeMode = (m: Mode) => {
@@ -222,6 +225,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
                 egg={egg}
                 notes={doorNotes}
                 photos={doorPhotos}
+                celebration={celebration}
                 onOpenNotes={onOpenNotes}
               />
             </Suspense>
@@ -239,6 +243,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
               onOpenDoors={() => setAllDoors(true)}
               notes={doorNotes}
               photos={doorPhotos}
+              celebration={celebration}
               onOpenNotes={onOpenNotes}
             />
           </div>
@@ -256,8 +261,14 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
             {label}
           </span>
         ))}
-        <span className="ml-auto text-faint">
-          {mode === '3d' ? '끌어서 돌리고, 문이나 칸을 눌러 보세요' : '칸을 누르면 그 칸의 식품을 볼 수 있어요'}
+        {/* 폰에서는 아래 줄로 내려 '식품 넣기' 버튼에 가리지 않게 */}
+        <span className="basis-full text-faint sm:ml-auto sm:basis-auto">
+          {/* 이스터에그: 한밤중(0–4시)에 열면 */}
+          {hourKST() < 5
+            ? '야식 시간이네요. 문은 살짝만 열어요'
+            : mode === '3d'
+              ? '끌어서 돌리고, 문이나 칸을 눌러 보세요'
+              : '칸을 누르면 그 칸의 식품을 볼 수 있어요'}
         </span>
       </div>
 
