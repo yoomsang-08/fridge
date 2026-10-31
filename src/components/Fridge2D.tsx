@@ -38,6 +38,7 @@ interface Box {
  * 칸 이름이 폰에서 11px 이상 나오도록 46 으로 잡는다.
  */
 const LABEL = 46
+const ZONE_LABEL_H = 60
 const OUTLINE = 'stroke-ink/70'
 
 const RING_STROKE: Partial<Record<ExpiryLevel, string>> = {
@@ -265,6 +266,29 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
     const bodyX = lw ? lw + gap : 0
     const total = bodyX + W + (rw ? gap + rw : 0)
     const inner = { x: bodyX + wall, y: wall, w: W - wall * 2, h: H - wall * 2 }
+    // 문을 펼치면 바깥 문 이름이 안 보이니, 아래 칸 묶음(냉동실·맞춤보관실) 맨 위에 구역 이름 한 줄을 둔다
+    const lowerBy = new Map<string, Compartment[]>()
+    for (const c of cabinet.filter((c) => c.section === 'lower')) {
+      const k = c.name.split(' ')[0]
+      lowerBy.set(k, [...(lowerBy.get(k) ?? []), c])
+    }
+    const zones = [...lowerBy].map(
+      ([name, cs]) => {
+        const bs = cs.map((c) => scale(c.layout!, inner))
+        const x = Math.min(...bs.map((b) => b.x))
+        const y = Math.min(...bs.map((b) => b.y))
+        const bottom = Math.max(...bs.map((b) => b.y + b.h))
+        return { name, ids: new Set(cs.map((c) => c.id)), x, y, w: Math.max(...bs.map((b) => b.x + b.w)) - x, bottom }
+      },
+    )
+    const boxOf = (c: Compartment): Box => {
+      const b = scale(c.layout!, inner)
+      const z = zones.find((z) => z.ids.has(c.id))
+      if (!z) return b
+      // 구역 이름 자리만큼 묶음 전체를 아래로 눌러 담는다
+      const k = (z.bottom - z.y - ZONE_LABEL_H) / (z.bottom - z.y)
+      return { ...b, y: z.y + ZONE_LABEL_H + (b.y - z.y) * k, h: b.h * k }
+    }
     return (
       <svg viewBox={`-10 -10 ${total + 20} ${H + 20}`} className={svgClass} role="img" aria-label="문 열린 정면">
         <g onClick={() => onSelect(null)}>
@@ -272,10 +296,15 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
           <rect {...rectProps(inner)} rx={8} className="fill-bg" />
         </g>
         {dividers(inner)}
+        {zones.map((z) => (
+          <text key={z.name} x={z.x + 6} y={z.y + ZONE_LABEL_H * 0.72} fontSize={LABEL} className="pointer-events-none fill-muted font-semibold select-none">
+            {fitText(z.name, z.w - 12, LABEL)}
+          </text>
+        ))}
         {cabinet.map((c) => (
           <Region
             key={c.id}
-            box={scale(c.layout!, inner)}
+            box={boxOf(c)}
             c={c}
             items={itemsOf(c)}
             selected={selectedId === c.id}
