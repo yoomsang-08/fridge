@@ -1,6 +1,7 @@
-// 매일 아침 기한 임박 알림. GitHub Actions(expiry-digest.yml)가 매시 부르고,
-// 그 시각(한국 시간)을 고른 기기에만 보낸다. { all: true } 로 부르면 시각과 상관없이 모두에게(시험용).
-// 브라우저에서 부르는 함수가 아니라 JWT 대신 CRON_SECRET 으로 확인한다.
+// 매일 아침 기한 임박 알림. Supabase 예약 작업(pg_cron, 0009)이 매시 정각에 부르고,
+// 그 시각(한국 시간)을 고른 기기에만 보낸다. { all: true } 로 부르면 시각과 상관없이 모두에게(시험용, GitHub Actions 수동 실행).
+// 브라우저에서 부르는 함수가 아니라 JWT 대신 x-cron-secret 으로 확인한다:
+// cron_config 테이블의 값(예약 작업) 또는 함수 Secret CRON_SECRET(GitHub Actions).
 import { adminClient, sendToHousehold } from '../_shared/push.ts'
 
 interface Row {
@@ -37,9 +38,19 @@ export function digestMessage(rows: Row[], today: string): { title: string; body
   return { title: `먼저 먹을 것: ${parts.join(' · ')}`, body: listNames(first) }
 }
 
+/** 부른 쪽이 가진 확인값이 맞는지 */
+async function authorized(req: Request, sb: ReturnType<typeof adminClient>): Promise<boolean> {
+  const given = req.headers.get('x-cron-secret')
+  if (!given) return false
+  const env = Deno.env.get('CRON_SECRET')
+  if (env && given === env) return true
+  const { data } = await sb.from('cron_config').select('secret').eq('id', 1).maybeSingle()
+  return !!data?.secret && given === data.secret
+}
+
 Deno.serve(async (req) => {
-  const secret = Deno.env.get('CRON_SECRET')
-  if (!secret || req.headers.get('x-cron-secret') !== secret) return new Response('forbidden', { status: 403 })
+  const sb = adminClient()
+  if (!(await authorized(req, sb))) return new Response('forbidden', { status: 403 })
 
   let all = false
   try {
@@ -49,7 +60,6 @@ Deno.serve(async (req) => {
   }
   const hour = all ? undefined : kstHour()
 
-  const sb = adminClient()
   // 이 시각에 받을 기기가 있는 집만
   let subs = sb.from('push_subscriptions').select('household_id').eq('expiry_digest', true)
   if (hour !== undefined) subs = subs.eq('digest_hour', hour)

@@ -266,12 +266,22 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       check(await sb.from('notes').update({ read_at: new Date().toISOString() }).in('id', ids).is('read_at', null))
     },
     subscribe(onChange) {
+      // 한꺼번에 여러 줄이 바뀌어도(냉장고 추가 등) 한 번만 다시 불러온다
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const changed = () => {
+        clearTimeout(timer)
+        timer = setTimeout(onChange, 250)
+      }
       const channel = sb.channel(`household-${hid}`)
       for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments', 'fridge_photos']) {
-        channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `household_id=eq.${hid}` }, onChange)
+        channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter: `household_id=eq.${hid}` }, changed)
+        channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `household_id=eq.${hid}` }, changed)
+        // 삭제는 Supabase 가 필터를 지원하지 않아(id 만 온다) 필터 없이 받는다
+        channel.on('postgres_changes', { event: 'DELETE', schema: 'public', table }, changed)
       }
       channel.subscribe()
       return () => {
+        clearTimeout(timer)
         sb.removeChannel(channel)
       }
     },

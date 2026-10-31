@@ -65,6 +65,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
   const [removed, setRemoved] = useState<{ note: Note; comments: NoteComment[] } | null>(null)
   const egg = useSunnyEgg()
+  const compactFab = useScrollingDown()
 
   const reload = useCallback(async () => {
     try {
@@ -279,10 +280,14 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
       {showAdd && (
         <button
           onClick={() => setSheet({ mode: 'add' })}
-          className="fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center gap-1.5 rounded-[1.25rem] bg-accent pr-5 pl-4 text-base font-bold text-white shadow-float transition active:scale-95 sm:right-[max(1.5rem,calc(50vw-24rem+1.5rem))] sm:bottom-8"
+          aria-label="식품 넣기"
+          className={cx(
+            'fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center justify-center gap-1.5 overflow-hidden bg-accent text-base font-bold whitespace-nowrap text-white shadow-float transition-all duration-200 active:scale-95 sm:right-[max(1.5rem,calc(50vw-24rem+1.5rem))] sm:bottom-8',
+            compactFab ? 'w-14 rounded-full' : 'w-[8.5rem] rounded-[1.25rem]',
+          )}
         >
-          <Plus size={22} strokeWidth={2.6} />
-          식품 넣기
+          <Plus size={22} strokeWidth={2.6} className="shrink-0" />
+          {!compactFab && '식품 넣기'}
         </button>
       )}
 
@@ -422,4 +427,21 @@ function useSunnyEgg() {
     setTimeout(() => setOn(false), 3000)
   }
   return { on, tap }
+}
+
+/** 아래로 스크롤하는 동안은 true: '식품 넣기' 버튼을 동그랗게 줄여 목록 오른쪽(기한, 다 먹음)을 덜 가린다 */
+function useScrollingDown() {
+  const [down, setDown] = useState(false)
+  useEffect(() => {
+    let last = window.scrollY
+    const onScroll = () => {
+      const y = window.scrollY
+      if (Math.abs(y - last) < 8) return
+      setDown(y > last && y > 80)
+      last = y
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+  return down
 }
