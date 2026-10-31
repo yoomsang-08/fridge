@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
   for (const [hid, rows] of byHousehold) {
     const msg = digestMessage(rows, today)
     if (!msg) continue
-    sent += await sendToHousehold(hid, { ...msg, url: './', tag: 'expiry-digest' }, { expiryDigestOnly: true, digestHour: hour }, sb)
+    sent += await sendToHousehold(hid, { ...msg, url: './', tag: 'expiry-digest', badge: rows.length }, { expiryDigestOnly: true, digestHour: hour }, sb)
   }
   return Response.json({ hour, households: byHousehold.size, sent })
 })
