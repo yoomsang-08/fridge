@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashtagsOf } from './notes'
-import type { Compartment, Fridge, Household, Item, ItemInput, Me, Member, Note, NoteComment, NoteInput, Zone } from './types'
+import { blobToDataUrl, PHOTO_LIMIT, preparePhoto } from './photos'
+import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, Me, Member, Note, NoteComment, NoteInput, Zone } from './types'
 import type { FridgeTemplate } from './templates'
 import { DEFAULT_CATEGORIES, setCategories, type Category } from './categories'
 
@@ -14,6 +15,8 @@ export interface Snapshot {
   notes: Note[]
   /** 메모 댓글, 오래된 것부터 */
   comments: NoteComment[]
+  /** 냉장고 문 사진, 최근 것부터 */
+  photos: FridgePhoto[]
   me: Me
   /** 우리 집 식구들. 나도 포함 */
   members: Member[]
@@ -42,6 +45,10 @@ export interface Repo {
   addComment(noteId: string, body: string): Promise<void>
   /** 내가 단 댓글 지우기 */
   deleteComment(id: string): Promise<void>
+  /** 사진 붙이기: 줄여서 올린다. 10장이 넘으면 'photo_limit' 오류 */
+  addPhoto(file: File): Promise<void>
+  /** 사진 떼기: 파일까지 지운다 */
+  deletePhoto(photo: FridgePhoto): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
   markNotesRead(ids: string[]): Promise<void>
   /** 이 기기를 쓰는 사람의 이름 바꾸기 */
@@ -57,6 +64,8 @@ function nextAfterAction(item: Item, action: ItemAction): Partial<Item> {
 
 // ---------- Supabase ----------
 
+const PHOTO_BUCKET = 'fridge-photos'
+
 export function createSupabaseRepo(sb: SupabaseClient, household: Household): Repo {
   const hid = household.id
   const check = <T extends { error: unknown }>(r: T): T => {
@@ -64,11 +73,26 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     return r
   }
 
+  // 비공개 버킷이라 서명된 주소로 띄운다. 새로 불러올 때마다 주소가 바뀌어 깜빡이지 않게 기억해 둔다
+  const signed = new Map<string, { url: string; until: number }>()
+  const SIGN_SECONDS = 6 * 3600
+  const signPhotos = async (rows: Omit<FridgePhoto, 'url'>[]): Promise<FridgePhoto[]> => {
+    const fresh = Date.now() + 10 * 60 * 1000
+    const need = rows.filter((r) => (signed.get(r.path)?.until ?? 0) < fresh).map((r) => r.path)
+    if (need.length) {
+      const { data } = await sb.storage.from(PHOTO_BUCKET).createSignedUrls(need, SIGN_SECONDS)
+      for (const d of data ?? []) {
+        if (d.path && d.signedUrl) signed.set(d.path, { url: d.signedUrl, until: Date.now() + SIGN_SECONDS * 1000 })
+      }
+    }
+    return rows.filter((r) => signed.has(r.path)).map((r) => ({ ...r, url: signed.get(r.path)!.url }))
+  }
+
   return {
     async load() {
       const { data: auth } = await sb.auth.getSession()
       const uid = auth.session?.user.id ?? ''
-      const [f, c, i, h, n, m, k, nc] = await Promise.all([
+      const [f, c, i, h, n, m, k, nc, ph] = await Promise.all([
         sb.from('fridges').select('*').eq('household_id', hid).order('sort_order').order('created_at'),
         sb.from('compartments').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
@@ -77,6 +101,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('household_members').select('user_id, display_name').eq('household_id', hid).order('created_at'),
         sb.from('categories').select('id, label, emoji, tint, hidden').eq('household_id', hid).order('sort_order'),
         sb.from('note_comments').select('*').eq('household_id', hid).order('created_at').limit(500),
+        sb.from('fridge_photos').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(PHOTO_LIMIT),
       ])
       // 0007 마이그레이션 전이면 테이블이 없으니 기본 분류로
       setCategories((k.data as Category[] | null) ?? DEFAULT_CATEGORIES)
@@ -90,6 +115,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         notes: (n.data ?? []) as Note[],
         // 0008 마이그레이션 전이면 댓글 없이
         comments: (nc.data ?? []) as NoteComment[],
+        // 0009 마이그레이션 전이면 사진 없이
+        photos: await signPhotos((ph.data ?? []) as Omit<FridgePhoto, 'url'>[]),
         me: members.find((x) => x.id === uid) ?? { id: uid, name: null },
         members,
       }
@@ -204,6 +231,31 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async deleteComment(id) {
       check(await sb.from('note_comments').delete().eq('id', id))
     },
+    async addPhoto(file) {
+      const { count } = await sb.from('fridge_photos').select('id', { count: 'exact', head: true }).eq('household_id', hid)
+      if ((count ?? 0) >= PHOTO_LIMIT) throw new Error('photo_limit')
+      const { blob, width, height } = await preparePhoto(file)
+      const path = `${hid}/${crypto.randomUUID()}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`
+      check(await sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' }))
+      const { data: auth } = await sb.auth.getSession()
+      const { data: m } = await sb
+        .from('household_members')
+        .select('display_name')
+        .eq('household_id', hid)
+        .eq('user_id', auth.session?.user.id ?? '')
+        .maybeSingle()
+      const r = await sb.from('fridge_photos').insert({ household_id: hid, path, width, height, author_name: m?.display_name || null })
+      if (r.error) {
+        // 목록에 못 붙였으면 올린 파일도 치운다 (10장 제한에 걸린 경우 등)
+        await sb.storage.from(PHOTO_BUCKET).remove([path])
+        throw r.error.message.includes('fridge_photos_limit') ? new Error('photo_limit') : r.error
+      }
+    },
+    async deletePhoto(photo) {
+      check(await sb.from('fridge_photos').delete().eq('id', photo.id))
+      await sb.storage.from(PHOTO_BUCKET).remove([photo.path])
+      signed.delete(photo.path)
+    },
     async renameMe(name) {
       const { data: auth } = await sb.auth.getSession()
       const uid = auth.session?.user.id ?? ''
@@ -215,7 +267,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     },
     subscribe(onChange) {
       const channel = sb.channel(`household-${hid}`)
-      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments']) {
+      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments', 'fridge_photos']) {
         channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `household_id=eq.${hid}` }, onChange)
       }
       channel.subscribe()
@@ -243,7 +295,7 @@ export function createLocalRepo(): Repo {
   const read = (): Stored => {
     const raw = localStorage.getItem(LOCAL_KEY)
     const s = raw ? JSON.parse(raw) : {}
-    return { fridges: [], compartments: [], items: [], notes: [], comments: [], ...s }
+    return { fridges: [], compartments: [], items: [], notes: [], comments: [], photos: [], ...s }
   }
   const write = (s: Stored) => localStorage.setItem(LOCAL_KEY, JSON.stringify(s))
   const mutate = async (fn: (s: Stored) => void) => {
@@ -376,6 +428,30 @@ export function createLocalRepo(): Repo {
     deleteComment: (cid) =>
       mutate((s) => {
         s.comments = s.comments.filter((c) => c.id !== cid)
+      }),
+    async addPhoto(file) {
+      if (read().photos.length >= PHOTO_LIMIT) throw new Error('photo_limit')
+      // 이 기기 저장소(5MB 안팎)에 담으니 체험 모드는 더 작게
+      const { blob, width, height } = await preparePhoto(file, 900, 120 * 1024)
+      const url = await blobToDataUrl(blob)
+      const pid = id()
+      await mutate((s) => {
+        s.photos.unshift({
+          id: pid,
+          household_id: LOCAL_HID,
+          path: `local/${pid}`,
+          url,
+          width,
+          height,
+          author_id: LOCAL_ME_ID,
+          author_name: localMe().name,
+          created_at: now(),
+        })
+      })
+    },
+    deletePhoto: (photo) =>
+      mutate((s) => {
+        s.photos = s.photos.filter((p) => p.id !== photo.id)
       }),
     markNotesRead: async () => {},
     async renameMe(name) {

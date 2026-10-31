@@ -1,7 +1,7 @@
 import { Check, X } from 'lucide-react'
 import { useState } from 'react'
 import { isMine, NOTE_COLORS, NOTE_SUGGESTIONS, notePaper, timeAgo } from '../lib/notes'
-import type { Me, Member, Note, NoteColor, NoteComment, NoteInput } from '../lib/types'
+import type { FridgePhoto, Me, Member, Note, NoteColor, NoteComment, NoteInput } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Sheet } from './Sheet'
 import { NoteText } from './StickyNote'
@@ -239,6 +239,69 @@ export function NoteViewSheet({
         </form>
         {error && <p className="mt-2 text-sm text-expired">{error}</p>}
       </section>
+    </Sheet>
+  )
+}
+
+/** 사진 크게 보기 */
+export function PhotoViewSheet({
+  photo,
+  me,
+  onClose,
+  onRemove,
+}: {
+  photo: FridgePhoto
+  me: Me
+  onClose: () => void
+  onRemove: () => Promise<void>
+}) {
+  // 사진은 되돌리기가 없으니 한 번 더 눌러야 뗀다
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const mine = isMine(photo, me)
+  return (
+    <Sheet
+      title={mine ? '내가 붙인 사진' : `${photo.author_name ?? '누군가'}의 사진`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" className="flex-1" onClick={onClose}>
+            닫기
+          </Button>
+          <Button
+            variant="danger"
+            className="flex-1"
+            disabled={busy}
+            onClick={async () => {
+              if (!confirm) return setConfirm(true)
+              setBusy(true)
+              try {
+                await onRemove()
+              } catch {
+                setError('사진을 떼지 못했어요. 잠시 뒤 다시 해 주세요.')
+                setBusy(false)
+              }
+            }}
+          >
+            {confirm ? '정말 뗄까요?' : '떼기'}
+          </Button>
+        </>
+      }
+    >
+      <div className="rounded-[4px] bg-white p-2.5 shadow-card">
+        <img
+          src={photo.url}
+          alt=""
+          width={photo.width}
+          height={photo.height}
+          className="mx-auto max-h-[60dvh] w-auto rounded-[2px] object-contain"
+        />
+      </div>
+      <p className="mt-3 text-sm text-muted">
+        {photo.author_name ?? '누군가'} · {timeAgo(photo.created_at)}
+      </p>
+      {error && <p className="mt-2 text-sm text-expired">{error}</p>}
     </Sheet>
   )
 }

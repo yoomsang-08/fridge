@@ -70,6 +70,7 @@ Tailwind 클래스로 토큰 이름만 씁니다. `slate-*`, `sky-*`, `red-*` �
 | `IconButton` | 아이콘만 있는 버튼 (닫기, 편집, 바코드 스캔). `aria-label` 필수 |
 | `Logo` | 앱 로고 |
 | `StickyNote` (`StickyNote.tsx`) | 냉장고 문 메모 한 장 (종이색 + 자석 점 + 살짝 기울기). 메모 탭과 냉장고 보기 문 위에서 같이 씀 |
+| `PhotoMagnet` (`PhotoMagnet.tsx`) | 냉장고 문 사진 한 장 (흰 폴라로이드 테두리 + 4:5 사진 + 자석 점 + 살짝 기울기). 메모 탭에서 메모와 섞이고, 냉장고 문에는 최근 두 장 |
 | `Sheet` (`Sheet.tsx`) | 입력·상세. 폰은 아래에서 올라오고 PC 는 가운데. 주요 버튼은 `footer` 에 넣어 하단 고정 |
 | `useDialog()` (`Dialog.tsx`) | 확인·이름 입력. 브라우저 `alert/confirm/prompt` 대신 |
 

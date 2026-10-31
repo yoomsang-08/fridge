@@ -6,14 +6,14 @@ import { FRIDGE_TEMPLATES } from '../lib/templates'
 import { expiryLevel } from '../lib/expiry'
 import { setAppBadge } from '../lib/badge'
 import { isUnread } from '../lib/notes'
-import type { Household, Item, Note, NoteComment } from '../lib/types'
+import type { FridgePhoto, Household, Item, Note, NoteComment } from '../lib/types'
 import { FridgeStatus } from './FridgeStatus'
 import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
 import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
-import { NoteViewSheet, NoteWriteSheet } from './NoteSheet'
+import { NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from './NoteSheet'
 import { Settings } from './Settings'
 import { cx } from '../lib/cx'
 import { Button, Card, Logo, SunnyEgg } from './ui'
@@ -33,6 +33,7 @@ type SheetState =
   | { mode: 'edit'; item: Item }
   | { mode: 'note-write' }
   | { mode: 'note-view'; note: Note }
+  | { mode: 'photo-view'; photo: FridgePhoto }
   | null
 
 const LAST_COMPARTMENT_KEY = 'fridge-last-compartment'
@@ -222,6 +223,9 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             fresh={fresh}
             onOpen={(note) => setSheet({ mode: 'note-view', note })}
             onWrite={() => setSheet({ mode: 'note-write' })}
+            photos={snap.photos}
+            onOpenPhoto={(photo) => setSheet({ mode: 'photo-view', photo })}
+            onAddPhoto={(file) => mutate(() => repo.addPhoto(file))}
           />
         )}
 
@@ -251,6 +255,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             onUseOne={(item) => mutate(() => repo.act(item, 'use'))}
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
             notes={snap.notes}
+            photos={snap.photos}
             onOpenNotes={() => openTab('notes')}
             header={<FridgeStatus st={smartthings} />}
           />
@@ -333,6 +338,18 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           }}
           onComment={(body) => mutate(() => repo.addComment(sheet.note.id, body))}
           onDeleteComment={(id) => mutate(() => repo.deleteComment(id))}
+        />
+      )}
+
+      {sheet?.mode === 'photo-view' && (
+        <PhotoViewSheet
+          photo={sheet.photo}
+          me={snap.me}
+          onClose={() => setSheet(null)}
+          onRemove={async () => {
+            await mutate(() => repo.deletePhoto(sheet.photo))
+            setSheet(null)
+          }}
         />
       )}
 
