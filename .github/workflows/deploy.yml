@@ -30,8 +30,6 @@ jobs:
           # 공개용(publishable) 키라 저장소에 있어도 안전합니다. 비밀(secret) 키는 절대 넣지 마세요.
           VITE_SUPABASE_URL: https://aiwqfqfswuehxqferrpn.supabase.co
           VITE_SUPABASE_ANON_KEY: sb_publishable_SXuZVnp1qvJYon2oh2CulA_OQTLeglW
-          # 푸시 알림 공개키 (비밀키는 Supabase 함수 Secret 에만)
-          VITE_VAPID_PUBLIC_KEY: BPEuN0N0mamPuhkTbTLnX8LCIKnCilGMHIUb27_aeAnhw7P_grlJXGh4cWUJURZ4gA7R1iSWM5DeOHUbJ7YPDB4
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -73,7 +73,8 @@ npx supabase functions deploy food-search
 - 설정 → **아침 알림**을 켠 기기에 매일 아침 8시 반쯤 '오늘까지 · 3일 안에 · 기한 지남' 식품을 알려 줍니다. 아이폰은 홈 화면에 추가한 앱에서만 받을 수 있습니다.
 - 구성: `push_subscriptions` 테이블(0005), 공용 헬퍼 `supabase/functions/_shared/push.ts` 의 `sendToHousehold()`, 아침 알림 함수 `expiry-digest`, 예약 실행 `.github/workflows/expiry-digest.yml`, 서비스워커 수신 `public/push-sw.js`.
 - 다른 알림을 보낼 함수는 `sendToHousehold(hid, { title, body, url, tag }, { onlyDisplayNames, onlyUserIds, excludeUserIds })` 만 부르면 됩니다.
-- 필요한 저장소 Secret: `VAPID_PRIVATE_KEY`, `CRON_SECRET`. 공개키는 `deploy.yml` 과 `supabase-functions.yml` 에 들어 있습니다.
+- 서명 키(VAPID)는 처음 알림을 켤 때 `push-key` 함수가 만들어 `push_config` 테이블(service role 전용)에 저장합니다. 저장소에 넣을 키는 없습니다.
+- 필요한 저장소 Secret: `CRON_SECRET`(아무 긴 무작위 문자열). 아침 알림 예약 실행과 함수가 같은 값을 씁니다.
 
 ## 다음 단계
 

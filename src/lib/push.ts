@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
+/** 푸시 서명 공개키. 서버(push-key 함수)가 처음 부를 때 만들어 준다 */
+async function publicKey(sb: SupabaseClient): Promise<string> {
+  const { data, error } = await sb.functions.invoke<{ publicKey: string }>('push-key', { method: 'POST' })
+  if (error || !data?.publicKey) throw error ?? new Error('push_unavailable')
+  return data.publicKey
+}
 
 export type PushState =
   /** 이 브라우저는 알림을 못 받음 */
@@ -16,10 +21,6 @@ const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent)
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true
-
-export function pushAvailable(): boolean {
-  return !!VAPID_PUBLIC_KEY
-}
 
 export async function pushState(): Promise<PushState> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -39,13 +40,12 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 
 /** 알림 켜기: 권한을 묻고, 이 기기를 우리 집 알림 대상으로 등록 */
 export async function enablePush(sb: SupabaseClient, householdId: string): Promise<PushState> {
-  if (!VAPID_PUBLIC_KEY) return 'unsupported'
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return permission === 'denied' ? 'denied' : 'off'
   const reg = await navigator.serviceWorker.ready
   const sub =
     (await reg.pushManager.getSubscription()) ??
-    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) }))
+    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(await publicKey(sb)) }))
   const json = sub.toJSON()
   const { error } = await sb.from('push_subscriptions').upsert({
     endpoint: sub.endpoint,

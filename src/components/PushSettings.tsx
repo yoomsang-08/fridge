@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { disablePush, enablePush, pushAvailable, pushState, type PushState } from '../lib/push'
+import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import { Card, Switch } from './ui'
 
@@ -19,7 +19,7 @@ export function PushSettings({ householdId }: { householdId: string }) {
     pushState().then(setState, () => setState('unsupported'))
   }, [])
 
-  if (!supabase || !pushAvailable()) return null
+  if (!supabase) return null
   const sb = supabase
 
   const toggle = async (on: boolean) => {
