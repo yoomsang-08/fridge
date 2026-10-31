@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
-import { Edges, OrbitControls, RoundedBox } from '@react-three/drei'
+import { ContactShadows, Edges, OrbitControls, RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { categoryOf } from '../lib/categories'
 import { expiryLevel } from '../lib/expiry'
 import {
   behindDoor,
-  CATEGORY_COLOR,
   doorOf,
   isBin,
   isDoorCompartment,
-  LEVEL_COLOR,
+  LEVEL_RING,
   pocketRectInDoor,
   sortByUrgency,
+  tintHex,
+  token,
   type DoorSpec,
   type FridgeShape,
 } from '../lib/fridgeShape'
@@ -34,6 +35,10 @@ interface Props {
   onSelect: (compartmentId: string | null) => void
   onToggleDoor: (doorId: string) => void
   onOpenItem: (item: Item) => void
+  /** 이스터에그: 안쪽 천장 조명을 연달아 누르면 */
+  onEgg: () => void
+  /** 이스터에그가 켜져 있는 동안 맨 위 칸에 반숙 달걀 */
+  egg: boolean
 }
 
 const WALL = 0.03
@@ -49,24 +54,13 @@ const isTap = (e: ThreeEvent<MouseEvent>) => e.delta <= TAP_SLOP
 
 const textureCache = new Map<string, THREE.CanvasTexture>()
 
-function labelTexture(text: string, bg?: string, fg = '#fff'): THREE.CanvasTexture {
-  const key = `${text}|${bg ?? ''}|${fg}`
+function cachedTexture(key: string, draw: (g: CanvasRenderingContext2D) => void, w = 128, h = 128) {
   const hit = textureCache.get(key)
   if (hit) return hit
   const c = document.createElement('canvas')
-  c.width = c.height = 128
-  const g = c.getContext('2d')!
-  if (bg) {
-    g.fillStyle = bg
-    g.beginPath()
-    g.arc(64, 64, 60, 0, Math.PI * 2)
-    g.fill()
-  }
-  g.textAlign = 'center'
-  g.textBaseline = 'middle'
-  g.fillStyle = fg
-  g.font = `${bg ? 'bold 64px' : '92px'} system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
-  g.fillText(text, 64, 70)
+  c.width = w
+  c.height = h
+  draw(c.getContext('2d')!)
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = 4
@@ -74,12 +68,56 @@ function labelTexture(text: string, bg?: string, fg = '#fff'): THREE.CanvasTextu
   return t
 }
 
+const FONT = '"Pretendard Variable", Pretendard, system-ui, sans-serif'
+const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'
+
+/** 식품 앞면: 분류 tint 동그라미 + 이모지, 기한 단계면 테두리 */
+function chipTexture(emoji: string, tint: string, ring?: string) {
+  return cachedTexture(`chip|${emoji}|${tint}|${ring ?? ''}`, (g) => {
+    g.fillStyle = tint
+    g.beginPath()
+    g.arc(64, 64, 58, 0, Math.PI * 2)
+    g.fill()
+    if (ring) {
+      g.strokeStyle = ring
+      g.lineWidth = 10
+      g.stroke()
+    }
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.font = `72px ${EMOJI_FONT}`
+    g.fillText(emoji, 64, 70)
+  })
+}
+
+/** 작은 알약 배지: soft 바탕 + 진한 글자 */
+function pillTexture(text: string, bg: string, fg: string) {
+  return cachedTexture(
+    `pill|${text}|${bg}|${fg}`,
+    (g) => {
+      g.fillStyle = bg
+      g.beginPath()
+      g.roundRect(4, 4, 248, 120, 60)
+      g.fill()
+      g.fillStyle = fg
+      g.textAlign = 'center'
+      g.textBaseline = 'middle'
+      g.font = `bold 64px ${FONT}`
+      g.fillText(text, 128, 68)
+    },
+    256,
+    128,
+  )
+}
+
 // ---------- 식품 ----------
 
 function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; position: [number, number, number]; onOpen: (i: Item) => void }) {
   const [hover, setHover] = useState(false)
   const lv = expiryLevel(item.expiry_date)
-  const warn = lv === 'expired' || lv === 'urgent' || lv === 'soon'
+  const ring = LEVEL_RING[lv]
+  const cat = categoryOf(item.category)
+  const tint = tintHex(cat.tint)
   const s = size * (hover ? 1.12 : 1)
   return (
     <group
@@ -101,10 +139,10 @@ function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; 
       }}
     >
       <RoundedBox args={[s * 0.92, s * 0.8, s * 0.92]} radius={s * 0.12} smoothness={2} userData={{ item: true }}>
-        <meshStandardMaterial color={warn ? LEVEL_COLOR[lv] : (CATEGORY_COLOR[item.category] ?? '#e2e8f0')} roughness={0.6} />
+        <meshStandardMaterial color={tint} roughness={0.6} />
       </RoundedBox>
       <sprite position={[0, s * 0.12, s * 0.5]} scale={[s * 0.85, s * 0.85, 1]} userData={{ item: true }}>
-        <spriteMaterial map={labelTexture(categoryOf(item.category).emoji)} transparent depthWrite={false} />
+        <spriteMaterial map={chipTexture(cat.emoji, tint, ring && token(ring))} transparent depthWrite={false} />
       </sprite>
     </group>
   )
@@ -112,8 +150,8 @@ function ItemMesh({ item, size, position, onOpen }: { item: Item; size: number; 
 
 function MoreBadge({ count, size, position }: { count: number; size: number; position: [number, number, number] }) {
   return (
-    <sprite position={position} scale={[size * 0.8, size * 0.8, 1]}>
-      <spriteMaterial map={labelTexture(`+${count}`, '#334155')} transparent depthWrite={false} />
+    <sprite position={position} scale={[size * 1.2, size * 0.6, 1]}>
+      <spriteMaterial map={pillTexture(`+${count}`, token('sunken'), token('muted'))} transparent depthWrite={false} />
     </sprite>
   )
 }
@@ -214,19 +252,19 @@ function CabinetCompartment({
         <mesh position={[0, binH / 2, 0]}>
           <boxGeometry args={[w, binH, d]} />
           <meshStandardMaterial {...glass} opacity={0.18} depthWrite={false} />
-          <Edges color={selected ? '#0284c7' : '#94a3b8'} />
+          <Edges color={selected ? token('accent') : '#9aa59f'} />
         </mesh>
       ) : (
         <mesh position={[0, 0.004, 0]}>
           <boxGeometry args={[w + 0.02, 0.008, d]} />
           <meshStandardMaterial {...glass} />
-          {selected && <Edges color="#0284c7" />}
+          {selected && <Edges color={token('accent')} />}
         </mesh>
       )}
       {/* 칸 선택용 투명 영역 */}
       <mesh position={[0, h / 2, 0]} {...hitHandlers(c.id, onSelect)}>
         <boxGeometry args={[w, h, d]} />
-        <meshBasicMaterial color="#38bdf8" transparent opacity={selected ? 0.12 : 0} depthWrite={false} />
+        <meshBasicMaterial color={token('accent')} transparent opacity={selected ? 0.12 : 0} depthWrite={false} />
       </mesh>
       <ItemGrid items={items} width={w - 0.02} depth={d} maxSize={h * 0.6} floorY={0.008} onOpen={onOpen} />
     </group>
@@ -301,8 +339,8 @@ function Door({
   open: boolean
   pockets: Compartment[]
   itemsByCompartment: Map<string, Item[]>
-  /** 문이 닫혀 있을 때 앞에 띄울 경고 개수 */
-  hiddenWarnings: number
+  /** 문이 닫혀 있을 때 앞에 띄울 경고: 가장 급한 단계와 그 개수 */
+  hiddenWarnings: { level: 'expired' | 'urgent'; count: number } | null
   selectedId: string | null
   onToggle: () => void
   onSelect: (id: string | null) => void
@@ -368,9 +406,16 @@ function Door({
           <planeGeometry args={[dw - 0.02, dh - 0.02]} />
           <meshStandardMaterial color="#f8fafc" />
         </mesh>
-        {!open && hiddenWarnings > 0 && (
-          <sprite position={[0, dh / 2 - 0.1, PANEL + 0.04]} scale={[0.1, 0.1, 1]}>
-            <spriteMaterial map={labelTexture(String(hiddenWarnings), '#ea580c')} transparent />
+        {!open && hiddenWarnings && (
+          <sprite position={[0, dh / 2 - 0.12, PANEL + 0.03]} scale={[0.16, 0.08, 1]}>
+            <spriteMaterial
+              map={pillTexture(
+                `${hiddenWarnings.level === 'expired' ? '지남' : '3일'} ${hiddenWarnings.count}`,
+                token(`${hiddenWarnings.level}-soft`),
+                token(hiddenWarnings.level),
+              )}
+              transparent
+            />
           </sprite>
         )}
         {pockets.map((p) => (
@@ -434,7 +479,7 @@ function Pocket({
             <mesh position={[0, lipH / 2, -POCKET_DEPTH / 2]}>
               <boxGeometry args={[w, lipH, 0.006]} />
               <meshStandardMaterial {...glass} opacity={0.45} />
-              {selected && <Edges color="#0284c7" />}
+              {selected && <Edges color={token('accent')} />}
             </mesh>
             <ItemGrid
               items={tierItems}
@@ -449,7 +494,7 @@ function Pocket({
       })}
       <mesh position={[0, h / 2, 0]} {...hitHandlers(c.id, onSelect)}>
         <boxGeometry args={[w, h, POCKET_DEPTH]} />
-        <meshBasicMaterial color="#38bdf8" transparent opacity={selected ? 0.15 : 0} depthWrite={false} />
+        <meshBasicMaterial color={token('accent')} transparent opacity={selected ? 0.15 : 0} depthWrite={false} />
       </mesh>
     </group>
   )
@@ -521,6 +566,56 @@ function Cabinet({ shape }: { shape: FridgeShape }) {
   )
 }
 
+// ---------- 이스터에그 ----------
+
+/** 반숙 달걀(써니사이드업) 그림. ui.tsx 의 SunnyEgg 와 같은 모양 */
+function eggTexture() {
+  return cachedTexture('egg', (g) => {
+    g.fillStyle = '#ffffff'
+    g.beginPath()
+    g.ellipse(64, 66, 56, 48, -0.2, 0, Math.PI * 2)
+    g.fill()
+    g.strokeStyle = token('line')
+    g.lineWidth = 3
+    g.stroke()
+    g.fillStyle = '#f6c343'
+    g.beginPath()
+    g.arc(62, 64, 22, 0, Math.PI * 2)
+    g.fill()
+    g.fillStyle = 'rgba(255,255,255,.7)'
+    g.beginPath()
+    g.arc(55, 57, 6, 0, Math.PI * 2)
+    g.fill()
+  })
+}
+
+/** 안쪽 천장 조명: 2초 안에 다섯 번 누르면 onEgg */
+function CeilingLight({ shape, onEgg }: { shape: FridgeShape; onEgg: () => void }) {
+  const taps = useRef<number[]>([])
+  const W = shape.width / 1000
+  const H = shape.height / 1000
+  const D = shape.depth / 1000
+  return (
+    <mesh
+      position={[0, H - WALL - 0.004, -PANEL / 2 - 0.05]}
+      rotation={[Math.PI / 2, 0, 0]}
+      onClick={(e) => {
+        if (!isTap(e)) return
+        e.stopPropagation()
+        const now = performance.now()
+        taps.current = [...taps.current.filter((t) => now - t < 2000), now]
+        if (taps.current.length >= 5) {
+          taps.current = []
+          onEgg()
+        }
+      }}
+    >
+      <planeGeometry args={[W * 0.4, D * 0.3]} />
+      <meshBasicMaterial color="#ffffff" />
+    </mesh>
+  )
+}
+
 // ---------- 카메라 ----------
 
 function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: CameraPreset; nonce: number }) {
@@ -576,7 +671,9 @@ function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: Camer
 // ---------- 장면 ----------
 
 export default function Fridge3D(props: Props) {
-  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem } = props
+  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg } =
+    props
+  const H = shape.height / 1000
 
   const placed = compartments.filter((c) => c.layout)
   const cabinet = placed.filter((c) => !isDoorCompartment(c))
@@ -587,15 +684,17 @@ export default function Fridge3D(props: Props) {
   }
 
   const warningsBehind = (door: DoorSpec) => {
-    let n = 0
+    const n = { expired: 0, urgent: 0 }
     for (const c of placed) {
       if (!behindDoor(shape, door, c)) continue
       for (const i of itemsByCompartment.get(c.id) ?? []) {
         const lv = expiryLevel(i.expiry_date)
-        if (lv === 'expired' || lv === 'urgent') n++
+        if (lv === 'expired' || lv === 'urgent') n[lv]++
       }
     }
-    return n
+    if (n.expired) return { level: 'expired' as const, count: n.expired }
+    if (n.urgent) return { level: 'urgent' as const, count: n.urgent }
+    return null
   }
 
   return (
@@ -605,7 +704,7 @@ export default function Fridge3D(props: Props) {
       camera={{ fov: 35, near: 0.05, far: 50, position: [0, 1, 4] }}
       onPointerMissed={(e) => e.type === 'click' && onSelect(null)}
     >
-      <color attach="background" args={['#eef2f7']} />
+      <color attach="background" args={[token('bg')]} />
       <hemisphereLight args={['#ffffff', '#cbd5e1', 1.4]} />
       <directionalLight position={[2, 4, 5]} intensity={1.6} />
       <directionalLight position={[-3, 2, 2]} intensity={0.5} />
@@ -613,6 +712,12 @@ export default function Fridge3D(props: Props) {
       <CameraRig shape={shape} preset={camera} nonce={cameraNonce} />
 
       <Cabinet shape={shape} />
+      <CeilingLight shape={shape} onEgg={onEgg} />
+      {egg && (
+        <sprite position={[0, H * 0.9, 0.05]} scale={[0.14, 0.14, 1]}>
+          <spriteMaterial map={eggTexture()} transparent />
+        </sprite>
+      )}
       {cabinet.map((c) => (
         <CabinetCompartment
           key={c.id}
@@ -639,11 +744,8 @@ export default function Fridge3D(props: Props) {
           onOpen={onOpenItem}
         />
       ))}
-      {/* 바닥 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]}>
-        <circleGeometry args={[2.2, 48]} />
-        <meshStandardMaterial color="#dfe5ec" />
-      </mesh>
+      {/* 바닥: 배경과 같은 색, 냉장고 밑에만 옅은 그림자 */}
+      <ContactShadows position={[0, 0, 0]} scale={4} blur={2.4} far={1.2} opacity={0.28} frames={1} />
     </Canvas>
   )
 }

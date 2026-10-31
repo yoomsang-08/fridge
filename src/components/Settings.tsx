@@ -1,8 +1,12 @@
+import { Check, ChevronDown, Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { formatCode } from '../lib/code'
 import { FRIDGE_TEMPLATES, ZONE_LABEL } from '../lib/templates'
 import type { Repo } from '../lib/repo'
 import type { Compartment, Fridge, Household, Zone } from '../lib/types'
+import { useDialog } from './Dialog'
+import { cx } from '../lib/cx'
+import { Button, Card, IconButton } from './ui'
 
 interface Props {
   repo: Repo
@@ -17,19 +21,17 @@ interface Props {
 export function Settings({ repo, household, fridges, compartments, isLocal, onSignOut, onChanged }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { ask, confirm, dialog } = useDialog()
 
   const run = async (fn: () => Promise<void>) => {
     try {
+      setError(null)
       await fn()
       onChanged()
     } catch (e) {
-      alert(e instanceof Error ? e.message : '실패했어요')
+      setError(e instanceof Error ? e.message : '실패했어요')
     }
-  }
-
-  const ask = (message: string, initial = '') => {
-    const v = prompt(message, initial)?.trim()
-    return v || null
   }
 
   const copyCode = async () => {
@@ -40,102 +42,124 @@ export function Settings({ repo, household, fridges, compartments, isLocal, onSi
 
   return (
     <div className="flex flex-col gap-4">
+      {error && <p className="rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
+
       {!isLocal && (
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <h2 className="font-bold">우리 집 코드</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            다른 폰이나 PC에서 앱을 처음 열 때 이 코드를 넣으면 같은 냉장고를 함께 봐요. 코드가 비밀번호 역할이니 우리끼리만
-            공유해 주세요.
+        <Card className="p-5">
+          <h2 className="text-[15px] font-extrabold">우리 집 코드</h2>
+          <p className="mt-1 text-sm text-muted">
+            다른 폰이나 PC에서 앱을 처음 열 때 이 코드를 넣으면 같은 냉장고를 함께 봐요. 코드가 비밀번호 역할이니
+            우리끼리만 공유해 주세요.
           </p>
           <button
             onClick={copyCode}
-            className="mt-3 w-full rounded-xl bg-slate-100 py-3 font-mono text-xl font-bold tracking-[0.3em]"
+            className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl bg-sunken py-4 transition active:brightness-95"
           >
-            {formatCode(household.invite_code)}
+            <span className="tabular font-mono text-xl font-bold tracking-[0.25em]">
+              {formatCode(household.invite_code)}
+            </span>
+            <span
+              className={cx('flex items-center gap-1 text-xs font-semibold', copied ? 'text-accent' : 'text-muted')}
+            >
+              {copied ? <Check size={14} strokeWidth={3} /> : <Copy size={14} />}
+              {copied ? '복사함' : '복사'}
+            </span>
           </button>
-          <p className="mt-1 text-center text-xs text-slate-400">{copied ? '복사했어요' : '눌러서 복사'}</p>
-        </section>
+        </Card>
       )}
 
-      <section className="rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="font-bold">우리 집 냉장고</h2>
-        <ul className="mt-2 flex flex-col gap-2">
+      <Card className="p-5">
+        <h2 className="text-[15px] font-extrabold">우리 집 냉장고</h2>
+        <ul className="mt-3 flex flex-col gap-2">
           {fridges.map((f) => {
             const comps = compartments.filter((c) => c.fridge_id === f.id)
             const open = editing === f.id
             return (
-              <li key={f.id} className="rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 p-3">
+              <li key={f.id} className="overflow-hidden rounded-2xl border border-line">
+                <button
+                  className="flex w-full items-center gap-2 p-3.5 text-left"
+                  onClick={() => setEditing(open ? null : f.id)}
+                  aria-expanded={open}
+                >
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold">{f.name}</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-bold">{f.name}</div>
+                    <div className="tabular text-xs text-muted">
                       {f.model ?? '모델 미지정'} · 칸 {comps.length}개
                     </div>
                   </div>
-                  <button className="text-sm text-sky-700" onClick={() => setEditing(open ? null : f.id)}>
-                    {open ? '닫기' : '칸 편집'}
-                  </button>
-                </div>
+                  <span className="flex items-center gap-0.5 text-sm font-semibold text-accent">
+                    칸 편집
+                    <ChevronDown size={16} className={cx('transition', open && 'rotate-180')} />
+                  </span>
+                </button>
                 {open && (
-                  <div className="border-t border-slate-100 p-3">
-                    <ul className="flex flex-col gap-1">
+                  <div className="border-t border-line bg-bg/60 p-3">
+                    <ul className="flex flex-col">
                       {comps.map((c) => (
-                        <li key={c.id} className="flex items-center gap-2 text-sm">
-                          <span className="rounded bg-slate-100 px-1.5 text-xs text-slate-500">{ZONE_LABEL[c.zone]}</span>
-                          <span className="flex-1">{c.name}</span>
-                          <button
-                            className="text-slate-500"
-                            onClick={() => {
-                              const name = ask('칸 이름', c.name)
+                        <li key={c.id} className="flex items-center gap-2 py-0.5 text-sm">
+                          <span className="rounded-md bg-sunken px-1.5 py-px text-[11px] font-semibold text-muted">
+                            {ZONE_LABEL[c.zone]}
+                          </span>
+                          <span className="flex-1 font-medium">{c.name}</span>
+                          <IconButton
+                            aria-label={`${c.name} 이름 바꾸기`}
+                            onClick={async () => {
+                              const name = await ask('칸 이름', c.name)
                               if (name) run(() => repo.renameCompartment(c.id, name))
                             }}
                           >
-                            이름
-                          </button>
-                          <button
-                            className="text-red-500"
-                            onClick={() =>
-                              confirm(`'${c.name}' 칸과 안에 든 식품 기록을 지울까요?`) &&
-                              run(() => repo.deleteCompartment(c.id))
-                            }
+                            <Pencil size={16} />
+                          </IconButton>
+                          <IconButton
+                            aria-label={`${c.name} 삭제`}
+                            className="text-expired/80"
+                            onClick={async () => {
+                              if (await confirm(`'${c.name}' 칸을 지울까요?`, '칸 안에 든 식품 기록도 함께 지워져요.'))
+                                run(() => repo.deleteCompartment(c.id))
+                            }}
                           >
-                            삭제
-                          </button>
+                            <Trash2 size={16} />
+                          </IconButton>
                         </li>
                       ))}
                     </ul>
-                    <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       {(Object.keys(ZONE_LABEL) as Zone[]).map((z) => (
                         <button
                           key={z}
-                          className="rounded-lg border border-slate-200 px-2 py-1"
-                          onClick={() => {
-                            const name = ask(`새 ${ZONE_LABEL[z]} 칸 이름`)
+                          className="flex h-9 items-center gap-1 rounded-xl border border-dashed border-faint/60 px-3 text-sm font-semibold text-muted active:bg-sunken"
+                          onClick={async () => {
+                            const name = await ask(`새 ${ZONE_LABEL[z]} 칸 이름`)
                             if (name) run(() => repo.addCompartment(f.id, name, z))
                           }}
                         >
-                          + {ZONE_LABEL[z]} 칸
+                          <Plus size={14} strokeWidth={2.6} />
+                          {ZONE_LABEL[z]} 칸
                         </button>
                       ))}
                     </div>
-                    <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-sm">
-                      <button
-                        className="text-slate-600"
-                        onClick={() => {
-                          const name = ask('냉장고 이름', f.name)
+                    <div className="mt-3 flex gap-2 border-t border-line pt-3">
+                      <Button
+                        variant="ghost"
+                        size="md"
+                        onClick={async () => {
+                          const name = await ask('냉장고 이름', f.name)
                           if (name) run(() => repo.renameFridge(f.id, name))
                         }}
                       >
-                        냉장고 이름 바꾸기
-                      </button>
-                      <button
-                        className="ml-auto text-red-500"
-                        onClick={() =>
-                          confirm(`'${f.name}'과(와) 안의 모든 식품 기록을 지울까요?`) && run(() => repo.deleteFridge(f.id))
-                        }
+                        이름 바꾸기
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="md"
+                        className="ml-auto"
+                        onClick={async () => {
+                          if (await confirm(`'${f.name}'을(를) 지울까요?`, '안에 든 모든 식품 기록도 함께 지워져요.'))
+                            run(() => repo.deleteFridge(f.id))
+                        }}
                       >
                         냉장고 삭제
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -143,35 +167,41 @@ export function Settings({ repo, household, fridges, compartments, isLocal, onSi
             )
           })}
         </ul>
-        <h3 className="mt-4 text-sm font-semibold text-slate-500">냉장고 추가</h3>
-        <div className="mt-2 flex flex-col gap-2">
+        <h3 className="mt-5 text-[13px] font-bold text-muted">냉장고 추가</h3>
+        <div className="mt-2 flex flex-col gap-1.5">
           {FRIDGE_TEMPLATES.map((t) => (
             <button
               key={t.id}
-              onClick={() => {
-                const name = ask('냉장고 이름', t.name)
+              onClick={async () => {
+                const name = await ask('냉장고 이름', t.name)
                 if (name) run(() => repo.addFridge(t, name))
               }}
-              className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-left text-sm"
+              className="flex min-h-12 items-center gap-2 rounded-2xl border border-dashed border-faint/60 px-3.5 text-left text-sm font-semibold active:bg-sunken"
             >
-              + {t.label}
+              <Plus size={16} className="shrink-0 text-accent" strokeWidth={2.6} />
+              {t.label}
             </button>
           ))}
         </div>
-      </section>
+      </Card>
 
       {isLocal ? (
-        <p className="px-1 text-sm text-slate-500">
+        <p className="px-1 text-sm text-muted">
           지금은 체험 모드라 이 기기에만 저장돼요. Supabase를 연결하면 우리 집 코드로 배우자와 함께 쓸 수 있어요.
         </p>
       ) : (
-        <button
-          onClick={() => confirm('이 기기의 연결을 해제할까요? 다시 쓰려면 우리 집 코드를 넣어야 해요.') && onSignOut?.()}
-          className="rounded-xl bg-white py-3 text-slate-600 shadow-sm"
+        <Button
+          variant="ghost"
+          className="bg-surface text-muted shadow-card"
+          onClick={async () => {
+            if (await confirm('이 기기의 연결을 해제할까요?', '다시 쓰려면 우리 집 코드를 넣어야 해요.', '연결 해제'))
+              onSignOut?.()
+          }}
         >
           이 기기 연결 해제
-        </button>
+        </Button>
       )}
+      {dialog}
     </div>
   )
 }

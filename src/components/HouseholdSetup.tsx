@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { formatCode } from '../lib/code'
+import { Button, Logo, TextInput } from './ui'
 
 /** 이 기기에서 처음 열었을 때: 집 코드를 넣어 합류하거나, 우리 집을 새로 만들기 */
 export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () => void }) {
@@ -8,13 +10,19 @@ export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  // 붙여 넣거나 하이픈을 섞어 써도 12자리 영숫자만 남기고, 4자리씩 끊어 보여 준다
+  const raw = code
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, '')
+    .slice(0, 12)
+
   const run = async (fn: 'create_household' | 'join_household') => {
     setBusy(true)
     setError(null)
     const args =
       fn === 'create_household'
         ? { p_name: '우리 집', p_display_name: displayName }
-        : { p_code: code, p_display_name: displayName }
+        : { p_code: raw, p_display_name: displayName }
     const { error } = await sb.rpc(fn, args)
     setBusy(false)
     if (error) setError(fn === 'join_household' ? '집 코드를 다시 확인해 주세요.' : error.message)
@@ -22,46 +30,59 @@ export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () 
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-5 px-6">
-      <div className="text-center">
-        <div className="text-6xl">🧊</div>
-        <h1 className="mt-3 text-2xl font-extrabold">냉장고를 부탁해</h1>
-        <p className="mt-1 text-sm text-slate-500">이 기기에서 처음 여셨네요. 우리 집 코드를 한 번만 넣어 주세요.</p>
+    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6 py-10">
+      <div className="flex flex-col gap-4">
+        <Logo size={56} />
+        <div>
+          <h1 className="text-2xl leading-snug font-extrabold tracking-tight">
+            우리 집 냉장고에
+            <br />
+            들어가 볼까요?
+          </h1>
+          <p className="mt-1.5 text-[15px] text-muted">
+            이 기기에서 처음 여셨네요. 집 코드를 한 번만 넣으면 다음부턴 바로 열려요.
+          </p>
+        </div>
       </div>
-      <input
-        value={displayName}
-        onChange={(e) => setDisplayName(e.target.value)}
-        placeholder="누가 쓰나요? (예: 민상, 아내)"
-        className="rounded-xl border border-slate-300 px-3 py-3"
-      />
-      <div className="rounded-2xl bg-white p-4 shadow-sm">
-        <input
-          value={code}
+      <form
+        className="flex flex-col gap-2.5"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (raw) run('join_household')
+        }}
+      >
+        <TextInput
+          id="display-name"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="누가 쓰나요? (예: 민상, 아내)"
+        />
+        <TextInput
+          id="household-code"
+          value={formatCode(raw)}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="우리 집 코드 12자리"
+          placeholder="집 코드 12자리"
+          aria-label="우리 집 코드"
           autoCapitalize="characters"
           autoComplete="off"
-          className="w-full rounded-xl border border-slate-300 px-3 py-3 text-center font-mono uppercase tracking-widest"
+          spellCheck={false}
+          className="tabular h-14 text-center font-mono text-lg font-bold tracking-[0.2em]"
         />
-        <button
-          disabled={busy || !code.trim()}
-          onClick={() => run('join_household')}
-          className="mt-3 w-full rounded-xl bg-sky-600 py-3 font-semibold text-white disabled:opacity-50"
-        >
+        {error && <p className="text-center text-sm text-expired">{error}</p>}
+        <Button type="submit" className="mt-1 w-full" disabled={busy || !raw}>
           들어가기
-        </button>
-      </div>
-      {error && <p className="text-center text-sm text-red-600">{error}</p>}
-      <div className="text-center">
-        <p className="text-sm text-slate-500">아직 우리 집 코드가 없다면</p>
+        </Button>
+      </form>
+      <p className="text-center text-sm text-muted">
+        아직 집 코드가 없다면{' '}
         <button
           disabled={busy}
           onClick={() => run('create_household')}
-          className="mt-1 text-sm font-semibold text-sky-700 disabled:opacity-50"
+          className="font-bold text-accent disabled:opacity-50"
         >
           우리 집 새로 만들기
         </button>
-      </div>
+      </p>
     </div>
   )
 }

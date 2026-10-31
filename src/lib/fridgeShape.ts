@@ -158,28 +158,41 @@ export function sortByUrgency(items: Item[]): Item[] {
   )
 }
 
-/** 3D·2D 공용 색 */
-export const LEVEL_COLOR: Record<ExpiryLevel, string> = {
-  expired: '#dc2626',
-  urgent: '#f97316',
-  soon: '#fbbf24',
-  ok: '#ffffff',
-  none: '#e2e8f0',
+/**
+ * three.js 는 CSS 클래스를 못 쓰니 디자인 토큰(index.css 의 --color-*)을 실제 색 값으로 읽는다.
+ * 변수가 아직 없으면(테스트 등) 토큰 기본값을 쓴다.
+ */
+const TOKEN_FALLBACK = {
+  bg: '#f3f5f2',
+  surface: '#ffffff',
+  sunken: '#e8ece9',
+  line: '#e3e8e4',
+  ink: '#17201c',
+  muted: '#66726c',
+  accent: '#1e6b52',
+  'accent-soft': '#e3f1ea',
+  expired: '#c8372d',
+  'expired-soft': '#fbe9e7',
+  urgent: '#d2621b',
+  'urgent-soft': '#fdf0e6',
+  soon: '#a87a10',
+  'soon-soft': '#fbf3dc',
+} as const
+
+export type Token = keyof typeof TOKEN_FALLBACK
+
+export function token(name: Token): string {
+  if (typeof document === 'undefined') return TOKEN_FALLBACK[name]
+  const v = getComputedStyle(document.documentElement).getPropertyValue(`--color-${name}`).trim()
+  return v || TOKEN_FALLBACK[name]
 }
 
-export const CATEGORY_COLOR: Record<string, string> = {
-  vegetable: '#86efac',
-  fruit: '#fca5a5',
-  meat: '#fda4af',
-  seafood: '#93c5fd',
-  dairy: '#f1f5f9',
-  egg: '#fde68a',
-  side: '#d9f99d',
-  sauce: '#fdba74',
-  drink: '#a5f3fc',
-  frozen: '#bae6fd',
-  processed: '#e9d5ff',
-  etc: '#e2e8f0',
+/** 기한 단계별 테두리 색 토큰. 여유·기한 없음은 테두리 없음 */
+export const LEVEL_RING: Partial<Record<ExpiryLevel, Token>> = { expired: 'expired', urgent: 'urgent', soon: 'soon' }
+
+/** categories 의 tint 클래스(bg-[#hex])에서 색 값만 꺼낸다 */
+export function tintHex(tint: string): string {
+  return tint.match(/#[0-9a-fA-F]{6}/)?.[0] ?? TOKEN_FALLBACK.sunken
 }
 
 export function itemsBy(items: Item[]): Map<string, Item[]> {

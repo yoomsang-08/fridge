@@ -1,17 +1,22 @@
+import { Plus, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { categoryOf } from '../lib/categories'
-import { dDayLabel, daysLeft, expiryLevel, LEVEL_STYLE, type ExpiryLevel } from '../lib/expiry'
+import { daysLeft, expiryLevel, LEVEL_DOT, LEVEL_GROUP, type ExpiryLevel } from '../lib/expiry'
 import { ZONE_LABEL } from '../lib/templates'
 import type { Compartment, Fridge, Item } from '../lib/types'
+import { cx } from '../lib/cx'
+import { ItemRow } from './ItemRow'
+import { Card, Chip, Segmented } from './ui'
 
 type View = 'expiry' | 'compartment'
 type LevelFilter = 'all' | 'expired' | 'urgent' | 'soon'
 
-const LEVEL_FILTERS: { id: Exclude<LevelFilter, 'all'>; label: string; match: ExpiryLevel[]; style: string }[] = [
-  { id: 'expired', label: '기한 지남', match: ['expired'], style: LEVEL_STYLE.expired },
-  { id: 'urgent', label: '3일 이내', match: ['urgent'], style: LEVEL_STYLE.urgent },
-  { id: 'soon', label: '7일 이내', match: ['soon'], style: LEVEL_STYLE.soon },
+const LEVEL_FILTERS: { id: Exclude<LevelFilter, 'all'>; label: string; on: string }[] = [
+  { id: 'expired', label: '기한 지남', on: 'bg-expired-soft text-expired' },
+  { id: 'urgent', label: '3일 이내', on: 'bg-urgent-soft text-urgent' },
+  { id: 'soon', label: '7일 이내', on: 'bg-soon-soft text-soon' },
 ]
+
+const GROUP_ORDER: ExpiryLevel[] = ['expired', 'urgent', 'soon', 'ok', 'none']
 
 interface Props {
   fridges: Fridge[]
@@ -28,6 +33,8 @@ function byExpiry(a: Item, b: Item) {
   const db = daysLeft(b.expiry_date) ?? Infinity
   return da - db || a.name.localeCompare(b.name, 'ko')
 }
+
+const todayLabel = () => new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })
 
 export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, onAddTo }: Props) {
   const [view, setView] = useState<View>('expiry')
@@ -46,13 +53,20 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
 
   const filtered = useMemo(() => {
     const q = query.trim()
-    const levels = LEVEL_FILTERS.find((l) => l.id === level)?.match
     return items
       .filter((i) => fridgeId === 'all' || compById.get(i.compartment_id)?.fridge_id === fridgeId)
-      .filter((i) => !levels || levels.includes(expiryLevel(i.expiry_date)))
+      .filter((i) => level === 'all' || expiryLevel(i.expiry_date) === level)
       .filter((i) => !q || i.name.includes(q) || (i.memo ?? '').includes(q))
       .sort(byExpiry)
   }, [items, fridgeId, level, query, compById])
+
+  const groups = useMemo(
+    () =>
+      GROUP_ORDER.map((lv) => ({ lv, items: filtered.filter((i) => expiryLevel(i.expiry_date) === lv) })).filter(
+        (g) => g.items.length > 0,
+      ),
+    [filtered],
+  )
 
   const locationOf = (i: Item) => {
     const c = compById.get(i.compartment_id)
@@ -61,137 +75,133 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
     return fridges.length > 1 && f ? `${f.name} · ${c.name}` : c.name
   }
 
-  const row = (i: Item, showLocation: boolean) => {
-    const lv = expiryLevel(i.expiry_date)
-    const cat = categoryOf(i.category)
-    return (
-      <li key={i.id} className="flex items-center gap-3 bg-white px-3 py-2.5">
-        <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onOpen(i)}>
-          <span className="text-2xl">{cat.emoji}</span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold">
-              {i.name}
-              {i.opened && <span className="ml-1 text-xs font-normal text-slate-400">개봉</span>}
-            </span>
-            <span className="block truncate text-xs text-slate-500">
-              {i.quantity}
-              {i.unit}
-              {showLocation && ` · ${locationOf(i)}`}
-              {i.expiry_date && ` · ${i.expiry_type === 'use_by' ? '소비' : '유통'} ${i.expiry_date.slice(5).replace('-', '/')}`}
-            </span>
-          </span>
-          <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${LEVEL_STYLE[lv]}`}>
-            {dDayLabel(i.expiry_date)}
-          </span>
-        </button>
-        <button
-          onClick={() => onUseOne(i)}
-          className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 active:bg-slate-100"
-          title={i.quantity > 1 ? '1개 사용' : '다 먹음'}
-        >
-          {i.quantity > 1 ? '−1' : '다 먹음'}
-        </button>
-      </li>
-    )
-  }
+  const row = (i: Item, showLocation: boolean) => (
+    <ItemRow key={i.id} item={i} location={showLocation ? locationOf(i) : undefined} onOpen={onOpen} onUseOne={onUseOne} />
+  )
 
   const visibleFridges = fridges.filter((f) => fridgeId === 'all' || f.id === fridgeId)
+  const empty = (
+    <p className="py-14 text-center text-sm text-muted">
+      {items.length ? '조건에 맞는 식품이 없어요' : '아직 넣은 식품이 없어요. 식품 넣기를 눌러 시작해 보세요'}
+    </p>
+  )
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* 임박 요약 */}
-      <div className="grid grid-cols-3 gap-2">
-        {LEVEL_FILTERS.map((l) => (
-          <button
-            key={l.id}
-            onClick={() => setLevel(level === l.id ? 'all' : l.id)}
-            className={`rounded-xl p-3 text-left shadow-sm ring-2 ${
-              level === l.id ? 'ring-sky-500' : 'ring-transparent'
-            } ${counts[l.id] > 0 ? l.style : 'bg-white text-slate-400'}`}
-          >
-            <div className="text-xs font-semibold opacity-90">{l.label}</div>
-            <div className="text-2xl font-extrabold">{counts[l.id]}</div>
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="🔍 식품 검색"
-          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2"
-        />
-        <div className="flex rounded-lg bg-slate-200 p-0.5 text-sm">
-          {(
-            [
-              ['expiry', '기한순'],
-              ['compartment', '칸별'],
-            ] as const
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`rounded-md px-3 py-1.5 ${view === v ? 'bg-white font-semibold shadow-sm' : 'text-slate-600'}`}
-            >
-              {label}
-            </button>
-          ))}
+    <div className="flex flex-col gap-3.5">
+      {/* 먼저 챙길 식품 */}
+      <Card className="p-3.5">
+        <div className="mb-2.5 flex items-baseline justify-between px-0.5">
+          <h2 className="text-[15px] font-bold">먼저 챙길 식품</h2>
+          <span className="text-xs text-muted">{todayLabel()}</span>
         </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {LEVEL_FILTERS.map((l) => {
+            const n = counts[l.id]
+            const selected = level === l.id
+            return (
+              <button
+                key={l.id}
+                onClick={() => setLevel(selected ? 'all' : l.id)}
+                aria-pressed={selected}
+                className={cx(
+                  'rounded-xl px-3 py-2 text-left ring-2 ring-inset transition',
+                  n > 0 ? l.on : 'bg-sunken/60 text-faint',
+                  selected ? 'ring-current' : 'ring-transparent',
+                )}
+              >
+                <span className="block text-[11px] font-semibold">{l.label}</span>
+                <span className="tabular block text-[22px] leading-tight font-extrabold">{n}</span>
+              </button>
+            )
+          })}
+        </div>
+      </Card>
+
+      <div className="flex items-center gap-2">
+        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3 transition focus-within:border-accent focus-within:ring-4 focus-within:ring-accent-soft">
+          <Search size={17} className="shrink-0 text-faint" strokeWidth={2.2} />
+          <input
+            id="item-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="식품 검색"
+            className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-faint"
+          />
+          {query && (
+            <button onClick={() => setQuery('')} aria-label="검색어 지우기" className="text-faint">
+              <X size={16} />
+            </button>
+          )}
+        </label>
+        <Segmented
+          value={view}
+          onChange={setView}
+          options={[
+            ['expiry', '기한순'],
+            ['compartment', '칸별'],
+          ]}
+        />
       </div>
 
       {fridges.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           {[{ id: 'all', name: '전체' }, ...fridges].map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFridgeId(f.id)}
-              className={`rounded-full border px-3 py-1.5 text-sm whitespace-nowrap ${
-                fridgeId === f.id ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 bg-white'
-              }`}
-            >
+            <Chip key={f.id} active={fridgeId === f.id} onClick={() => setFridgeId(f.id)}>
               {f.name}
-            </button>
+            </Chip>
           ))}
         </div>
       )}
 
-      {view === 'expiry' ? (
-        filtered.length ? (
-          <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl shadow-sm">
-            {filtered.map((i) => row(i, true))}
-          </ul>
-        ) : (
-          <p className="py-10 text-center text-slate-400">
-            {items.length ? '조건에 맞는 식품이 없어요' : '아직 넣은 식품이 없어요. + 버튼으로 넣어 보세요'}
-          </p>
-        )
-      ) : (
-        visibleFridges.map((f) => (
-          <section key={f.id} className="flex flex-col gap-2">
-            {fridges.length > 1 && <h2 className="mt-2 font-bold">{f.name}</h2>}
-            {compartments
-              .filter((c) => c.fridge_id === f.id)
-              .map((c) => {
-                const inside = filtered.filter((i) => i.compartment_id === c.id)
-                if (!inside.length && (query || level !== 'all')) return null
-                return (
-                  <div key={c.id} className="overflow-hidden rounded-2xl bg-white shadow-sm">
-                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 text-sm">
-                      <span className="rounded bg-slate-200 px-1.5 text-xs text-slate-600">{ZONE_LABEL[c.zone]}</span>
-                      <span className="font-semibold">{c.name}</span>
-                      <span className="text-slate-400">{inside.length}</span>
-                      <button onClick={() => onAddTo(c.id)} className="ml-auto text-sky-700">
-                        + 넣기
-                      </button>
-                    </div>
-                    {inside.length > 0 && <ul className="divide-y divide-slate-100">{inside.map((i) => row(i, false))}</ul>}
-                  </div>
-                )
-              })}
-          </section>
-        ))
-      )}
+      {view === 'expiry'
+        ? groups.length
+          ? groups.map((g) => (
+              <section key={g.lv} className="flex flex-col gap-1.5">
+                <h3 className="flex items-center gap-1.5 px-1 text-xs font-bold text-muted">
+                  <span className={cx('h-1.5 w-1.5 rounded-full', LEVEL_DOT[g.lv])} />
+                  {LEVEL_GROUP[g.lv]}
+                  <span className="tabular font-semibold text-faint">{g.items.length}</span>
+                </h3>
+                <Card className="overflow-hidden">
+                  <ul className="divide-y divide-line">{g.items.map((i) => row(i, true))}</ul>
+                </Card>
+              </section>
+            ))
+          : empty
+        : visibleFridges.map((f) => (
+            <section key={f.id} className="flex flex-col gap-2">
+              {fridges.length > 1 && <h2 className="mt-2 px-1 text-[15px] font-extrabold">{f.name}</h2>}
+              {compartments
+                .filter((c) => c.fridge_id === f.id)
+                .map((c) => {
+                  const inside = filtered.filter((i) => i.compartment_id === c.id)
+                  if (!inside.length && (query || level !== 'all')) return null
+                  return (
+                    <Card key={c.id} className="overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
+                        <span className="rounded-md bg-sunken px-1.5 py-px text-[11px] font-semibold text-muted">
+                          {ZONE_LABEL[c.zone]}
+                        </span>
+                        <span className="text-sm font-bold">{c.name}</span>
+                        <span className="tabular text-sm text-faint">{inside.length}</span>
+                        <button
+                          onClick={() => onAddTo(c.id)}
+                          className="ml-auto flex h-8 items-center gap-0.5 rounded-lg px-2 text-sm font-semibold text-accent active:bg-accent-soft"
+                        >
+                          <Plus size={16} strokeWidth={2.4} />
+                          넣기
+                        </button>
+                      </div>
+                      {inside.length > 0 && (
+                        <ul className="divide-y divide-line border-t border-line">
+                          {inside.map((i) => row(i, false))}
+                        </ul>
+                      )}
+                    </Card>
+                  )
+                })}
+            </section>
+          ))}
     </div>
   )
 }
