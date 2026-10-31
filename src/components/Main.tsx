@@ -1,5 +1,5 @@
 import { List, Plus, Settings as SettingsIcon, type LucideIcon } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
 import type { Household, Item } from '../lib/types'
@@ -7,7 +7,7 @@ import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
 import { Settings } from './Settings'
 import { cx } from '../lib/cx'
-import { Button, Card, Logo } from './ui'
+import { Button, Card, Logo, SunnyEgg } from './ui'
 
 type Tab = 'list' | 'settings'
 /** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
@@ -31,6 +31,7 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('list')
   const [sheet, setSheet] = useState<SheetState>(null)
+  const egg = useSunnyEgg()
 
   const reload = useCallback(async () => {
     try {
@@ -78,12 +79,20 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
   return (
     <div className="mx-auto min-h-dvh max-w-3xl pb-44 sm:pb-28">
       <header className="sticky top-0 z-30 flex items-center gap-3 bg-bg/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-md sm:px-6">
-        <Logo />
+        <button onClick={egg.tap} aria-label="냉장고를 부탁해" className="shrink-0">
+          {egg.on ? <SunnyEgg /> : <Logo />}
+        </button>
         <div className="min-w-0 flex-1">
           <h1 className="text-[17px] leading-tight font-extrabold tracking-tight">냉장고를 부탁해</h1>
           <p className="truncate text-xs text-muted">
-            {household.name}
-            {snap.items.length > 0 && ` · 식품 ${snap.items.length}개`}
+            {egg.on ? (
+              '써니사이드업 팀이 지선 님을 응원해요'
+            ) : (
+              <>
+                {household.name}
+                {snap.items.length > 0 && ` · 식품 ${snap.items.length}개`}
+              </>
+            )}
           </p>
         </div>
         <nav className="hidden rounded-xl bg-sunken p-[3px] text-sm sm:flex">
@@ -202,4 +211,19 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
       )}
     </div>
   )
+}
+
+/** 이스터에그: 로고를 2초 안에 다섯 번 누르면 3초 동안 반숙 달걀로 바뀐다 */
+function useSunnyEgg() {
+  const [on, setOn] = useState(false)
+  const taps = useRef<number[]>([])
+  const tap = () => {
+    const now = Date.now()
+    taps.current = [...taps.current.filter((t) => now - t < 2000), now]
+    if (taps.current.length < 5) return
+    taps.current = []
+    setOn(true)
+    setTimeout(() => setOn(false), 3000)
+  }
+  return { on, tap }
 }
