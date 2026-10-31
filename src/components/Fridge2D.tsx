@@ -243,7 +243,9 @@ function ClosedView({ shape, placed, itemsOf, onOpenDoors, notes, onOpenNotes }:
 }
 
 const NOTE = 200
-const NOTE_TILT = [-3, 2, -1.5]
+const NOTE_TILT = [-2, 1.5, -1]
+/** 손으로 붙인 느낌이 나게 좌우로 살짝 엇갈리게 (mm, 폰에서 약 5px) */
+const NOTE_SHIFT = [-14, 12, -6]
 
 /** 문 닫힌 정면: 첫 번째 문 아래쪽에 포스트잇 메모. 누르면 메모 탭 */
 function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?: () => void }) {
@@ -263,7 +265,7 @@ function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?:
       {notes.map((n, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
-        const x = door.x + (door.w - rowW) / 2 + col * (NOTE + 20)
+        const x = door.x + (door.w - rowW) / 2 + col * (NOTE + 20) + NOTE_SHIFT[i % NOTE_SHIFT.length]
         // 문 아래쪽(손잡이 홈 위)에 모아 붙이고, 최근 메모가 맨 위
         const y = door.y + door.h - 70 - rows * NOTE - (rows - 1) * 24 + row * (NOTE + 24)
         const magnet = magnetOf(n.body)
