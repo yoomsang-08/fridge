@@ -1,11 +1,19 @@
-import { ChevronDown } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ChevronDown, ScanBarcode } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { BarcodeScanner } from './BarcodeScanner'
 import { useDialog } from './Dialog'
 import { Sheet } from './Sheet'
 import { cx } from '../lib/cx'
-import { Button, Chip, Field, Segmented, TextInput } from './ui'
+import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
 import { CATEGORIES, UNITS } from '../lib/categories'
 import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE } from '../lib/expiry'
+import {
+  foodSearchAvailable,
+  guessCategory,
+  searchFoodByBarcode,
+  searchFoodByName,
+  type FoodProduct,
+} from '../lib/foodSearch'
 import { ZONE_LABEL } from '../lib/templates'
 import type { ItemAction } from '../lib/repo'
 import type { Compartment, Fridge, Item, ItemInput } from '../lib/types'
@@ -23,6 +31,13 @@ const QUICK_EXPIRY: { label: string; value: () => string }[] = [
   { label: '+6달', value: () => addMonths(6) },
   { label: '+1년', value: () => addMonths(12) },
 ]
+
+const EASTER_NAMES = new Set(['송지선', '지선'])
+
+/** "제조일로부터 12개월까지" → "12개월" */
+function shortShelfLife(text: string | null, days: number): string {
+  return text?.replace(/\s+/g, '').match(/\d+(?:\.\d+)?(년|개월|주|일)/)?.[0] ?? `${days}일`
+}
 
 interface Props {
   fridges: Fridge[]
@@ -65,6 +80,28 @@ export function ItemSheet({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // 식품안전나라 검색: 마지막으로 검색한 이름과 결과를 함께 들고 있어서 입력이 바뀌면 자연히 숨겨진다
+  const [found, setFound] = useState<{ q: string; items: FoodProduct[]; failed?: boolean } | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [picked, setPicked] = useState<FoodProduct | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const [scanNote, setScanNote] = useState<string | null>(null)
+  const [nameFocused, setNameFocused] = useState(!item)
+  // 이스터에그 한 줄. 3초 뒤 저절로 사라진다 (docs/design.md 이스터에그 절)
+  const [egg, setEgg] = useState<string | null>(null)
+  const eggTimer = useRef(0)
+  const eggShown = useRef(new Set<string>())
+  // 같은 문구는 시트를 열 때마다 한 번만
+  const showEgg = (text: string) => {
+    if (eggShown.current.has(text)) return
+    eggShown.current.add(text)
+    setEgg(text)
+    window.clearTimeout(eggTimer.current)
+    eggTimer.current = window.setTimeout(() => setEgg(null), 3000)
+  }
+  useEffect(() => () => window.clearTimeout(eggTimer.current), [])
+  const canSearch = foodSearchAvailable && !item
+
   const { confirm, dialog } = useDialog()
   const fridgeCompartments = compartments.filter((c) => c.fridge_id === fridgeId)
 
@@ -76,8 +113,79 @@ export function ItemSheet({
     return [...seen.values()].slice(0, 6)
   }, [name, history, item])
 
+  useEffect(() => {
+    const q = name.trim()
+    if (!canSearch || q.length < 2 || q === picked?.name) return
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      setSearching(true)
+      try {
+        const items = await searchFoodByName(q)
+        if (!cancelled) setFound({ q, items })
+      } catch {
+        if (!cancelled) setFound({ q, items: [], failed: true })
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [name, canSearch, picked])
+
+  // 바코드로 찾은 후보는 q 가 '' 로 들어온다
+  const fresh = !!found && found.q !== '' && found.q === name.trim() && name.trim() !== picked?.name
+  const products = !found
+    ? []
+    : found.q === ''
+      ? found.items.length > 1
+        ? found.items.slice(0, 5)
+        : []
+      : fresh && nameFocused
+        ? found.items.slice(0, 5)
+        : []
+  // 후보 자리에 한 줄로 보여주는 검색 상태
+  const searchStatus = searching
+    ? '찾는 중…'
+    : fresh && found!.failed
+      ? '검색이 잠시 안 돼요. 직접 입력해 주세요.'
+      : fresh && found!.items.length === 0
+        ? '못 찾았어요. 이 이름 그대로 저장돼요.'
+        : null
+  const shelfDays = picked && name === picked.name ? picked.shelfLifeDays : null
+  const shelfDate = shelfDays ? addDays(shelfDays) : null
+
+  const pickProduct = (p: FoodProduct) => {
+    setName(p.name)
+    setCategory(guessCategory(p))
+    setPicked(p)
+    setScanNote(null)
+    // 팀 이름이 써니사이드업이라 달걀은 그냥 못 지나친다
+    if (guessCategory(p) === 'egg') showEgg('써니사이드업 재료 확보!')
+  }
+
+  const lookupBarcode = async (barcode: string) => {
+    setScanning(false)
+    setScanNote(`${barcode} 찾는 중…`)
+    try {
+      const items = await searchFoodByBarcode(barcode)
+      if (items.length === 0) {
+        setScanNote(`바코드 ${barcode}로는 못 찾았어요. 이름으로 검색해 주세요.`)
+        document.getElementById('item-name')?.focus()
+        return
+      }
+      pickProduct(items[0])
+      // 이름이 다른 후보가 더 있으면 고를 수 있게 보여준다
+      if (items.length > 1) setFound({ q: '', items })
+    } catch {
+      setScanNote('검색 서버에 연결하지 못했어요. 이름을 직접 입력해 주세요.')
+    }
+  }
+
   const pickSuggestion = (h: Item) => {
     setName(h.name)
+    setPicked(null)
     setCategory(h.category)
     setUnit(h.unit)
     setExpiryType(h.expiry_type)
@@ -89,6 +197,9 @@ export function ItemSheet({
     setExpiry(null)
     setOpened(false)
     setMemo('')
+    setPicked(null)
+    setFound(null)
+    setScanNote(null)
   }
 
   const save = async (keepOpen: boolean) => {
@@ -151,15 +262,66 @@ export function ItemSheet({
       >
         <div className="flex flex-col gap-6">
           <Field label="무엇인가요?">
-            <TextInput
-              id="item-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="예: 서울우유 1L, 김치, 삼겹살"
-              className="font-semibold"
-              autoFocus={!item}
-              enterKeyHint="done"
-            />
+            <div className="relative flex gap-2">
+              {/* 아래 칩이 밀리지 않도록 입력창 아래에 겹쳐 띄운다. 누름은 통과 */}
+              {egg && (
+                <p className="pointer-events-none absolute top-full left-0 z-10 mt-1.5 rounded-xl bg-accent-soft px-3 py-1.5 text-sm font-semibold text-accent shadow-card">
+                  {egg}
+                </p>
+              )}
+              <TextInput
+                id="item-name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  if (EASTER_NAMES.has(e.target.value.trim())) showEgg('이 냉장고의 주인공이시네요. 오늘도 맛있는 하루 보내세요.')
+                }}
+                onFocus={() => setNameFocused(true)}
+                onBlur={() => setNameFocused(false)}
+                placeholder="예: 서울우유 1L, 김치, 삼겹살"
+                className="min-w-0 flex-1 font-semibold"
+                autoFocus={!item}
+                enterKeyHint="done"
+              />
+              {canSearch && (
+                <IconButton
+                  className="h-12 w-12 rounded-2xl border border-line bg-surface text-ink"
+                  onClick={() => setScanning(true)}
+                  aria-label="바코드 찍기"
+                >
+                  <ScanBarcode size={22} strokeWidth={2.2} />
+                </IconButton>
+              )}
+            </div>
+            {scanNote && <p className="mt-2 text-sm text-muted">{scanNote}</p>}
+            {picked && name === picked.name && (picked.maker || picked.foodType) && (
+              <p className="mt-2 text-[13px] text-muted">{[picked.maker, picked.foodType].filter(Boolean).join(' · ')}</p>
+            )}
+            {products.length > 0 && (
+              <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+                {products.map((p, i) => (
+                  <li key={`${p.reportNo ?? p.barcode}-${i}`}>
+                    <button
+                      // 입력창 blur 로 목록이 닫히기 전에 고를 수 있게
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        pickProduct(p)
+                        setFound(null)
+                      }}
+                      className="w-full px-4 py-2.5 text-left transition active:bg-sunken"
+                    >
+                      <div className="text-sm font-semibold">{p.name}</div>
+                      <div className="mt-0.5 text-xs text-muted">
+                        {[p.maker, p.foodType, p.shelfLifeText].filter(Boolean).join(' · ')}
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {searchStatus && products.length === 0 && nameFocused && (
+              <p className="mt-2 text-xs text-muted">{searchStatus}</p>
+            )}
             {suggestions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {suggestions.map((s) => (
@@ -295,6 +457,16 @@ export function ItemSheet({
                 {expiryLabel(expiry)}
               </span>
             </label>
+            {shelfDate && expiry !== shelfDate && (
+              <div className="mt-2">
+                <Chip tone="suggest" onClick={() => setExpiry(shelfDate)}>
+                  제품 기준 {shortShelfLife(picked!.shelfLifeText, shelfDays!)} · 날짜 넣기
+                </Chip>
+                <p className="mt-1 text-xs text-faint">
+                  {picked!.shelfLifeText}. 제조일 기준이라 실제보다 길 수 있어요. 포장에 찍힌 날짜가 정확해요.
+                </p>
+              </div>
+            )}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {(moreExpiry ? QUICK_EXPIRY : QUICK_EXPIRY.slice(0, QUICK_VISIBLE)).map((q) => {
                 const v = q.value()
@@ -350,6 +522,7 @@ export function ItemSheet({
         </div>
       </Sheet>
       {dialog}
+      {scanning && <BarcodeScanner onDetected={lookupBarcode} onClose={() => setScanning(false)} />}
     </>
   )
 }
