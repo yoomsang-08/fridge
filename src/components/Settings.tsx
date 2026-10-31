@@ -5,6 +5,7 @@ import { FRIDGE_TEMPLATES, ZONE_LABEL } from '../lib/templates'
 import type { Repo } from '../lib/repo'
 import type { Compartment, Fridge, Household, Me, Member, Zone } from '../lib/types'
 import { useDialog } from './Dialog'
+import { BackupSettings } from './BackupSettings'
 import { PushSettings } from './PushSettings'
 import { cx } from '../lib/cx'
 import { Button, Card, IconButton } from './ui'
@@ -222,6 +223,8 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
           ))}
         </div>
       </Card>
+
+      {!isLocal && <BackupSettings householdId={household.id} />}
 
       {isLocal ? (
         <p className="px-1 text-sm text-muted">
