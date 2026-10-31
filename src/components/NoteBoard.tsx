@@ -25,9 +25,7 @@ export function NoteBoard({ notes, me, fresh, onOpen, onWrite }: Props) {
         </p>
       </div>
 
-      <div className="relative rounded-[1.75rem] border border-line bg-surface p-4 pr-7 shadow-card sm:p-5 sm:pr-8">
-        {/* 문 손잡이 */}
-        <span aria-hidden className="absolute top-8 right-2.5 h-20 w-1.5 rounded-full bg-sunken sm:right-3" />
+      <div className="rounded-[1.75rem] border border-line bg-surface p-4 shadow-card sm:p-5">
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
           <button
             onClick={onWrite}

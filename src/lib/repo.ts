@@ -31,6 +31,8 @@ export interface Repo {
   addNote(input: NoteInput): Promise<void>
   /** 냉장고 문에서 떼기 */
   deleteNote(id: string): Promise<void>
+  /** 뗀 메모 되돌리기: 같은 메모를 그대로 다시 붙인다 */
+  restoreNote(note: Note): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
   markNotesRead(ids: string[]): Promise<void>
   /** 다른 기기에서 바뀌면 호출. 반환값은 구독 해제 */
@@ -146,6 +148,9 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     },
     async deleteNote(id) {
       check(await sb.from('notes').delete().eq('id', id))
+    },
+    async restoreNote(note) {
+      check(await sb.from('notes').insert(note))
     },
     async markNotesRead(ids) {
       if (ids.length === 0) return
@@ -287,6 +292,10 @@ export function createLocalRepo(): Repo {
     deleteNote: (nid) =>
       mutate((s) => {
         s.notes = s.notes.filter((n) => n.id !== nid)
+      }),
+    restoreNote: (note) =>
+      mutate((s) => {
+        s.notes = [note, ...s.notes].sort((a, b) => b.created_at.localeCompare(a.created_at))
       }),
     markNotesRead: async () => {},
     subscribe(onChange) {

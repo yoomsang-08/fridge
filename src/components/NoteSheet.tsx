@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react'
 import { useState } from 'react'
 import { isMine, NOTE_COLORS, NOTE_SUGGESTIONS, notePaper, timeAgo } from '../lib/notes'
 import type { Me, Note, NoteColor, NoteInput } from '../lib/types'
@@ -70,20 +71,21 @@ export function NoteWriteSheet({ onClose, onSave }: { onClose: () => void; onSav
         </Field>
 
         <Field label="어떤 색 종이에?">
-          <div className="flex gap-3" role="radiogroup">
+          <div className="flex gap-3">
             {NOTE_COLORS.map((c) => (
               <button
                 key={c.id}
-                role="radio"
-                aria-checked={color === c.id}
-                aria-label={c.label}
+                aria-pressed={color === c.id}
+                aria-label={`${c.label} 종이`}
                 onClick={() => setColor(c.id)}
                 className={cx(
-                  'h-11 w-11 rounded-full border border-line transition',
+                  'grid h-11 w-11 place-items-center rounded-full border border-line text-ink transition',
                   c.paper,
                   color === c.id && 'ring-2 ring-ink ring-offset-2 ring-offset-surface',
                 )}
-              />
+              >
+                {color === c.id && <Check size={18} strokeWidth={2.6} />}
+              </button>
             ))}
           </div>
         </Field>

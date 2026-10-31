@@ -43,6 +43,8 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
   const [sheet, setSheet] = useState<SheetState>(null)
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())
+  /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
+  const [removed, setRemoved] = useState<Note | null>(null)
 
   const reload = useCallback(async () => {
     try {
@@ -73,6 +75,12 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
     setFresh((prev) => new Set([...prev, ...ids]))
     repo.markNotesRead(ids).catch(() => {})
   }, [tab, unread, repo])
+
+  useEffect(() => {
+    if (!removed) return
+    const timer = setTimeout(() => setRemoved(null), 4000)
+    return () => clearTimeout(timer)
+  }, [removed])
 
   const openTab = (t: Tab) => {
     if (t !== 'notes') setFresh(new Set())
@@ -243,10 +251,31 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
           me={snap.me}
           onClose={() => setSheet(null)}
           onRemove={async () => {
-            await mutate(() => repo.deleteNote(sheet.note.id))
+            const note = sheet.note
+            await mutate(() => repo.deleteNote(note.id))
             setSheet(null)
+            setRemoved(note)
           }}
         />
+      )}
+
+      {removed && (
+        <div
+          role="status"
+          className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card sm:bottom-8"
+        >
+          <span className="flex-1">메모를 뗐어요</span>
+          <button
+            className="h-9 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
+            onClick={() => {
+              const note = removed
+              setRemoved(null)
+              mutate(() => repo.restoreNote(note))
+            }}
+          >
+            되돌리기
+          </button>
+        </div>
       )}
 
       {(sheet?.mode === 'add' || sheet?.mode === 'edit') && (
