@@ -6,7 +6,7 @@ import { Sheet } from './Sheet'
 import { cx } from '../lib/cx'
 import { SpaceIcon } from './SpaceIcon'
 import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
-import { categoryOf, CONTAINERS, guessContainer, roomTempDays, UNITS, useCategories } from '../lib/categories'
+import { autoDays, categoryOf, CONTAINERS, daysLabel, guessContainer, UNITS, useCategories } from '../lib/categories'
 import { addDays, addMonths, expiryLabel, expiryLevel, LEVEL_STYLE, LEVEL_TEXT } from '../lib/expiry'
 import {
   foodSearchAvailable,
@@ -88,6 +88,9 @@ export function ItemSheet({
   const containerGuess = useMemo(() => guessContainer(name, unit), [name, unit])
   const categories = useCategories().filter((c) => !c.hidden || c.id === item?.category)
   const [expiry, setExpiry] = useState<string | null>(item?.expiry_date ?? null)
+  // 직접 날짜를 고르기 전까지는 '넣은 날 + 분류별 자동 기한'을 쓴다. 고치는 식품은 처음부터 직접 고른 것으로
+  const [expiryTouched, setExpiryTouched] = useState(!!item)
+  const [putDate, setPutDate] = useState(() => addDays(0))
   const [expiryType, setExpiryType] = useState(item?.expiry_type ?? 'use_by')
   const [opened, setOpened] = useState(item?.opened ?? false)
   const [memo, setMemo] = useState(item?.memo ?? '')
@@ -171,10 +174,15 @@ export function ItemSheet({
         : null
   const shelfDays = picked && name === picked.name ? picked.shelfLifeDays : null
   const shelfDate = shelfDays ? addDays(shelfDays) : null
-  // 팬트리 칸이면 분류별 실온 기한을 추천 (제품 소비기한이 있으면 그쪽이 우선)
-  const inPantry = compartments.find((c) => c.id === compartmentId)?.zone === 'pantry'
-  const roomDays = inPantry && !shelfDate ? roomTempDays(category) : undefined
-  const roomDate = roomDays ? addDays(roomDays) : null
+  // 유통기한이 안 찍힌 재료: 넣은 날 + 분류·칸 종류별 일수 (설정 > 자동 기한). 제품 소비기한이 있으면 그쪽 칩이 먼저
+  const zone = compartments.find((c) => c.id === compartmentId)?.zone
+  const auto = !item && !shelfDate && zone ? autoDays(category, zone) : null
+  const autoDate = auto ? addDays(auto, new Date(`${putDate}T00:00:00`)) : null
+  const expiryValue = expiryTouched ? expiry : (autoDate ?? expiry)
+  const pickExpiry = (v: string | null) => {
+    setExpiry(v)
+    setExpiryTouched(true)
+  }
 
   const pickProduct = (p: FoodProduct) => {
     setName(p.name)
@@ -226,6 +234,7 @@ export function ItemSheet({
     setName('')
     setQuantity(1)
     setExpiry(null)
+    setExpiryTouched(false)
     setOpened(false)
     setContainer(null)
     setMemo('')
@@ -247,7 +256,7 @@ export function ItemSheet({
           category,
           quantity,
           unit,
-          expiry_date: expiry,
+          expiry_date: expiryValue,
           expiry_type: expiryType,
           opened,
           memo: memo.trim() || null,
@@ -274,7 +283,7 @@ export function ItemSheet({
   }
 
   const canSave = !busy && !!name.trim() && !!compartmentId
-  const lv = expiryLevel(expiry)
+  const lv = expiryLevel(expiryValue)
   const placeLabel = (id: string) => {
     const c = compartments.find((x) => x.id === id)
     const f = fridges.find((x) => x.id === c?.fridge_id)
@@ -552,17 +561,17 @@ export function ItemSheet({
               <input
                 id="item-expiry"
                 type="date"
-                value={expiry ?? ''}
-                onChange={(e) => setExpiry(e.target.value || null)}
+                value={expiryValue ?? ''}
+                onChange={(e) => pickExpiry(e.target.value || null)}
                 className="tabular min-w-0 flex-1 bg-transparent text-base font-bold outline-none"
               />
               <span className={cx('tabular shrink-0 rounded-lg px-2 py-1 text-[13px] font-extrabold', LEVEL_STYLE[lv])}>
-                {expiryLabel(expiry)}
+                {expiryLabel(expiryValue)}
               </span>
             </label>
-            {shelfDate && expiry !== shelfDate && (
+            {shelfDate && expiryValue !== shelfDate && (
               <div className="mt-2">
-                <Chip tone="suggest" onClick={() => setExpiry(shelfDate)}>
+                <Chip tone="suggest" onClick={() => pickExpiry(shelfDate)}>
                   제품 기준 {shortShelfLife(picked!.shelfLifeText, shelfDays!)} · 날짜 넣기
                 </Chip>
                 <p className="mt-1 text-xs text-faint">
@@ -570,21 +579,39 @@ export function ItemSheet({
                 </p>
               </div>
             )}
-            {roomDate && expiry !== roomDate && (
+            {autoDate && !expiryTouched && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
+                <label className="flex items-center gap-1">
+                  넣은 날
+                  <input
+                    type="date"
+                    aria-label="넣은 날"
+                    value={putDate}
+                    max={addDays(0)}
+                    onChange={(e) => e.target.value && setPutDate(e.target.value)}
+                    className="tabular rounded-lg bg-sunken px-1.5 py-0.5 font-bold text-ink"
+                  />
+                </label>
+                <span>
+                  + {daysLabel(auto)} ({ZONE_LABEL[zone!]} {categoryOf(category).label} 기준)
+                </span>
+              </div>
+            )}
+            {autoDate && expiryTouched && expiryValue !== autoDate && (
               <div className="mt-2">
-                <Chip tone="suggest" onClick={() => setExpiry(roomDate)}>
-                  실온 기준 약 {roomDays! >= 30 ? `${Math.round(roomDays! / 30)}달` : `${roomDays}일`} · 날짜 넣기
+                <Chip tone="suggest" onClick={() => setExpiryTouched(false)}>
+                  자동 기한 {daysLabel(auto)} · 다시 쓰기
                 </Chip>
               </div>
             )}
-            {roomDays === null && (
+            {!item && !shelfDate && zone === 'pantry' && !auto && (
               <p className="mt-2 text-xs text-muted">이 분류는 실온에 두면 금방 상해요. 냉장고 칸을 추천해요.</p>
             )}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {(moreExpiry ? QUICK_EXPIRY : QUICK_EXPIRY.slice(0, QUICK_VISIBLE)).map((q) => {
                 const v = q.value()
                 return (
-                  <Chip key={q.label} active={expiry === v} onClick={() => setExpiry(v)}>
+                  <Chip key={q.label} active={expiryValue === v} onClick={() => pickExpiry(v)}>
                     {q.label}
                   </Chip>
                 )
@@ -594,7 +621,7 @@ export function ItemSheet({
                   더보기
                 </Chip>
               )}
-              <Chip active={expiry === null} onClick={() => setExpiry(null)}>
+              <Chip active={expiryValue === null} onClick={() => pickExpiry(null)}>
                 기한 없음
               </Chip>
             </div>
