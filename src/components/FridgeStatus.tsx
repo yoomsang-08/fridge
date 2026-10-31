@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, DoorClosed, DoorOpen, ExternalLink, Minus, Plus, RefreshCw, X } from 'lucide-react'
+import { ChevronRight, DoorClosed, DoorOpen, ExternalLink, Minus, Plus, RefreshCw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import {
@@ -12,6 +12,7 @@ import {
   takeOAuthResult,
 } from '../lib/smartthings'
 import { useDialog } from './Dialog'
+import { Sheet } from './Sheet'
 import { Button, Card, Field, IconButton, Switch, TextInput } from './ui'
 
 const ZONE_NAME: Record<Zone, string> = { cooler: '냉장실', freezer: '냉동실' }
@@ -24,7 +25,8 @@ const DOOR_WARN_MS = 60_000
 
 /**
  * 스마트싱스로 연결한 실제 냉장고의 온도·문·급속 기능.
- * 냉장고 탭 맨 위에 한 장짜리 요약으로 보이고, 누르면 펼쳐서 온도를 바꾸거나 급속냉동을 켠다
+ * 냉장고 탭 맨 위에 한 장짜리 요약으로 보이고, 누르면 시트로 올라와 온도를 바꾸거나 급속냉동을 켠다.
+ * 냉장고 그림을 밀어내지 않도록 자세한 내용은 제자리에서 펼치지 않는다
  */
 export function FridgeStatus({ st }: { st: SmartThings }) {
   // 삼성 계정 로그인에서 돌아왔으면 결과를 펼친 상태로 보여준다
@@ -79,8 +81,8 @@ export function FridgeStatus({ st }: { st: SmartThings }) {
   }
 
   if (!status?.connected) {
-    if (!open) {
-      return (
+    return (
+      <>
         <Card className="flex items-center gap-3 p-5">
           <div className="min-w-0 flex-1">
             <h2 className="text-[15px] font-extrabold">냉장고 상태</h2>
@@ -92,123 +94,119 @@ export function FridgeStatus({ st }: { st: SmartThings }) {
             연결
           </Button>
         </Card>
-      )
-    }
-    return (
-      <div className="flex flex-col gap-4">
-        {notice && <Notice {...notice} st={st} onClose={() => setNotice(null)} />}
-        {error && !notice && <ErrorNote text={error} />}
-        <ConnectCard
-          st={st}
-          oauth={status?.oauth !== false}
-          onConnected={load}
-          onCancel={() => setOpen(false)}
-        />
-      </div>
+        {open && (
+          <Sheet title="스마트싱스 냉장고 연결" onClose={() => setOpen(false)}>
+            <div className="flex flex-col gap-4">
+              {notice && <Notice {...notice} st={st} onClose={() => setNotice(null)} />}
+              {error && !notice && <ErrorNote text={error} />}
+              <ConnectCard st={st} oauth={status?.oauth !== false} onConnected={load} onCancel={() => setOpen(false)} />
+            </div>
+          </Sheet>
+        )}
+      </>
     )
   }
 
   const s = status.state
-  if (!open) return <SummaryCard state={s} now={loadedAt} onOpen={() => setOpen(true)} />
+  const summary = <SummaryCard state={s} now={loadedAt} onOpen={() => setOpen(true)} />
+  if (!open) return summary
 
   return (
-    <div className="flex flex-col gap-4">
-      {notice && <Notice {...notice} st={st} onClose={() => setNotice(null)} />}
-      <div className="flex items-center justify-between px-1">
-        <h2 className="text-[15px] font-extrabold">냉장고 상태</h2>
-        <button className="flex h-9 items-center gap-0.5 text-sm font-semibold text-accent" onClick={() => setOpen(false)}>
-          접기
-          <ChevronUp size={16} />
-        </button>
-      </div>
-      {st.demo && (
-        <p className="rounded-2xl bg-sunken p-3 text-sm break-keep text-muted">
-          체험 모드라 예시 값이에요. Supabase를 연결하고 스마트싱스 토큰을 넣으면 우리 집 냉장고가 보여요.
-        </p>
-      )}
-      {error && <ErrorNote text={error} />}
+    <>
+      {summary}
+      <Sheet title="냉장고 상태" onClose={() => setOpen(false)}>
+        <div className="flex flex-col gap-6">
+          {notice && <Notice {...notice} st={st} onClose={() => setNotice(null)} />}
+          {error && <ErrorNote text={error} />}
 
-      <Card className="p-5">
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[17px] font-extrabold">{s.label} 온도</h2>
-            <p className="text-xs text-muted">{busy ? '냉장고에 보내는 중…' : `${ago(loadedAt)} 확인`}</p>
+          {/* 사람들이 가장 자주 보는 순서: 온도 → 문 → 급속 → 전기·변온 → 연결 */}
+          <section>
+            <div className="mb-2 flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[15px] font-extrabold">{s.label} 온도</h3>
+                <p className="text-xs text-muted">{busy ? '냉장고에 보내는 중…' : `${ago(loadedAt)} 확인`}</p>
+              </div>
+              <IconButton aria-label="새로고침" onClick={load} disabled={busy}>
+                <RefreshCw size={18} className={cx(busy && 'animate-spin motion-reduce:animate-none')} />
+              </IconButton>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {(['cooler', 'freezer'] as const).map((z) => (
+                <ZoneTile
+                  key={z}
+                  zone={z}
+                  state={s}
+                  disabled={busy}
+                  onApply={(value) =>
+                    send({ kind: 'setpoint', zone: z, value }, (n) => {
+                      n[z].setpoint = value
+                    })
+                  }
+                />
+              ))}
+            </div>
+          </section>
+
+          <DoorRow state={s} now={loadedAt} />
+
+          <section>
+            <h3 className="mb-2 text-[15px] font-extrabold">빠르게 차갑게</h3>
+            <div className="flex flex-col gap-2">
+              <SwitchRow
+                title="급속냉동"
+                hint="장 본 고기·생선을 빨리 얼려요"
+                on={s.powerFreeze}
+                disabled={busy}
+                onToggle={(on) =>
+                  send({ kind: 'powerFreeze', on }, (n) => {
+                    n.powerFreeze = on
+                  })
+                }
+              />
+              <SwitchRow
+                title="급속냉장"
+                hint="음료나 반찬을 빨리 식혀요"
+                on={s.powerCool}
+                disabled={busy}
+                onToggle={(on) =>
+                  send({ kind: 'powerCool', on }, (n) => {
+                    n.powerCool = on
+                  })
+                }
+              />
+            </div>
+          </section>
+
+          <div className="grid grid-cols-2 divide-x divide-line rounded-2xl bg-bg p-4">
+            <div className="pr-4">
+              <p className="text-[13px] font-bold text-muted">이번 달 전기</p>
+              <p className="tabular mt-1 text-lg font-extrabold">{s.monthKwh ?? '-'} kWh</p>
+              {s.powerW !== null && <p className="tabular text-xs text-muted">지금 {s.powerW}W</p>}
+            </div>
+            <div className="pl-4">
+              <p className="text-[13px] font-bold text-muted">변온실</p>
+              <p className="mt-1 text-lg font-extrabold">{(s.flexMode && FLEX_MODE_LABEL[s.flexMode]) ?? '-'}</p>
+              <p className="text-xs text-muted">스마트싱스 앱에서 바꿔요</p>
+            </div>
           </div>
-          <IconButton aria-label="새로고침" onClick={load} disabled={busy}>
-            <RefreshCw size={18} className={cx(busy && 'animate-spin motion-reduce:animate-none')} />
-          </IconButton>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {(['cooler', 'freezer'] as const).map((z) => (
-            <ZoneTile
-              key={z}
-              zone={z}
-              state={s}
-              disabled={busy}
-              onApply={(value) =>
-                send({ kind: 'setpoint', zone: z, value }, (n) => {
-                  n[z].setpoint = value
-                })
-              }
+
+          {st.demo ? (
+            <p className="text-center text-xs break-keep text-faint">
+              체험 모드라 예시 값이에요. Supabase를 연결하고 스마트싱스 토큰을 넣으면 우리 집 냉장고가 보여요.
+            </p>
+          ) : (
+            <LinkCard
+              st={st}
+              oauthLinked={status.auth === 'oauth'}
+              oauthAvailable={!!status.oauth}
+              linkedAt={status.linkedAt}
+              now={loadedAt}
+              onChanged={load}
             />
-          ))}
+          )}
         </div>
-      </Card>
-
-      <DoorCard state={s} now={loadedAt} />
-
-      <Card className="p-5">
-        <h2 className="text-[15px] font-extrabold">빠르게 차갑게</h2>
-        <div className="mt-3 flex flex-col gap-2">
-          <SwitchRow
-            title="급속냉동"
-            hint="장 본 고기·생선을 빨리 얼려요"
-            on={s.powerFreeze}
-            disabled={busy}
-            onToggle={(on) =>
-              send({ kind: 'powerFreeze', on }, (n) => {
-                n.powerFreeze = on
-              })
-            }
-          />
-          <SwitchRow
-            title="급속냉장"
-            hint="음료나 반찬을 빨리 식혀요"
-            on={s.powerCool}
-            disabled={busy}
-            onToggle={(on) =>
-              send({ kind: 'powerCool', on }, (n) => {
-                n.powerCool = on
-              })
-            }
-          />
-        </div>
-      </Card>
-
-      <Card className="grid grid-cols-2 divide-x divide-line p-5">
-        <div className="pr-4">
-          <p className="text-[13px] font-bold text-muted">이번 달 전기</p>
-          <p className="tabular mt-1 text-lg font-extrabold">{s.monthKwh ?? '-'} kWh</p>
-          {s.powerW !== null && <p className="tabular text-xs text-muted">지금 {s.powerW}W</p>}
-        </div>
-        <div className="pl-4">
-          <p className="text-[13px] font-bold text-muted">변온실</p>
-          <p className="mt-1 text-lg font-extrabold">{(s.flexMode && FLEX_MODE_LABEL[s.flexMode]) ?? '-'}</p>
-          <p className="text-xs text-muted">스마트싱스 앱에서 바꿔요</p>
-        </div>
-      </Card>
-
-      {!st.demo && (
-        <LinkCard
-          st={st}
-          oauthLinked={status.auth === 'oauth'}
-          oauthAvailable={!!status.oauth}
-          linkedAt={status.linkedAt}
-          now={loadedAt}
-          onChanged={load}
-        />
-      )}
-    </div>
+      </Sheet>
+    </>
   )
 }
 
@@ -331,7 +329,7 @@ function SummaryCard({ state: s, now, onOpen }: { state: FridgeState; now: numbe
   return (
     <button
       onClick={onOpen}
-      aria-expanded={false}
+      aria-haspopup="dialog"
       className={cx(
         'flex w-full items-center gap-3 rounded-card p-4 text-left shadow-card transition active:brightness-95',
         warn ? 'bg-urgent-soft' : 'bg-surface',
@@ -354,15 +352,15 @@ function SummaryCard({ state: s, now, onOpen }: { state: FridgeState; now: numbe
           {boost && !warn && <span className="font-semibold text-accent"> · {boost} 켜짐</span>}
         </p>
       </div>
-      <ChevronDown size={18} className="shrink-0 text-muted" />
+      <ChevronRight size={18} className="shrink-0 text-muted" />
     </button>
   )
 }
 
-function DoorCard({ state: s, now }: { state: FridgeState; now: number }) {
+function DoorRow({ state: s, now }: { state: FridgeState; now: number }) {
   const { changed, openFor, warn } = doorInfo(s, now)
   return (
-    <Card className={cx('flex items-center gap-3 p-5', warn && 'bg-urgent-soft')}>
+    <div className={cx('flex items-center gap-3 rounded-2xl p-4', warn ? 'bg-urgent-soft' : 'bg-bg')}>
       <span
         className={cx(
           'grid h-11 w-11 shrink-0 place-items-center rounded-2xl',
@@ -381,7 +379,7 @@ function DoorCard({ state: s, now }: { state: FridgeState; now: number }) {
           <p className="text-xs text-muted">{s.doorOpen ? '방금 열렸어요' : `${ago(changed, now)} 닫혔어요`}</p>
         )}
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -423,13 +421,10 @@ function ConnectCard({
   const connectOAuth = () => run(async () => location.assign(await st.oauthStart()))
 
   return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div>
-        <h2 className="text-[17px] font-extrabold">스마트싱스 냉장고 연결</h2>
-        <p className="mt-1 text-sm break-keep text-muted">
-          연결하면 냉장고 온도와 문 상태를 보고, 급속냉동을 켜거나 온도를 바꿀 수 있어요.
-        </p>
-      </div>
+    <div className="flex flex-col gap-4">
+      <p className="text-sm break-keep text-muted">
+        연결하면 냉장고 온도와 문 상태를 보고, 급속냉동을 켜거나 온도를 바꿀 수 있어요.
+      </p>
 
       {oauth && (
         <Button disabled={busy} onClick={connectOAuth}>
@@ -441,7 +436,12 @@ function ConnectCard({
         <div className="flex flex-col gap-3">
           <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
             <li>
-              <a href={TOKEN_PAGE} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent">
+              <a
+                href={TOKEN_PAGE}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-accent"
+              >
                 스마트싱스 토큰 페이지
                 <ExternalLink size={14} />
               </a>
@@ -467,7 +467,8 @@ function ConnectCard({
             {busy ? '연결하는 중…' : '토큰으로 연결'}
           </Button>
           <p className="text-xs break-keep text-muted">
-            토큰은 우리 집 서버에만 저장되고 앱에서는 다시 볼 수 없어요. 토큰은 하루가 지나면 만료돼서 그때 새로 넣어야 해요.
+            토큰은 우리 집 서버에만 저장되고 앱에서는 다시 볼 수 없어요. 토큰은 하루가 지나면 만료돼서 그때 새로 넣어야
+            해요.
           </p>
         </div>
       ) : (
@@ -480,7 +481,7 @@ function ConnectCard({
       <button className="self-center py-1 text-[13px] text-muted" onClick={onCancel}>
         나중에 할게요
       </button>
-    </Card>
+    </div>
   )
 }
 
@@ -502,7 +503,7 @@ function LinkCard({
   const { confirm, dialog } = useDialog()
   const left = Date.parse(linkedAt) + 24 * 3600_000 - now
   return (
-    <Card className="flex flex-col gap-3 p-5">
+    <div className="flex flex-col gap-3 rounded-2xl bg-bg p-4">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-bold">{oauthLinked ? '삼성 계정으로 연결됨' : '토큰으로 연결됨'}</p>
@@ -518,7 +519,13 @@ function LinkCard({
           variant="danger"
           size="md"
           onClick={async () => {
-            if (await confirm('스마트싱스 연결을 해제할까요?', '저장된 연결 정보를 지워요. 다시 쓰려면 새로 연결해야 해요.', '연결 해제')) {
+            if (
+              await confirm(
+                '스마트싱스 연결을 해제할까요?',
+                '저장된 연결 정보를 지워요. 다시 쓰려면 새로 연결해야 해요.',
+                '연결 해제',
+              )
+            ) {
               await st.disconnect()
               onChanged()
             }
@@ -533,7 +540,7 @@ function LinkCard({
         </Button>
       )}
       {dialog}
-    </Card>
+    </div>
   )
 }
 
