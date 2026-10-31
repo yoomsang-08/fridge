@@ -93,3 +93,11 @@ body {
   }
 }
 
+
+/* 기념일 가랜드가 위에서 살짝 내려앉는다 */
+@keyframes garland-drop {
+  from {
+    transform: translateY(-24px);
+    opacity: 0;
+  }
+}

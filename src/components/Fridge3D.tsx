@@ -19,6 +19,7 @@ import {
   type DoorSpec,
   type FridgeShape,
 } from '../lib/fridgeShape'
+import { BUNTING, type Celebration } from '../lib/celebrations'
 import { magnetOf } from '../lib/notes'
 import { bodyColor, SHAPE_HEIGHT } from '../lib/container3d'
 import { Container3D } from './Container3D'
@@ -48,6 +49,8 @@ interface Props {
   onOpenNotes?: () => void
   /** 두 번째 문(없으면 첫 번째 문) 앞면에 붙일 사진 */
   photos?: FridgePhoto[]
+  /** 오늘이 생일·기념일이면 닫힌 문 위쪽에 가랜드와 축하 문구 */
+  celebration?: Celebration | null
 }
 
 const WALL = 0.03
@@ -157,6 +160,12 @@ function noteTexture(note: Note) {
         g.fillStyle = token('accent')
         g.font = `44px ${FONT}`
         g.fillText('♥', 128, 46)
+      } else if (magnet === 'cake') {
+        g.fillStyle = token('accent')
+        g.beginPath()
+        g.roundRect(104, 22, 48, 28, 5)
+        g.fill()
+        g.fillRect(126, 6, 4, 16)
       } else if (magnet === 'egg') {
         g.fillStyle = '#ffffff'
         g.beginPath()
@@ -268,6 +277,68 @@ function DoorPhoto({ photo, position, tilt, onOpen }: { photo: FridgePhoto; posi
         <meshBasicMaterial color={token('accent')} toneMapped={false} />
       </mesh>
     </group>
+  )
+}
+
+/** 기념일 현수막: 위에는 깃발 가랜드, 아래에는 축하 문구 */
+function bannerTexture(c: Celebration) {
+  return cachedTexture(
+    `banner|${c.id}`,
+    (g) => {
+      const w = 1040
+      // 가랜드: 처진 줄에 깃발
+      g.strokeStyle = token('muted')
+      g.lineWidth = 3
+      g.beginPath()
+      g.moveTo(10, 8)
+      g.quadraticCurveTo(w / 2, 58, w - 10, 8)
+      g.stroke()
+      const n = 13
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n
+        const x = 10 + (w - 20) * t
+        const y = 8 + 100 * t * (1 - t)
+        const fw = ((w - 20) / n) * 0.78
+        g.fillStyle = token(BUNTING[i % BUNTING.length])
+        g.strokeStyle = token('line')
+        g.lineWidth = 2
+        g.beginPath()
+        g.moveTo(x - fw / 2, y)
+        g.lineTo(x + fw / 2, y)
+        g.lineTo(x, y + fw * 1.05)
+        g.closePath()
+        g.fill()
+        g.stroke()
+      }
+      // 축하 문구 카드
+      g.fillStyle = token('surface')
+      g.beginPath()
+      g.roundRect(90, 92, w - 180, 160, 30)
+      g.fill()
+      g.textAlign = 'center'
+      g.fillStyle = token('accent')
+      g.font = `800 62px ${FONT}`
+      g.fillText(c.title, w / 2, 160)
+      g.fillStyle = token('muted')
+      g.font = `600 44px ${FONT}`
+      g.fillText(c.message, w / 2, 226)
+    },
+    1040,
+    260,
+  )
+}
+
+function CelebrationBanner({ shape, celebration }: { shape: FridgeShape; celebration: Celebration }) {
+  const W = shape.width / 1000
+  const H = shape.height / 1000
+  const D = shape.depth / 1000
+  const bw = W * 0.86
+  const bh = (bw * 260) / 1040
+  return (
+    <mesh position={[0, H - 0.012 - bh / 2, D / 2 + 0.006]} renderOrder={2}>
+      <planeGeometry args={[bw, bh]} />
+      <meshBasicMaterial map={bannerTexture(celebration)} transparent toneMapped={false} depthWrite={false} />
+    </mesh>
   )
 }
 
@@ -578,6 +649,7 @@ function Door({
   onOpen,
   notes = [],
   photos = [],
+  drop = 0,
   onOpenNotes,
 }: {
   door: DoorSpec
@@ -586,6 +658,8 @@ function Door({
   /** 문 앞면에 붙일 메모 */
   notes?: Note[]
   photos?: FridgePhoto[]
+  /** 기념일 현수막이 걸리면 메모·사진을 그만큼 아래로 (m) */
+  drop?: number
   onOpenNotes?: () => void
   pockets: Compartment[]
   itemsByCompartment: Map<string, Item[]>
@@ -680,7 +754,7 @@ function Door({
           <mesh
             key={n.id}
             // 문 가운데에 지그재그로 (손잡이와 겹치지 않게 가운데 쪽)
-            position={[(i % 2 ? 1 : -1) * Math.min(0.05, dw * 0.1), dh * 0.2 - i * NOTE_STEP, PANEL + 0.002 + i * 0.0004]}
+            position={[(i % 2 ? 1 : -1) * Math.min(0.05, dw * 0.1), dh * 0.2 - drop - i * NOTE_STEP, PANEL + 0.002 + i * 0.0004]}
             rotation={[0, 0, NOTE_TILT[i % NOTE_TILT.length]]}
             onClick={(e) => {
               if (!isTap(e)) return
@@ -697,7 +771,7 @@ function Door({
             key={p.id}
             photo={p}
             // 문 위쪽 가운데, 두 번째 장은 아래로 살짝 겹쳐서
-            position={[(i % 2 ? -1 : 1) * Math.min(0.04, dw * 0.08), dh * 0.16 - i * 0.24, PANEL + 0.003 + i * 0.0004]}
+            position={[(i % 2 ? -1 : 1) * Math.min(0.04, dw * 0.08), dh * 0.16 - drop * 1.6 - i * 0.24, PANEL + 0.003 + i * 0.0004]}
             tilt={PHOTO_TILT[i % PHOTO_TILT.length]}
             onOpen={onOpenNotes}
           />
@@ -1025,7 +1099,7 @@ function CameraRig({
 // ---------- 장면 ----------
 
 export default function Fridge3D(props: Props) {
-  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg, notes = [], onOpenNotes, photos = [] } =
+  const { shape, compartments, itemsByCompartment, selectedId, doorOpen, camera, cameraNonce, onSelect, onToggleDoor, onOpenItem, onEgg, egg, notes = [], onOpenNotes, photos = [], celebration } =
     props
   const H = shape.height / 1000
 
@@ -1084,6 +1158,7 @@ export default function Fridge3D(props: Props) {
       />
 
       <Cabinet shape={shape} />
+      {celebration && !shape.doors.some((d) => doorOpen[d.id]) && <CelebrationBanner shape={shape} celebration={celebration} />}
       <CeilingLight shape={shape} onEgg={onEgg} />
       {egg && (
         <sprite position={[0, H * 0.9, 0.05]} scale={[0.14, 0.14, 1]}>
@@ -1116,6 +1191,7 @@ export default function Fridge3D(props: Props) {
           onOpen={onOpenItem}
           notes={d === shape.doors[0] ? notes : undefined}
           photos={d === (shape.doors[1] ?? shape.doors[0]) ? photos : undefined}
+          drop={celebration ? 0.035 : 0}
           onOpenNotes={onOpenNotes}
         />
       ))}

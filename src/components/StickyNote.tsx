@@ -1,4 +1,4 @@
-import { Heart, MessageCircle } from 'lucide-react'
+import { Cake, Heart, MessageCircle } from 'lucide-react'
 import { magnetOf, notePaper, shortAgo, splitHashtags } from '../lib/notes'
 import type { Note } from '../lib/types'
 import { cx } from '../lib/cx'
@@ -66,6 +66,9 @@ function Magnet({ body }: { body: string }) {
   const place = 'absolute top-1 left-1/2 -translate-x-1/2'
   if (kind === 'heart') {
     return <Heart aria-hidden size={16} strokeWidth={0} className={cx(place, 'fill-accent')} />
+  }
+  if (kind === 'cake') {
+    return <Cake aria-hidden size={18} strokeWidth={2.2} className={cx(place, '-top-0.5 text-accent')} />
   }
   if (kind === 'egg') {
     return (

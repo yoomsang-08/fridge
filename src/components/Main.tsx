@@ -15,6 +15,7 @@ import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
 import { NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from './NoteSheet'
 import { Settings } from './Settings'
+import { celebrationToday } from '../lib/celebrations'
 import { cx } from '../lib/cx'
 import { Button, Card, Logo, SunnyEgg } from './ui'
 
@@ -65,6 +66,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
   const [removed, setRemoved] = useState<{ note: Note; comments: NoteComment[] } | null>(null)
   const egg = useSunnyEgg()
+  const celebration = useMemo(() => celebrationToday(), [])
   const compactFab = useScrollingDown()
 
   const reload = useCallback(async () => {
@@ -161,6 +163,9 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               <span className="block truncate text-xs text-muted">
                 {egg.on ? (
                   '써니사이드업 팀이 지선 님을 응원해요'
+                ) : celebration ? (
+                  // 생일·기념일에는 집 이름 대신 축하 한 줄 (냉장고 탭에는 가랜드)
+                  <span className="font-semibold text-accent">{celebration.title}</span>
                 ) : (
                   <>
                     {household.name}

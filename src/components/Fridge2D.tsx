@@ -10,6 +10,7 @@ import {
   type DoorSpec,
   type FridgeShape,
 } from '../lib/fridgeShape'
+import type { Celebration } from '../lib/celebrations'
 import { magnetOf, notePaper } from '../lib/notes'
 import type { Compartment, FridgePhoto, Item, Layout, Note } from '../lib/types'
 import { cx } from '../lib/cx'
@@ -30,6 +31,8 @@ interface Props {
   onOpenNotes?: () => void
   /** 두 번째 문(없으면 첫 번째 문) 앞면에 붙일 사진 */
   photos?: FridgePhoto[]
+  /** 오늘이 생일·기념일이면 닫힌 정면 위에 가랜드와 축하 문구 */
+  celebration?: Celebration | null
 }
 
 interface Box {
@@ -192,7 +195,7 @@ function Region({
 }
 
 /** 문 닫힌 정면: 문마다 그 안의 식품 수와 기한 단계별 작은 배지 */
-function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpenNotes, photos }: {
+function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpenNotes, photos, celebration }: {
   shape: FridgeShape
   /** 열린 정면의 전체 폭. 닫혀도 같은 비율(같은 높이)로 그린다 */
   frameW: number
@@ -202,11 +205,12 @@ function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpen
   notes: Note[]
   onOpenNotes?: () => void
   photos: FridgePhoto[]
+  celebration?: Celebration | null
 }) {
   const W = shape.width
   const H = shape.height
   return (
-    <svg viewBox={`${-(frameW - W) / 2 - 10} -10 ${frameW + 20} ${H + 20}`} className="mx-auto block max-h-[64dvh] w-full" role="img" aria-label="문 닫힌 정면">
+    <svg viewBox={`${-(frameW - W) / 2 - 10} ${celebration ? -GARLAND_H : -10} ${frameW + 20} ${H + 20 + (celebration ? GARLAND_H - 10 : 0)}`} className="mx-auto block max-h-[64dvh] w-full" role="img" aria-label="문 닫힌 정면">
       <rect x={0} y={0} width={W} height={H} rx={16} className={cx('fill-sunken', OUTLINE)} strokeWidth={4} />
       {shape.doors.map((d) => {
         const b = scale(d.rect, { x: 0, y: 0, w: W, h: H })
@@ -252,6 +256,7 @@ function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpen
       {shape.display && (
         <rect {...rectProps(scale(shape.display, { x: 0, y: 0, w: W, h: H }))} rx={8} className="fill-ink" />
       )}
+      {celebration && <Garland W={W} celebration={celebration} />}
       {photos.length > 0 && (
         <DoorPhotos door={scale((shape.doors[1] ?? shape.doors[0]).rect, { x: 0, y: 0, w: W, h: H })} photos={photos} onOpen={onOpenNotes} />
       )}
@@ -259,6 +264,43 @@ function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpen
         <DoorNotes door={scale(shape.doors[0].rect, { x: 0, y: 0, w: W, h: H })} notes={notes} onOpen={onOpenNotes} />
       )}
     </svg>
+  )
+}
+
+/** 기념일에 냉장고 위로 비워 두는 높이(mm) */
+const GARLAND_H = 420
+const FLAG_FILL = ['fill-note-yellow', 'fill-note-pink', 'fill-note-mint', 'fill-note-sky']
+
+/** 기념일 장식: 냉장고 위에 축하 문구, 그 아래로 깃발 가랜드가 문 위쪽에 걸린다 */
+function Garland({ W, celebration }: { W: number; celebration: Celebration }) {
+  // 양 끝을 냉장고 위 모서리 조금 위에 걸고 가운데가 처지게
+  const y0 = -170
+  const sag = 110
+  const at = (t: number) => ({ x: W * t, y: y0 + 4 * sag * t * (1 - t) - sag / 2 })
+  const n = 9
+  return (
+    <g role="img" aria-label={`${celebration.title}. ${celebration.message}`} className="motion-safe:animate-[garland-drop_400ms_ease-out]">
+      <text x={W / 2} y={-GARLAND_H + 90} fontSize={68} textAnchor="middle" className="fill-accent font-extrabold">
+        {celebration.title}
+      </text>
+      <text x={W / 2} y={-GARLAND_H + 150} fontSize={42} textAnchor="middle" className="fill-muted">
+        {celebration.message}
+      </text>
+      <path d={`M 0 ${y0 - sag / 2} Q ${W / 2} ${y0 + sag * 1.5} ${W} ${y0 - sag / 2}`} fill="none" className="stroke-faint" strokeWidth={4} />
+      {Array.from({ length: n }, (_, i) => {
+        const p = at((i + 0.5) / n)
+        const fw = (W / n) * 0.78
+        return (
+          <path
+            key={i}
+            d={`M ${p.x - fw / 2} ${p.y} L ${p.x + fw / 2} ${p.y} L ${p.x} ${p.y + fw * 1.1} Z`}
+            className={cx(FLAG_FILL[i % FLAG_FILL.length], 'stroke-line')}
+            strokeWidth={3}
+            strokeLinejoin="round"
+          />
+        )
+      })}
+    </g>
   )
 }
 
@@ -344,6 +386,11 @@ function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?:
               <text x={x + NOTE / 2} y={y + 26} fontSize={34} textAnchor="middle" className="fill-accent">
                 ♥
               </text>
+            ) : magnet === 'cake' ? (
+              <g className="fill-accent">
+                <rect x={x + NOTE / 2 - 20} y={y + 6} width={40} height={22} rx={4} />
+                <rect x={x + NOTE / 2 - 2} y={y - 8} width={4} height={14} />
+              </g>
             ) : magnet === 'egg' ? (
               <g>
                 <ellipse cx={x + NOTE / 2} cy={y + 14} rx={17} ry={14} className="fill-surface stroke-line" strokeWidth={3} />
@@ -359,7 +406,7 @@ function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?:
   )
 }
 
-export function Fridge2D({ view, shape, compartments, itemsByCompartment, selectedId, onSelect, onOpenItem, onOpenDoors, notes = [], onOpenNotes, photos = [] }: Props) {
+export function Fridge2D({ view, shape, compartments, itemsByCompartment, selectedId, onSelect, onOpenItem, onOpenDoors, notes = [], onOpenNotes, photos = [], celebration }: Props) {
   const W = shape.width
   const H = shape.height
   const placed = compartments.filter((c) => c.layout)
@@ -379,7 +426,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
   const total = bodyX + W + (rw ? gap + rw : 0)
 
   if (view === 'closed')
-    return <ClosedView shape={shape} frameW={total} placed={placed} itemsOf={itemsOf} onOpenDoors={onOpenDoors} notes={notes} onOpenNotes={onOpenNotes} photos={photos} />
+    return <ClosedView shape={shape} frameW={total} placed={placed} itemsOf={itemsOf} onOpenDoors={onOpenDoors} notes={notes} onOpenNotes={onOpenNotes} photos={photos} celebration={celebration} />
 
   const dividers = (inner: Box, onlyH = false) =>
     shape.dividers
