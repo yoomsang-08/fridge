@@ -189,8 +189,10 @@ function Region({
 }
 
 /** 문 닫힌 정면: 문마다 그 안의 식품 수와 기한 단계별 작은 배지 */
-function ClosedView({ shape, placed, itemsOf, onOpenDoors, notes, onOpenNotes }: {
+function ClosedView({ shape, frameW, placed, itemsOf, onOpenDoors, notes, onOpenNotes }: {
   shape: FridgeShape
+  /** 열린 정면의 전체 폭. 닫혀도 같은 비율(같은 높이)로 그린다 */
+  frameW: number
   placed: Compartment[]
   itemsOf: (c: Compartment) => Item[]
   onOpenDoors: () => void
@@ -200,7 +202,7 @@ function ClosedView({ shape, placed, itemsOf, onOpenDoors, notes, onOpenNotes }:
   const W = shape.width
   const H = shape.height
   return (
-    <svg viewBox={`-20 -20 ${W + 40} ${H + 40}`} className="mx-auto block max-h-[64dvh] w-full" role="img" aria-label="문 닫힌 정면">
+    <svg viewBox={`${-(frameW - W) / 2 - 10} -10 ${frameW + 20} ${H + 20}`} className="mx-auto block max-h-[64dvh] w-full" role="img" aria-label="문 닫힌 정면">
       <rect x={0} y={0} width={W} height={H} rx={16} className={cx('fill-sunken', OUTLINE)} strokeWidth={4} />
       {shape.doors.map((d) => {
         const b = scale(d.rect, { x: 0, y: 0, w: W, h: H })
@@ -223,9 +225,11 @@ function ClosedView({ shape, placed, itemsOf, onOpenDoors, notes, onOpenNotes }:
             <text x={cxDoor} y={top + 90} fontSize={50} textAnchor="middle" className="fill-ink font-bold">
               {d.label}
             </text>
-            <text x={cxDoor} y={top + 150} fontSize={44} textAnchor="middle" className="tabular fill-muted">
-              {items.length}개
-            </text>
+            {items.length > 0 && (
+              <text x={cxDoor} y={top + 150} fontSize={44} textAnchor="middle" className="tabular fill-muted">
+                식품 {items.length}개
+              </text>
+            )}
             {badges.map((lv, i) => {
               // 좁은 문에서도 겹치지 않게 세로로 쌓는다
               const bw = 170
@@ -251,10 +255,12 @@ function ClosedView({ shape, placed, itemsOf, onOpenDoors, notes, onOpenNotes }:
   )
 }
 
-const NOTE = 200
+const NOTE = 300
+/** 메모 세로 간격: 아래 메모가 윗 메모의 빈 아래 여백만 살짝 덮는다 */
+const NOTE_STEP = 230
 const NOTE_TILT = [-2, 1.5, -1]
 /** 손으로 붙인 느낌이 나게 좌우로 살짝 엇갈리게 (mm, 폰에서 약 5px) */
-const NOTE_SHIFT = [-14, 12, -6]
+const NOTE_SHIFT = [-20, 18, -8]
 
 /** 문 닫힌 정면: 첫 번째 문 아래쪽에 포스트잇 메모. 누르면 메모 탭 */
 function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?: () => void }) {
@@ -275,15 +281,15 @@ function DoorNotes({ door, notes, onOpen }: { door: Box; notes: Note[]; onOpen?:
         const col = i % cols
         const row = Math.floor(i / cols)
         const x = door.x + (door.w - rowW) / 2 + col * (NOTE + 20) + NOTE_SHIFT[i % NOTE_SHIFT.length]
-        // 문 아래쪽(손잡이 홈 위)에 모아 붙이고, 최근 메모가 맨 위
-        const y = door.y + door.h - 70 - rows * NOTE - (rows - 1) * 24 + row * (NOTE + 24)
+        // 문 아래쪽(손잡이 홈 위)에 살짝 겹쳐 붙이고, 최근 메모가 맨 위
+        const y = door.y + door.h - 70 - NOTE - (rows - 1) * NOTE_STEP + row * NOTE_STEP
         const magnet = magnetOf(n.body)
         return (
           <g key={n.id} transform={`rotate(${NOTE_TILT[i % NOTE_TILT.length]} ${x + NOTE / 2} ${y + NOTE / 2})`}>
             <foreignObject x={x} y={y} width={NOTE} height={NOTE}>
               <div
                 className={cx(
-                  'h-full w-full overflow-hidden rounded-[6px] px-4 pt-7 pb-3 text-[34px] leading-[1.25] font-bold break-keep text-ink shadow-card',
+                  'h-full w-full overflow-hidden rounded-[6px] px-5 pt-9 pb-4 text-[50px] leading-[1.2] font-bold break-keep text-ink shadow-card',
                   notePaper(n.color),
                 )}
               >
@@ -319,8 +325,17 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
   const svgClass = 'mx-auto block max-h-[64dvh] w-full touch-manipulation'
   const wall = 26
 
+  // 열린 정면: 가운데 몸체, 열린 문은 경첩 쪽 바깥으로 펼쳐서 안쪽 포켓이 보이게
+  const flap = 0.62
+  const maxW = (ds: DoorSpec[]) => Math.max(0, ...ds.map((d) => d.rect.w * W * flap))
+  const lw = maxW(shape.doors.filter((d) => d.hinge === 'left'))
+  const rw = maxW(shape.doors.filter((d) => d.hinge === 'right'))
+  const gap = 24
+  const bodyX = lw ? lw + gap : 0
+  const total = bodyX + W + (rw ? gap + rw : 0)
+
   if (view === 'closed')
-    return <ClosedView shape={shape} placed={placed} itemsOf={itemsOf} onOpenDoors={onOpenDoors} notes={notes} onOpenNotes={onOpenNotes} />
+    return <ClosedView shape={shape} frameW={total} placed={placed} itemsOf={itemsOf} onOpenDoors={onOpenDoors} notes={notes} onOpenNotes={onOpenNotes} />
 
   const dividers = (inner: Box, onlyH = false) =>
     shape.dividers
@@ -334,14 +349,6 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
       )
 
   if (view === 'open') {
-    // 가운데 몸체, 열린 문은 경첩 쪽 바깥으로 펼쳐서 안쪽 포켓이 보이게
-    const flap = 0.62
-    const maxW = (ds: DoorSpec[]) => Math.max(0, ...ds.map((d) => d.rect.w * W * flap))
-    const lw = maxW(shape.doors.filter((d) => d.hinge === 'left'))
-    const rw = maxW(shape.doors.filter((d) => d.hinge === 'right'))
-    const gap = 24
-    const bodyX = lw ? lw + gap : 0
-    const total = bodyX + W + (rw ? gap + rw : 0)
     const inner = { x: bodyX + wall, y: wall, w: W - wall * 2, h: H - wall * 2 }
     // 문을 펼치면 바깥 문 이름이 안 보이니, 아래 칸 묶음(냉동실·맞춤보관실) 맨 위에 구역 이름 한 줄을 둔다
     const lowerBy = new Map<string, Compartment[]>()

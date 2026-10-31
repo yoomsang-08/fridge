@@ -50,6 +50,9 @@ const PANEL = 0.05
 const POCKET_DEPTH = 0.11
 const OPEN_ANGLE = (105 * Math.PI) / 180
 const NOTE_TILT = [-0.05, 0.035, -0.025]
+/** 문 앞 메모 크기(m). 닫힌 문 정면에서 폰 글자가 11px 이상 되게 */
+const NOTE_SIZE = 0.21
+const NOTE_STEP = 0.215
 /** 드래그(회전)와 탭을 구분하는 거리(px) */
 const TAP_SLOP = 6
 
@@ -115,6 +118,25 @@ function pillTexture(text: string, bg: string, fg: string) {
   )
 }
 
+/** 밝은 새틴 문 앞면: 위에서 아래로 아주 옅게 어두워진다 */
+function satinTexture(base: string) {
+  return cachedTexture(
+    `satin|${base}`,
+    (g) => {
+      const c = new THREE.Color(base)
+      const top = c.clone().lerp(new THREE.Color('#ffffff'), 0.35)
+      const bottom = c.clone().multiplyScalar(0.96)
+      const grad = g.createLinearGradient(0, 0, 0, 256)
+      grad.addColorStop(0, `#${top.getHexString()}`)
+      grad.addColorStop(1, `#${bottom.getHexString()}`)
+      g.fillStyle = grad
+      g.fillRect(0, 0, 8, 256)
+    },
+    8,
+    256,
+  )
+}
+
 /** 냉장고 문에 붙은 메모: 종이색 + 자석 + 앞 몇 줄 */
 function noteTexture(note: Note) {
   return cachedTexture(
@@ -145,22 +167,32 @@ function noteTexture(note: Note) {
         g.arc(128, 24, 13, 0, Math.PI * 2)
         g.fill()
       }
-      // 한 글자씩 채워 줄바꿈, 넘치면 … 으로
       g.fillStyle = token('ink')
-      g.font = `bold 36px ${FONT}`
+      g.font = `bold 46px ${FONT}`
       g.textAlign = 'left'
+      // 어절(띄어쓰기) 단위로 줄바꿈(keep-all). 한 어절이 한 줄보다 길 때만 글자 단위로 자른다
+      const MAX = 226
       const lines: string[] = []
       let line = ''
-      for (const ch of note.body.replace(/\s+/g, ' ')) {
-        if (g.measureText(line + ch).width > 216) {
-          lines.push(line)
-          line = ch.trimStart()
-        } else line += ch
+      for (const word of note.body.trim().split(/\s+/)) {
+        const next = line ? `${line} ${word}` : word
+        if (g.measureText(next).width <= MAX) {
+          line = next
+          continue
+        }
+        if (line) lines.push(line)
+        line = ''
+        for (const ch of word) {
+          if (line && g.measureText(line + ch).width > MAX) {
+            lines.push(line)
+            line = ch
+          } else line += ch
+        }
       }
       lines.push(line)
-      const shown = lines.slice(0, 4)
-      if (lines.length > 4) shown[3] = shown[3].slice(0, -1) + '…'
-      shown.forEach((l, i) => g.fillText(l, 20, 96 + i * 46))
+      const shown = lines.slice(0, 3)
+      if (lines.length > 3) shown[2] = shown[2].slice(0, -1) + '…'
+      shown.forEach((l, i) => g.fillText(l, 15, 100 + i * 56))
     },
     256,
     256,
@@ -374,6 +406,8 @@ function Basket({ w, h, d, color, selected }: { w: number; h: number; d: number;
 // ---------- 문 ----------
 
 const GROOVE = '#1c1d20'
+/** 무광 문 앞면 기본색 (디자인 가이드: 밝은 새틴) */
+const SATIN = '#e9ecea'
 
 /** 손잡이: 비스포크는 위아래 문 사이 가로 홈, 쿠쿠는 경첩 반대쪽 옆면의 세로 홈 */
 function Handle({ shape, door, dw, dh, sign }: { shape: FridgeShape; door: DoorSpec; dw: number; dh: number; sign: number }) {
@@ -382,10 +416,17 @@ function Handle({ shape, door, dw, dh, sign }: { shape: FridgeShape; door: DoorS
     const atBottom = door.rect.y + door.rect.h < 0.999
     const y = atBottom ? -dh / 2 + 0.012 : dh / 2 - 0.012
     return (
-      <mesh position={[0, y, PANEL + 0.002]}>
-        <boxGeometry args={[dw - 0.004, 0.024, 0.004]} />
-        <meshStandardMaterial color={GROOVE} roughness={0.7} />
-      </mesh>
+      <>
+        <mesh position={[0, y, PANEL + 0.002]}>
+          <boxGeometry args={[dw - 0.004, 0.024, 0.004]} />
+          <meshStandardMaterial color={GROOVE} roughness={0.7} />
+        </mesh>
+        {/* 문 안쪽 가장자리의 얇은 세로 손잡이 (2D와 같은 자리) */}
+        <mesh position={[sign * (dw / 2 - 0.006), atBottom ? -dh * 0.18 : dh * 0.18, PANEL + 0.002]}>
+          <boxGeometry args={[0.006, Math.min(dh * 0.3, 0.3), 0.004]} />
+          <meshStandardMaterial color={GROOVE} roughness={0.7} />
+        </mesh>
+      </>
     )
   }
   return (
@@ -493,11 +534,19 @@ function Door({
         {/* 문 앞판: 테두리를 살짝 남기고 덮는다 */}
         <mesh position={[0, 0, PANEL + 0.0006]}>
           <planeGeometry args={[dw - 0.006, dh - 0.006]} />
-          <meshStandardMaterial
-            color={shape.door.color}
-            metalness={shape.door.metal ? 0.55 : 0.02}
-            roughness={shape.door.metal ? 0.38 : 0.6}
-          />
+          {shape.door.metal ? (
+            <meshStandardMaterial color={shape.door.color} metalness={0.55} roughness={0.38} />
+          ) : (
+            // 조명에 회색으로 죽지 않게 자체 밝기를 조금 더한 새틴
+            <meshStandardMaterial
+              map={satinTexture(SATIN)}
+              emissiveMap={satinTexture(SATIN)}
+              emissive="#ffffff"
+              emissiveIntensity={0.55}
+              metalness={0.05}
+              roughness={0.45}
+            />
+          )}
         </mesh>
         <Handle shape={shape} door={door} dw={dw} dh={dh} sign={sign} />
         {shape.display && <DoorDisplay shape={shape} door={door} dw={dw} dh={dh} />}
@@ -526,8 +575,8 @@ function Door({
         {notes.map((n, i) => (
           <mesh
             key={n.id}
-            // 문 가운데 아래쪽에 지그재그로
-            position={[(i % 2 ? 1 : -1) * Math.min(0.06, dw * 0.15), -dh * 0.06 - i * 0.165, PANEL + 0.002 + i * 0.0004]}
+            // 문 가운데에 지그재그로 (손잡이와 겹치지 않게 가운데 쪽)
+            position={[(i % 2 ? 1 : -1) * Math.min(0.05, dw * 0.1), dh * 0.2 - i * NOTE_STEP, PANEL + 0.002 + i * 0.0004]}
             rotation={[0, 0, NOTE_TILT[i % NOTE_TILT.length]]}
             onClick={(e) => {
               if (!isTap(e)) return
@@ -535,7 +584,7 @@ function Door({
               onOpenNotes?.()
             }}
           >
-            <planeGeometry args={[0.155, 0.155]} />
+            <planeGeometry args={[NOTE_SIZE, NOTE_SIZE]} />
             <meshBasicMaterial map={noteTexture(n)} toneMapped={false} />
           </mesh>
         ))}
@@ -749,7 +798,7 @@ function CeilingLight({ shape, onEgg }: { shape: FridgeShape; onEgg: () => void 
 
 // ---------- 카메라 ----------
 
-function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: CameraPreset; nonce: number }) {
+function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; preset: CameraPreset; nonce: number; closed: boolean }) {
   const controls = useRef<OrbitControlsImpl>(null)
   const { camera, invalidate, size } = useThree()
   const H = shape.height / 1000
@@ -758,7 +807,14 @@ function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: Camer
   // 문이 한쪽으로만 열리면(쿠쿠) 열린 문까지 화면 가운데 오도록 그쪽으로 조금 옮긴다
   const hinges = new Set(shape.doors.map((d) => d.hinge))
   const shiftX = hinges.size === 1 ? (hinges.has('right') ? 0.4 : -0.4) * W : 0
-  const center = useMemo(() => new THREE.Vector3(shiftX, H / 2, 0), [H, shiftX])
+  // 문이 모두 닫힌 정면은 메모가 주인공: 냉장고가 화면 폭의 85%를 차지하게 당기고, 메모가 붙은 위쪽을 가운데로
+  // (세로 화면은 위아래가 조금 잘려도 폭을 채우고, 가로 화면은 냉장고 전체 높이를 맞춘다)
+  const closeUp = closed && preset === 'front'
+  const portrait = size.width < size.height
+  const center = useMemo(
+    () => new THREE.Vector3(closeUp ? 0 : shiftX, closeUp && portrait ? H * 0.62 : H / 2, 0),
+    [H, shiftX, closeUp, portrait],
+  )
 
   useEffect(() => {
     const cam = camera as THREE.PerspectiveCamera
@@ -771,7 +827,10 @@ function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: Camer
     // 문 없는 선반장은 문 몫의 여유가 필요 없어 카드 폭 80~85%까지 당긴다
     const spanW = open ? (preset === 'left' || preset === 'right' ? 1.5 : 1.2) : preset === 'left' || preset === 'right' ? 2.9 : 1.7
     const fitW = (W * spanW) / 2 / Math.tan(fov / 2) / aspect
-    const dist = Math.max(fitH, fitW) + shape.depth / 1000
+    const fitClosed = W / 0.85 / 2 / Math.tan(fov / 2) / aspect
+    const dist = closeUp
+      ? (portrait ? fitClosed : Math.max(fitClosed, fitH)) + shape.depth / 2000
+      : Math.max(fitH, fitW) + shape.depth / 1000
     const dir =
       preset === 'front'
         ? new THREE.Vector3(0, 0.12, 1)
@@ -783,7 +842,7 @@ function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: Camer
     goal.current = dir.normalize().multiplyScalar(dist).add(center)
     controls.current?.target.copy(center)
     invalidate()
-  }, [preset, nonce, shape, camera, size, H, W, center, invalidate])
+  }, [preset, nonce, shape, camera, size, H, W, center, closeUp, portrait, invalidate])
 
   useFrame((state, dt) => {
     if (!goal.current) return
@@ -848,7 +907,8 @@ export default function Fridge3D(props: Props) {
       <directionalLight position={[2, 4, 5]} intensity={1.6} />
       <directionalLight position={[-3, 2, 2]} intensity={0.5} />
       {!shape.wood && <pointLight position={[0, (shape.height / 1000) * 0.9, 0]} intensity={0.6} distance={2} />}
-      <CameraRig shape={shape} preset={camera} nonce={cameraNonce} />
+      {/* 문 없는 팬트리는 '닫힘' 클로즈업 대상이 아니다 */}
+      <CameraRig shape={shape} preset={camera} nonce={cameraNonce} closed={shape.doors.length > 0 && !shape.doors.some((d) => doorOpen[d.id])} />
 
       <Cabinet shape={shape} />
       <CeilingLight shape={shape} onEgg={onEgg} />
@@ -873,7 +933,7 @@ export default function Fridge3D(props: Props) {
           key={d.id}
           door={d}
           shape={shape}
-          open={doorOpen[d.id] ?? true}
+          open={doorOpen[d.id] ?? false}
           pockets={pocketsByDoor.get(d.id) ?? []}
           itemsByCompartment={itemsByCompartment}
           hiddenWarnings={warningsBehind(d)}
