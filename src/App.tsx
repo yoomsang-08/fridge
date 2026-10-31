@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { createLocalRepo, createSupabaseRepo, LOCAL_HOUSEHOLD } from './lib/repo'
+import { disablePush } from './lib/push'
 import { createDemoSmartThings, createSmartThings } from './lib/smartthings'
 import type { Household } from './lib/types'
 import { HouseholdSetup } from './components/HouseholdSetup'
@@ -23,7 +24,14 @@ function SupabaseApp({ sb }: { sb: SupabaseClient }) {
   const smartthings = useMemo(() => (household ? createSmartThings(sb, household.id) : null), [sb, household])
 
   useEffect(() => {
-    const { data } = sb.auth.onAuthStateChange((_event, s) => setSession(s))
+    const { data } = sb.auth.onAuthStateChange((event, s) => {
+      setSession(s)
+      // 기기 연결 해제 뒤에는 새 익명 계정으로 다시 접속해 집 코드 화면을 띄운다
+      if (event === 'SIGNED_OUT') {
+        setHousehold(undefined)
+        sb.auth.signInAnonymously().then(({ error }) => error && setAuthError(error.message))
+      }
+    })
     // 로그인 화면 없이 기기마다 익명 계정으로 자동 접속. 우리 집 데이터 접근은 집 코드로 합류해야 열림
     sb.auth.getSession().then(async ({ data }) => {
       if (data.session) return setSession(data.session)
@@ -68,7 +76,12 @@ function SupabaseApp({ sb }: { sb: SupabaseClient }) {
       repo={repo}
       household={household}
       smartthings={smartthings}
-      onSignOut={() => sb.auth.signOut()}
+      onSignOut={async () => {
+        // 이 기기로 오던 알림을 끊고, 식구 목록에서도 빠진 뒤 로그아웃
+        await disablePush(sb).catch(() => {})
+        await sb.from('household_members').delete().eq('household_id', household.id).eq('user_id', session.user.id)
+        await sb.auth.signOut()
+      }}
     />
   )
 }
