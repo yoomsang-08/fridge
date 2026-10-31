@@ -139,29 +139,36 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     egg.tap()
     setSheet(null)
     openTab('list')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })
   }
 
   return (
     <div className="mx-auto min-h-dvh max-w-3xl pb-44 sm:pb-28">
       <header className="sticky top-0 z-30 flex items-center gap-3 bg-bg/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-md sm:px-6">
         {/* 로고·제목을 누르면 홈(재고)으로, 맨 위로. 로고를 빠르게 다섯 번 누르면 이스터에그 */}
-        <button onClick={goHome} aria-label="홈으로" className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <span className="shrink-0">{egg.on ? <SunnyEgg /> : <Logo />}</span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[17px] leading-tight font-extrabold tracking-tight">냉장고를 부탁해</span>
-            <span className="block truncate text-xs text-muted">
-              {egg.on ? (
-                '써니사이드업 팀이 지선 님을 응원해요'
-              ) : (
-                <>
-                  {household.name}
-                  {snap.items.length > 0 && ` · 식품 ${snap.items.length}개`}
-                </>
-              )}
+        <h1 className="min-w-0 flex-1">
+          <button
+            onClick={goHome}
+            aria-label={egg.on ? undefined : '냉장고를 부탁해, 홈으로'}
+            className="flex w-fit max-w-full items-center gap-3 text-left transition active:opacity-70"
+          >
+            <span className="shrink-0">{egg.on ? <SunnyEgg /> : <Logo />}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[17px] leading-tight font-extrabold tracking-tight">냉장고를 부탁해</span>
+              <span className="block truncate text-xs text-muted">
+                {egg.on ? (
+                  '써니사이드업 팀이 지선 님을 응원해요'
+                ) : (
+                  <>
+                    {household.name}
+                    {snap.items.length > 0 && ` · 식품 ${snap.items.length}개`}
+                  </>
+                )}
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+        </h1>
         <nav className="hidden rounded-xl bg-sunken p-[3px] text-sm sm:flex">
           {TABS.map((t) => (
             <button
