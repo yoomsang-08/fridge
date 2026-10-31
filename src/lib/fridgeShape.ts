@@ -59,9 +59,10 @@ const SHAPES: Record<string, Omit<FridgeShape, 'width' | 'height' | 'depth' | 'e
       { dir: 'v', at: 0.5, from: 0.6, to: 1 },
     ],
   },
-  // 쿠쿠 133L 스탠드 냉동고: 앞문 하나, 손잡이 왼쪽(경첩 오른쪽). 치수는 추정
+  // 쿠쿠 133L 스탠드 냉동고: 앞문 하나, 손잡이 왼쪽(경첩 오른쪽).
+  // 치수는 같은 133L 본체인 CKR-AD1410MS 공개 사양(515×1175×620mm)을 따름
   'cuckoo-upright-freezer-133': {
-    size: [550, 1120, 600],
+    size: [515, 1175, 620],
     doorDepth: 70,
     body: '#b8bcc1',
     door: { color: '#c3c7cc', metal: true },
