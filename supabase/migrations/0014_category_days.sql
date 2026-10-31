@@ -85,6 +85,6 @@ create trigger categories_fill_days before insert on categories
 -- 이미 있는 집에 새 분류 5종 (트리거가 일수를 채운다)
 select seed_home_categories(id) from households;
 
--- 확인: 집마다 17줄, 해산물 냉동 180 / 육류 냉동 90 / 채소 냉동 365
+-- 확인: 집마다 3줄 — 해산물 냉동 180 / 육류 냉동 90 / 채소 냉동 365
 select household_id, id, fridge_days, freezer_days, pantry_days
 from categories where id in ('seafood', 'meat', 'vegetable') order by 1, 2;
