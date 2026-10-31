@@ -624,7 +624,10 @@ function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: Camer
   const H = shape.height / 1000
   const W = shape.width / 1000
   const goal = useRef<THREE.Vector3 | null>(null)
-  const center = useMemo(() => new THREE.Vector3(0, H / 2, 0), [H])
+  // 문이 한쪽으로만 열리면(쿠쿠) 열린 문까지 화면 가운데 오도록 그쪽으로 조금 옮긴다
+  const hinges = new Set(shape.doors.map((d) => d.hinge))
+  const shiftX = hinges.size === 1 ? (hinges.has('right') ? 0.4 : -0.4) * W : 0
+  const center = useMemo(() => new THREE.Vector3(shiftX, H / 2, 0), [H, shiftX])
 
   useEffect(() => {
     const cam = camera as THREE.PerspectiveCamera
@@ -632,7 +635,8 @@ function CameraRig({ shape, preset, nonce }: { shape: FridgeShape; preset: Camer
     const fov = (cam.fov * Math.PI) / 180
     // 문을 연 상태(폭 ≈ 2.6배)까지 화면에 들어오게
     const fitH = (H * 1.08) / 2 / Math.tan(fov / 2)
-    const fitW = (W * 1.7) / 2 / Math.tan(fov / 2) / aspect
+    // 비스듬히 볼 땐 열린 문이 화면 옆으로 더 나오니 여유를 둔다
+    const fitW = (W * (preset === 'left' || preset === 'right' ? 2.9 : 1.7)) / 2 / Math.tan(fov / 2) / aspect
     const dist = Math.max(fitH, fitW) + shape.depth / 1000
     const dir =
       preset === 'front'

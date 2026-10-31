@@ -191,10 +191,10 @@ function ClosedView({ shape, placed, itemsOf, onOpenDoors }: {
               {items.length}개
             </text>
             {badges.map((lv, i) => {
-              const bw = 150
-              const x = cxDoor + (i - (badges.length - 1) / 2) * (bw + 14) - bw / 2
+              // 좁은 문에서도 겹치지 않게 세로로 쌓는다
+              const bw = 170
               return (
-                <g key={lv} transform={`translate(${x}, ${top + 190})`}>
+                <g key={lv} transform={`translate(${cxDoor - bw / 2}, ${top + 185 + i * 78})`}>
                   <rect width={bw} height={64} rx={20} className={BADGE[lv].bg} />
                   <text x={bw / 2} y={34} fontSize={38} textAnchor="middle" dominantBaseline="middle" className={cx('tabular font-bold', BADGE[lv].text)}>
                     {BADGE[lv].label} {count(lv)}
