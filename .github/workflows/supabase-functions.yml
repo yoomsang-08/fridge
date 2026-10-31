@@ -3,7 +3,7 @@ name: Deploy Supabase Edge Functions
 # supabase/functions 아래가 바뀌어 main 에 머지되면 모든 함수를 Supabase 에 배포합니다.
 # 처음 한 번 저장소 Settings → Secrets and variables → Actions 에 SUPABASE_ACCESS_TOKEN 을 넣어야 합니다.
 # (https://supabase.com/dashboard/account/tokens 에서 발급)
-# 식품 검색(food-search)용 FOODSAFETY_API_KEY 도 Secret 에 넣으면 함수 Secret 으로 함께 설정합니다.
+# FOODSAFETY_API_KEY(식품 검색), SMARTTHINGS_CLIENT_ID/SECRET(삼성 계정 연결)도 Secret 에 넣으면 함수 Secret 으로 함께 설정합니다.
 # 아침 알림 호출 확인용 CRON_SECRET 은 넣지 않아도 됩니다. SUPABASE_ACCESS_TOKEN 에서 한 방향으로 만들어 씁니다
 # (expiry-digest 워크플로도 같은 방식으로 만들어 서로 맞습니다). 직접 정하고 싶으면 Secret 에 넣으면 그 값을 씁니다.
 # 함수 폴더에 .no-verify-jwt 파일이 있으면 로그인 토큰 확인 없이 배포합니다(함수가 직접 확인).
@@ -25,6 +25,8 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_ID: aiwqfqfswuehxqferrpn
       FOODSAFETY_API_KEY: ${{ secrets.FOODSAFETY_API_KEY }}
+      SMARTTHINGS_CLIENT_ID: ${{ secrets.SMARTTHINGS_CLIENT_ID }}
+      SMARTTHINGS_CLIENT_SECRET: ${{ secrets.SMARTTHINGS_CLIENT_SECRET }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +44,7 @@ jobs:
         run: |
           CRON_SECRET="${CRON_SECRET:-$(printf 'fridge-cron:%s' "$SUPABASE_ACCESS_TOKEN" | sha256sum | cut -d' ' -f1)}"
           echo "::add-mask::$CRON_SECRET"
-          for key in FOODSAFETY_API_KEY CRON_SECRET; do
+          for key in FOODSAFETY_API_KEY SMARTTHINGS_CLIENT_ID SMARTTHINGS_CLIENT_SECRET CRON_SECRET; do
             if [ -n "${!key}" ]; then
               supabase secrets set "$key=${!key}" --project-ref "$SUPABASE_PROJECT_ID"
             else

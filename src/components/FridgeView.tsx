@@ -9,6 +9,7 @@ import { cx } from '../lib/cx'
 import { Fridge2D } from './Fridge2D'
 import type { CameraPreset } from './Fridge3D'
 import { ItemRow } from './ItemRow'
+import { SpaceIcon } from './SpaceIcon'
 import { Card, Chip, IconButton, Segmented, SunnyEgg } from './ui'
 
 // three.js 는 크니까 3D 를 열 때만 받는다
@@ -17,6 +18,7 @@ const Fridge3D = lazy(() => import('./Fridge3D'))
 type Mode = '3d' | 'flat'
 
 const MODE_KEY = 'fridge-view-mode'
+const DOOR_HINT_KEY = 'fridge-door-hint-v1'
 const CAMERA_ORDER: CameraPreset[] = ['front', 'left', 'right', 'top']
 const CAMERA_LABEL: Record<CameraPreset, string> = { front: '정면', left: '왼쪽', right: '오른쪽', top: '위' }
 
@@ -59,6 +61,8 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const [cameraNonce, setCameraNonce] = useState(0)
   const [doorOpen, setDoorOpen] = useState<Record<string, boolean>>({})
   const [side, setSide] = useState(false)
+  // 문은 닫힌 채로 시작한다. 처음 한 번만 '문을 누르면 안이 보여요'를 띄운다
+  const [hintSeen, setHintSeen] = useState(() => localStorage.getItem(DOOR_HINT_KEY) === '1')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [egg, setEgg] = useState(false)
 
@@ -72,7 +76,11 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const shape = useMemo(() => shapeOf(fridge), [fridge])
   const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
   const byComp = useMemo(() => itemsBy(items), [items])
-  const anyOpen = shape.doors.some((d) => doorOpen[d.id] ?? true)
+  // 팬트리처럼 문이 없으면 늘 열린 것처럼 보여 준다
+  const noDoors = shape.doors.length === 0
+  const anyOpen = noDoors || shape.doors.some((d) => doorOpen[d.id] ?? false)
+  const showHint = !anyOpen && !hintSeen && shape.doors.length > 0
+  const spaces = [...fridges].sort((a, b) => Number(a.template === 'pantry') - Number(b.template === 'pantry'))
   const unplaced = mine.filter((c) => !c.layout)
   const selected = mine.find((c) => c.id === selectedId) ?? null
   const fridgeItems = mine.flatMap((c) => byComp.get(c.id) ?? [])
@@ -86,7 +94,19 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
     setMode(m)
     localStorage.setItem(MODE_KEY, m)
   }
-  const setAllDoors = (open: boolean) => setDoorOpen(Object.fromEntries(shape.doors.map((d) => [d.id, open])))
+  const seeHint = () => {
+    if (hintSeen) return
+    setHintSeen(true)
+    localStorage.setItem(DOOR_HINT_KEY, '1')
+  }
+  const setAllDoors = (open: boolean) => {
+    if (open) seeHint()
+    setDoorOpen(Object.fromEntries(shape.doors.map((d) => [d.id, open])))
+  }
+  const toggleDoor = (id: string) => {
+    seeHint()
+    setDoorOpen((s) => ({ ...s, [id]: !(s[id] ?? false) }))
+  }
   const nextCamera = () => {
     setCamera((c) => CAMERA_ORDER[(CAMERA_ORDER.indexOf(c) + 1) % CAMERA_ORDER.length])
     setCameraNonce((n) => n + 1)
@@ -94,30 +114,43 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
 
   return (
     <div className="flex flex-col gap-3">
-      {header}
+      {/* 상태 카드(냉장·냉동 온도)는 냉장고를 볼 때만 */}
+      {!noDoors && header}
 
-      <div className="flex items-center gap-2">
+      {/* 폰은 공간 칩 줄 아래에 3D·평면, sm 이상은 한 줄 양 끝 */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {fridges.length > 1 && (
-          <Segmented
-            value={fridge.id}
-            options={fridges.map((f) => [f.id, f.name] as const)}
-            onChange={(id) => {
-              setFridgeId(id)
-              setSelectedId(null)
-            }}
-          />
+          <div className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            {spaces.map((f) => (
+              <Chip
+                key={f.id}
+                active={f.id === fridge.id}
+                onClick={() => {
+                  setFridgeId(f.id)
+                  setSelectedId(null)
+                  setSide(false)
+                }}
+              >
+                <SpaceIcon fridge={f} />
+                {f.name}
+              </Chip>
+            ))}
+          </div>
         )}
-        {webgl && (
-          <Segmented
-            className="ml-auto"
-            value={mode}
-            options={[
-              ['3d', '3D'],
-              ['flat', '평면'],
-            ]}
-            onChange={changeMode}
-          />
-        )}
+
+        <div className="flex shrink-0 items-center gap-2">
+          {webgl && (
+            <Segmented
+              className="ml-auto"
+              value={mode}
+              options={[
+                ['3d', '3D'],
+                ['flat', '평면'],
+              ]}
+              onChange={changeMode}
+            />
+          )}
+        </div>
       </div>
 
       <Card className="relative overflow-hidden">
@@ -133,24 +166,26 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
               </IconButton>
             )
           )}
-          <button
-            onClick={() => setAllDoors(!anyOpen)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-sunken px-3 text-sm font-bold text-ink transition active:brightness-95"
-          >
-            {anyOpen ? <DoorClosed size={18} /> : <DoorOpen size={18} />}
-            {anyOpen ? '문 닫기' : '문 열기'}
-          </button>
+          {!noDoors && (
+            <button
+              onClick={() => setAllDoors(!anyOpen)}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-sunken px-3 text-sm font-bold text-ink transition active:brightness-95"
+            >
+              {anyOpen ? <DoorClosed size={18} /> : <DoorOpen size={18} />}
+              {anyOpen ? '문 닫기' : '문 열기'}
+            </button>
+          )}
         </div>
 
         {egg && (
           <div className="pointer-events-none absolute top-2 left-2 z-10 flex animate-[fade-in_200ms] items-center gap-2 rounded-full bg-surface/95 py-1 pr-3 pl-1 shadow-card">
             <SunnyEgg size={28} />
-            <span className="text-xs font-semibold text-muted">불 켜 뒀어요, 지선 님</span>
+            <span className="text-xs font-semibold text-muted">{noDoors ? '간식은 여기 숨겨 뒀어요, 지선 님' : '불 켜 뒀어요, 지선 님'}</span>
           </div>
         )}
 
         {mode === '3d' ? (
-          <div className="h-[60dvh] min-h-80 w-full touch-none">
+          <div className={cx(noDoors ? 'h-[72dvh]' : 'h-[60dvh]', 'min-h-80 w-full touch-none')}>
             <Suspense fallback={<div className="grid h-full place-items-center text-muted">불러오는 중…</div>}>
               <Fridge3D
                 shape={shape}
@@ -161,7 +196,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
                 camera={camera}
                 cameraNonce={cameraNonce}
                 onSelect={setSelectedId}
-                onToggleDoor={(id) => setDoorOpen((s) => ({ ...s, [id]: !(s[id] ?? true) }))}
+                onToggleDoor={toggleDoor}
                 onOpenItem={onOpen}
                 onEgg={() => setEgg(true)}
                 egg={egg}
@@ -171,7 +206,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
             </Suspense>
           </div>
         ) : (
-          <div className="px-3 pt-14 pb-3">
+          <div className={cx('px-3 pt-14', showHint ? 'pb-8' : 'pb-3')}>
             <Fridge2D
               view={!anyOpen ? 'closed' : side ? 'side' : 'open'}
               shape={shape}
@@ -185,6 +220,10 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
               onOpenNotes={onOpenNotes}
             />
           </div>
+        )}
+
+        {showHint && (
+          <p className="pointer-events-none absolute inset-x-0 bottom-2 z-10 mx-auto w-fit rounded-full bg-surface/90 px-2.5 py-0.5 text-xs text-muted">문을 누르면 안이 보여요</p>
         )}
       </Card>
 

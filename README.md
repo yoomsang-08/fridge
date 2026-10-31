@@ -31,20 +31,32 @@ npm run dev
 4. 이어서 `supabase/migrations/0002_code_access.sql` 도 실행
 5. **Authentication → Sign In / Providers** 에서 **Allow anonymous sign-ins** 켜기
 6. 냉장고 문 메모를 쓰려면 `supabase/migrations/0003_notes.sql` 도 실행
+7. 분류를 우리 집마다 관리하고 용기(3D 모양)·식품유형을 저장하려면 `supabase/migrations/0007_categories.sql` 도 실행. 실행 전에도 앱은 기본 분류 12종으로 동작합니다. 팬트리(실온 보관 공간)를 추가하려면 이 파일이 먼저 실행돼 있어야 합니다 (칸 종류에 `pantry` 허용)
 
 로그인 화면은 없습니다. 각 기기는 익명 계정으로 자동 접속하고, 처음 한 번 **우리 집 코드**(12자리)를 넣어야 데이터가 열립니다. 첫 기기에서 "우리 집 새로 만들기"를 누르면 설정 화면에 코드가 나옵니다.
 
-## 스마트싱스 냉장고 연결 (온도 탭)
+## 스마트싱스 냉장고 연결 (냉장고 탭)
 
-온도 탭에서 삼성 냉장고의 냉장·냉동 온도, 문 상태, 이번 달 전기 사용량을 보고 급속냉동·급속냉장을 켜거나 설정 온도를 바꿉니다. 체험 모드에서는 예시 값이 보입니다.
+냉장고 탭 맨 위 **냉장고 상태** 카드에서 삼성 냉장고의 냉장·냉동 온도, 문 상태, 이번 달 전기 사용량을 보고 급속냉동·급속냉장을 켜거나 설정 온도를 바꿉니다. 체험 모드에서는 예시 값이 보입니다.
 
 스마트싱스 토큰은 브라우저에 두지 않고 Supabase Edge Function 이 대신 보관·호출합니다.
 
 1. **SQL Editor** 에서 `supabase/migrations/0004_smartthings.sql` 실행
 2. Edge Function 배포: 저장소 Secrets 에 `SUPABASE_ACCESS_TOKEN` 을 한 번 넣으면, `supabase/functions` 가 바뀌어 main 에 머지될 때마다 GitHub Actions(`supabase-functions.yml`)가 모든 함수를 배포합니다. 바로 배포하려면 Actions 탭에서 **Deploy Supabase Edge Functions → Run workflow**
-3. 앱 **온도** 탭에서 [스마트싱스 토큰](https://account.smartthings.com/tokens)을 붙여 넣고 연결 (Devices 권한 모두 체크)
+3. 앱 **냉장고** 탭의 냉장고 상태 → **연결** 에서 [스마트싱스 토큰](https://account.smartthings.com/tokens)을 붙여 넣고 연결 (Devices 권한 모두 체크)
 
-지금 쓰는 개인 토큰(PAT)은 24시간이면 만료돼서 하루에 한 번 새로 넣어야 합니다. 다음 단계에서 OAuth 로 바꿔 만료 없이 쓰게 할 예정입니다.
+개인 토큰(PAT)은 24시간이면 만료됩니다. 만료 없이 쓰려면 **삼성 계정으로 연결(OAuth)** 을 설정하세요.
+
+### 삼성 계정으로 연결 (만료 없음)
+
+1. SQL Editor 에서 `supabase/migrations/0006_smartthings_oauth.sql` 실행
+2. 맥에서 SmartThings CLI 로 OAuth 앱 등록 (`npm i -g @smartthings/cli` → `smartthings apps:create` → OAuth-In App)
+   - Scopes: `r:devices:*`, `x:devices:*`
+   - Redirect URI: `https://aiwqfqfswuehxqferrpn.supabase.co/functions/v1/smartthings`
+3. 나온 OAuth Client Id / Secret 을 저장소 Secrets 에 `SMARTTHINGS_CLIENT_ID`, `SMARTTHINGS_CLIENT_SECRET` 으로 추가하고 **Deploy Supabase Edge Functions** 실행
+4. 앱 냉장고 상태 → **삼성 계정으로 연결**
+
+서버가 접근 토큰(24시간)을 갱신 토큰으로 알아서 바꿔 씁니다. 갱신 토큰은 29일 동안 안 쓰면 끊기므로 `smartthings-keepalive.yml` 이 매주 한 번 갱신합니다.
 
 ## 배포
 

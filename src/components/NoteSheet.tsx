@@ -1,16 +1,27 @@
 import { Check } from 'lucide-react'
 import { useState } from 'react'
 import { isMine, NOTE_COLORS, NOTE_SUGGESTIONS, notePaper, timeAgo } from '../lib/notes'
-import type { Me, Note, NoteColor, NoteInput } from '../lib/types'
+import type { Me, Member, Note, NoteColor, NoteInput } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Sheet } from './Sheet'
+import { NoteText } from './StickyNote'
 import { Button, Chip, Field } from './ui'
 
 const MAX = 200
 const LAST_COLOR_KEY = 'fridge-last-note-color'
 
 /** 메모 남기기 */
-export function NoteWriteSheet({ onClose, onSave }: { onClose: () => void; onSave: (input: NoteInput) => Promise<void> }) {
+export function NoteWriteSheet({
+  me,
+  members,
+  onClose,
+  onSave,
+}: {
+  me: Me
+  members: Member[]
+  onClose: () => void
+  onSave: (input: NoteInput) => Promise<void>
+}) {
   const [body, setBody] = useState('')
   const [color, setColor] = useState<NoteColor>(
     () => (localStorage.getItem(LAST_COLOR_KEY) as NoteColor | null) ?? 'yellow',
@@ -18,6 +29,11 @@ export function NoteWriteSheet({ onClose, onSave }: { onClose: () => void; onSav
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const text = body.trim()
+  // 해시태그로 부를 수 있는 식구: 나와 이름 없는 사람은 빼고, 둘 이상이면 #모두 도
+  const others = [...new Set(members.filter((m) => m.name && m.name !== me.name).map((m) => m.name!))]
+  const tags = others.length > 1 ? [...others, '모두'] : others
+  const addTag = (name: string) =>
+    setBody((b) => (b.includes(`#${name}`) ? b : `${b.trimEnd()}${b.trim() ? ' ' : ''}#${name} `).slice(0, MAX))
 
   const save = async () => {
     if (!text || busy) return
@@ -69,6 +85,19 @@ export function NoteWriteSheet({ onClose, onSave }: { onClose: () => void; onSav
             ))}
           </div>
         </Field>
+
+        {tags.length > 0 && (
+          <Field label="누구에게 알려 줄까요?">
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((name) => (
+                <Chip key={name} active={body.includes(`#${name}`)} onClick={() => addTag(name)}>
+                  #{name}
+                </Chip>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted">#이름을 붙이면 그 사람 폰으로 알림이 가요. 알림을 켜 둔 기기에만 가요.</p>
+          </Field>
+        )}
 
         <Field label="어떤 색 종이에?">
           <div className="flex gap-3">
@@ -125,7 +154,9 @@ export function NoteViewSheet({
       }
     >
       <div className={cx('rounded-md px-5 pt-6 pb-4 shadow-card', notePaper(note.color))}>
-        <p className="text-lg leading-relaxed font-semibold break-keep whitespace-pre-wrap">{note.body}</p>
+        <p className="text-lg leading-relaxed font-semibold break-keep whitespace-pre-wrap">
+          <NoteText body={note.body} />
+        </p>
       </div>
       <p className="mt-3 text-sm text-muted">
         {note.author_name ?? '누군가'} · {timeAgo(note.created_at)}

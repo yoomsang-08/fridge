@@ -1,5 +1,5 @@
 import { Heart } from 'lucide-react'
-import { magnetOf, notePaper, timeAgo } from '../lib/notes'
+import { magnetOf, notePaper, splitHashtags, timeAgo } from '../lib/notes'
 import type { Note } from '../lib/types'
 import { cx } from '../lib/cx'
 import { SunnyEgg } from './ui'
@@ -35,7 +35,7 @@ export function StickyNote({
     >
       <Magnet body={note.body} />
       <p className="line-clamp-5 flex-1 text-[15px] leading-snug font-semibold break-keep whitespace-pre-wrap text-ink">
-        {note.body}
+        <NoteText body={note.body} />
       </p>
       <div className="mt-2 flex items-center gap-1 text-xs text-muted">
         <span className="min-w-0 flex-1 truncate">
@@ -66,4 +66,17 @@ function Magnet({ body }: { body: string }) {
     )
   }
   return <span aria-hidden className={cx('absolute top-1.5 left-1/2 -translate-x-1/2 h-3 w-3 rounded-full bg-accent ring-2 ring-surface/70')} />
+}
+
+/** 메모 글. #이름 은 초록 글자로 */
+export function NoteText({ body }: { body: string }) {
+  return splitHashtags(body).map((p, i) =>
+    p.tag ? (
+      <span key={i} className="text-accent">
+        {p.text}
+      </span>
+    ) : (
+      p.text
+    ),
+  )
 }

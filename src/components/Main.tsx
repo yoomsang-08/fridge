@@ -1,8 +1,10 @@
-import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, Thermometer, type LucideIcon } from 'lucide-react'
+import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
-import type { SmartThings } from '../lib/smartthings'
+import { cameBackFromOAuth, type SmartThings } from '../lib/smartthings'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
+import { expiryLevel } from '../lib/expiry'
+import { setAppBadge } from '../lib/badge'
 import { isUnread } from '../lib/notes'
 import type { Household, Item, Note } from '../lib/types'
 import { FridgeStatus } from './FridgeStatus'
@@ -16,13 +18,14 @@ import { Settings } from './Settings'
 import { cx } from '../lib/cx'
 import { Button, Card, Logo, SunnyEgg } from './ui'
 
-type Tab = 'list' | 'view' | 'notes' | 'device' | 'settings'
+const URGENT_LEVELS = new Set(['expired', 'urgent'])
+
+type Tab = 'list' | 'view' | 'notes' | 'settings'
 /** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: 'list', label: '재고', icon: List },
   { id: 'view', label: '냉장고', icon: Refrigerator },
   { id: 'notes', label: '메모', icon: NoteIcon },
-  { id: 'device', label: '온도', icon: Thermometer },
   { id: 'settings', label: '설정', icon: SettingsIcon },
 ]
 type SheetState =
@@ -45,7 +48,16 @@ interface Props {
 export function Main({ repo, household, smartthings, isLocal = false, onSignOut }: Props) {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('list')
+  // 알림을 눌러 열면 ./?tab=notes 처럼 들어온다. 삼성 계정 로그인에서 돌아오면(?smartthings=…) 냉장고 탭으로
+  const [tab, setTab] = useState<Tab>(() => {
+    if (cameBackFromOAuth()) return 'view'
+    const t = new URLSearchParams(location.search).get('tab')
+    return TABS.some((x) => x.id === t) ? (t as Tab) : 'list'
+  })
+  useEffect(() => {
+    // 새로고침해도 그 탭에 묶이지 않게 주소에서 지운다
+    if (location.search.includes('tab=')) history.replaceState(null, '', location.pathname)
+  }, [])
   const [sheet, setSheet] = useState<SheetState>(null)
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())
@@ -74,6 +86,13 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   }, [repo, reload])
 
   const unread = useMemo(() => (snap ? snap.notes.filter((n) => isUnread(n, snap.me)) : []), [snap])
+
+  // 홈 화면 앱 아이콘 숫자: 안 읽은 메모 + 3일 안에 챙길 식품(지남 포함)
+  const badgeCount = snap ? unread.length + snap.items.filter((i) => URGENT_LEVELS.has(expiryLevel(i.expiry_date))).length : 0
+  useEffect(() => {
+    if (!snap) return
+    setAppBadge(badgeCount)
+  }, [snap, badgeCount])
 
   // 메모 탭을 보고 있으면 상대 메모를 읽음으로 표시 (탭에 있는 동안 새로 온 것도)
   useEffect(() => {
@@ -116,26 +135,40 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         : undefined
 
   const showAdd = (tab === 'list' || tab === 'view') && !noFridge
+  const goHome = () => {
+    egg.tap()
+    setSheet(null)
+    openTab('list')
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })
+  }
 
   return (
     <div className="mx-auto min-h-dvh max-w-3xl pb-44 sm:pb-28">
       <header className="sticky top-0 z-30 flex items-center gap-3 bg-bg/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-md sm:px-6">
-        <button onClick={egg.tap} aria-label="냉장고를 부탁해" className="shrink-0">
-          {egg.on ? <SunnyEgg /> : <Logo />}
-        </button>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[17px] leading-tight font-extrabold tracking-tight">냉장고를 부탁해</h1>
-          <p className="truncate text-xs text-muted">
-            {egg.on ? (
-              '써니사이드업 팀이 지선 님을 응원해요'
-            ) : (
-              <>
-                {household.name}
-                {snap.items.length > 0 && ` · 식품 ${snap.items.length}개`}
-              </>
-            )}
-          </p>
-        </div>
+        {/* 로고·제목을 누르면 홈(재고)으로, 맨 위로. 로고를 빠르게 다섯 번 누르면 이스터에그 */}
+        <h1 className="min-w-0 flex-1">
+          <button
+            onClick={goHome}
+            aria-label={egg.on ? undefined : '냉장고를 부탁해, 홈으로'}
+            className="flex w-fit max-w-full items-center gap-3 text-left transition active:opacity-70"
+          >
+            <span className="shrink-0">{egg.on ? <SunnyEgg /> : <Logo />}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[17px] leading-tight font-extrabold tracking-tight">냉장고를 부탁해</span>
+              <span className="block truncate text-xs text-muted">
+                {egg.on ? (
+                  '써니사이드업 팀이 지선 님을 응원해요'
+                ) : (
+                  <>
+                    {household.name}
+                    {snap.items.length > 0 && ` · 식품 ${snap.items.length}개`}
+                  </>
+                )}
+              </span>
+            </span>
+          </button>
+        </h1>
         <nav className="hidden rounded-xl bg-sunken p-[3px] text-sm sm:flex">
           {TABS.map((t) => (
             <button
@@ -202,6 +235,12 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           />
         )}
 
+        {tab === 'view' && noFridge && (
+          <div className="mb-4">
+            <FridgeStatus st={smartthings} />
+          </div>
+        )}
+
         {tab === 'view' && !noFridge && (
           <FridgeView
             fridges={snap.fridges}
@@ -212,10 +251,9 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
             notes={snap.notes}
             onOpenNotes={() => openTab('notes')}
+            header={<FridgeStatus st={smartthings} />}
           />
         )}
-
-        {tab === 'device' && <FridgeStatus st={smartthings} />}
 
         {tab === 'settings' && (
           <Settings
@@ -269,6 +307,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
 
       {sheet?.mode === 'note-write' && (
         <NoteWriteSheet
+          me={snap.me}
+          members={snap.members}
           onClose={() => setSheet(null)}
           onSave={async (input) => {
             await mutate(() => repo.addNote(input))
