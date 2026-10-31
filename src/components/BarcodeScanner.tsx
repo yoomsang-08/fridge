@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import { createDetector, normalizeBarcode } from '../lib/barcode'
+import { Button, IconButton, TextInput } from './ui'
 
 interface Props {
   onDetected: (barcode: string) => void
@@ -11,6 +13,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [status, setStatus] = useState('카메라를 켜는 중…')
   const [typed, setTyped] = useState('')
+  const [hit, setHit] = useState(false)
   // 부모가 다시 그려져도 스캔 루프를 다시 시작하지 않도록
   const onDetectedRef = useRef(onDetected)
   useEffect(() => {
@@ -57,8 +60,10 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
             const code = normalizeBarcode(b.rawValue)
             if (code && !stopped) {
               stopped = true
-              navigator.vibrate?.(80)
-              onDetectedRef.current(code)
+              // 화면을 안 보고 찍는 경우가 많아 진동과 테두리 색으로 알려준다
+              navigator.vibrate?.(40)
+              setHit(true)
+              timer = window.setTimeout(() => onDetectedRef.current(code), 350)
               return
             }
           }
@@ -79,37 +84,37 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
   const typedCode = normalizeBarcode(typed)
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
-      <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-lg font-bold">바코드 찍기</h2>
-        <button className="rounded-full px-2 text-3xl leading-none text-white/70" onClick={onClose} aria-label="닫기">
-          ×
-        </button>
+    <div className="fixed inset-0 z-50 flex flex-col bg-ink text-white" role="dialog" aria-modal="true" aria-label="바코드 찍기">
+      <div className="flex items-center gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
+        <IconButton className="text-white active:bg-white/10" onClick={onClose} aria-label="닫기">
+          <X size={22} strokeWidth={2.4} />
+        </IconButton>
+        <h2 className="text-lg font-extrabold tracking-tight">바코드 찍기</h2>
       </div>
       <div className="relative flex-1 overflow-hidden">
         <video ref={videoRef} className="h-full w-full object-cover" playsInline muted autoPlay />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-32 w-4/5 max-w-sm rounded-xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+          <div className={`h-32 w-4/5 max-w-sm rounded-2xl border-[3px] transition-colors ${hit ? 'border-accent' : 'border-white/90'} shadow-[0_0_0_9999px_color-mix(in_srgb,var(--color-ink)_55%,transparent)]`} />
         </div>
-        <p className="absolute inset-x-0 bottom-4 px-6 text-center text-sm">{status}</p>
+        <p className="absolute inset-x-0 bottom-4 px-6 text-center text-sm font-semibold">{status}</p>
       </div>
       <form
-        className="flex gap-2 bg-slate-900 px-4 py-3"
+        className="mx-auto flex w-full max-w-md gap-2 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
         onSubmit={(e) => {
           e.preventDefault()
           if (typedCode) onDetected(typedCode)
         }}
       >
-        <input
+        <TextInput
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           inputMode="numeric"
           placeholder="바코드 숫자 직접 입력"
-          className="min-w-0 flex-1 rounded-xl bg-white px-3 py-3 text-base text-slate-900"
+          className="tabular min-w-0 flex-1 text-ink"
         />
-        <button disabled={!typedCode} className="rounded-xl bg-sky-600 px-4 font-semibold disabled:opacity-40">
+        <Button type="submit" size="md" className="h-12" disabled={!typedCode}>
           찾기
-        </button>
+        </Button>
       </form>
     </div>
   )

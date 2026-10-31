@@ -43,16 +43,16 @@ function SupabaseApp({ sb }: { sb: SupabaseClient }) {
   if (authError) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-2 px-6 text-center">
-        <p className="font-semibold">서버에 접속하지 못했어요</p>
-        <p className="text-sm text-slate-500">
+        <p className="text-lg font-extrabold">서버에 접속하지 못했어요</p>
+        <p className="text-sm text-muted">
           Supabase의 Authentication 설정에서 Anonymous sign-ins 가 켜져 있는지 확인해 주세요.
         </p>
-        <p className="text-xs text-slate-400">{authError}</p>
+        <p className="text-xs text-faint">{authError}</p>
       </div>
     )
   }
   if (!session || household === undefined) {
-    return <div className="flex min-h-dvh items-center justify-center text-slate-400">불러오는 중…</div>
+    return <div className="flex min-h-dvh items-center justify-center text-faint">불러오는 중…</div>
   }
 
   if (!household || !repo) {

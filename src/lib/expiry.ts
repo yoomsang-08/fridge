@@ -50,10 +50,47 @@ export function addMonths(months: number, base: Date = today()): string {
   return toDateString(new Date(base.getFullYear(), base.getMonth() + months, base.getDate()))
 }
 
+/** 'D-3' 대신 사람이 읽는 말로: 오늘까지, 내일까지, 3일 남음, 2일 지남 */
+export function expiryLabel(expiry: string | null, base?: Date): string {
+  const d = daysLeft(expiry, base)
+  if (d === null) return '기한 없음'
+  if (d < 0) return `${-d}일 지남`
+  if (d === 0) return '오늘까지'
+  if (d === 1) return '내일까지'
+  return `${d}일 남음`
+}
+
+/** 배지처럼 쓰는 바탕+글자 색 */
 export const LEVEL_STYLE: Record<ExpiryLevel, string> = {
-  expired: 'bg-red-600 text-white',
-  urgent: 'bg-orange-500 text-white',
-  soon: 'bg-amber-300 text-amber-950',
-  ok: 'bg-emerald-100 text-emerald-800',
-  none: 'bg-slate-100 text-slate-500',
+  expired: 'bg-expired-soft text-expired',
+  urgent: 'bg-urgent-soft text-urgent',
+  soon: 'bg-soon-soft text-soon',
+  ok: 'bg-sunken text-muted',
+  none: 'bg-sunken text-faint',
+}
+
+/** 목록에서 글자에만 쓰는 색 */
+export const LEVEL_TEXT: Record<ExpiryLevel, string> = {
+  expired: 'text-expired',
+  urgent: 'text-urgent',
+  soon: 'text-soon',
+  ok: 'text-muted',
+  none: 'text-faint',
+}
+
+/** 기한순 목록의 묶음 이름 */
+export const LEVEL_GROUP: Record<ExpiryLevel, string> = {
+  expired: '기한이 지났어요',
+  urgent: '3일 안에 먹어요',
+  soon: '이번 주',
+  ok: '여유 있어요',
+  none: '기한 없음',
+}
+
+export const LEVEL_DOT: Record<ExpiryLevel, string> = {
+  expired: 'bg-expired',
+  urgent: 'bg-urgent',
+  soon: 'bg-soon',
+  ok: 'bg-faint/60',
+  none: 'bg-faint/40',
 }
