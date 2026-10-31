@@ -1,4 +1,4 @@
-import { Archive, DoorClosed, DoorOpen, PanelRight, Refrigerator, Rotate3d, Square } from 'lucide-react'
+import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
 import { isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
@@ -9,6 +9,7 @@ import { cx } from '../lib/cx'
 import { Fridge2D } from './Fridge2D'
 import type { CameraPreset } from './Fridge3D'
 import { ItemRow } from './ItemRow'
+import { SpaceIcon } from './SpaceIcon'
 import { Card, Chip, IconButton, Segmented, SunnyEgg } from './ui'
 
 // three.js 는 크니까 3D 를 열 때만 받는다
@@ -120,23 +121,20 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {fridges.length > 1 && (
           <div className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            {spaces.map((f) => {
-              const Icon = f.template === 'pantry' ? Archive : Refrigerator
-              return (
-                <Chip
-                  key={f.id}
-                  active={f.id === fridge.id}
-                  onClick={() => {
-                    setFridgeId(f.id)
-                    setSelectedId(null)
-                    setSide(false)
-                  }}
-                >
-                  <Icon size={16} strokeWidth={2.2} />
-                  {f.name}
-                </Chip>
-              )
-            })}
+            {spaces.map((f) => (
+              <Chip
+                key={f.id}
+                active={f.id === fridge.id}
+                onClick={() => {
+                  setFridgeId(f.id)
+                  setSelectedId(null)
+                  setSide(false)
+                }}
+              >
+                <SpaceIcon fridge={f} />
+                {f.name}
+              </Chip>
+            ))}
           </div>
         )}
 
