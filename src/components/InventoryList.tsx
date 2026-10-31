@@ -1,20 +1,22 @@
 import { Plus, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { daysLeft, expiryLevel, LEVEL_DOT, LEVEL_GROUP, type ExpiryLevel } from '../lib/expiry'
+import { daysLeft, expiryLevel, isDueSoon, isExpired, LEVEL_DOT, LEVEL_GROUP, type ExpiryLevel } from '../lib/expiry'
+import type { ItemAction } from '../lib/repo'
 import { ZONE_LABEL } from '../lib/templates'
 import type { Compartment, Fridge, Item } from '../lib/types'
 import { cx } from '../lib/cx'
 import { ItemRow } from './ItemRow'
 import { SpaceIcon } from './SpaceIcon'
+import { TodayFocus } from './TodayFocus'
 import { Card, Chip, Segmented } from './ui'
 
 type View = 'expiry' | 'compartment'
 type LevelFilter = 'all' | 'expired' | 'urgent' | 'soon'
 
-const LEVEL_FILTERS: { id: Exclude<LevelFilter, 'all'>; label: string; on: string }[] = [
-  { id: 'expired', label: '기한 지남', on: 'bg-expired-soft text-expired' },
-  { id: 'urgent', label: '3일 이내', on: 'bg-urgent-soft text-urgent' },
-  { id: 'soon', label: '7일 이내', on: 'bg-soon-soft text-soon' },
+const LEVEL_FILTERS: { id: Exclude<LevelFilter, 'all'>; label: string }[] = [
+  { id: 'expired', label: '기한 지남' },
+  { id: 'urgent', label: '3일 이내' },
+  { id: 'soon', label: '7일 이내' },
 ]
 
 const GROUP_ORDER: ExpiryLevel[] = ['expired', 'urgent', 'soon', 'ok', 'none']
@@ -25,6 +27,7 @@ interface Props {
   items: Item[]
   onOpen: (item: Item) => void
   onUseOne: (item: Item) => void
+  onAct: (item: Item, action: ItemAction) => void
   onAddTo: (compartmentId: string) => void
 }
 
@@ -35,9 +38,7 @@ function byExpiry(a: Item, b: Item) {
   return da - db || a.name.localeCompare(b.name, 'ko')
 }
 
-const todayLabel = () => new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })
-
-export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, onAddTo }: Props) {
+export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, onAct, onAddTo }: Props) {
   const [view, setView] = useState<View>('expiry')
   const [fridgeId, setFridgeId] = useState<string>('all')
   const [level, setLevel] = useState<LevelFilter>('all')
@@ -61,63 +62,72 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
       .sort(byExpiry)
   }, [items, fridgeId, level, query, compById])
 
+  // 맨 위 '지금 챙길 식품'은 냉장고 고르기와 상관없이 집 전체에서
+  const focus = useMemo(() => {
+    const sorted = [...items].sort(byExpiry)
+    return {
+      due: sorted.filter(isDueSoon),
+      expired: sorted.filter(isExpired),
+      next: sorted.find((i) => expiryLevel(i.expiry_date) === 'soon'),
+    }
+  }, [items])
+
+  // 검색이나 거르기를 안 할 때는 위에서 크게 보여 준 것을 목록에서 빼서 같은 걸 두 번 읽지 않게
+  const browsing = level === 'all' && !query.trim()
+  const hideFocus = browsing && view === 'expiry'
   const groups = useMemo(
     () =>
-      GROUP_ORDER.map((lv) => ({ lv, items: filtered.filter((i) => expiryLevel(i.expiry_date) === lv) })).filter(
-        (g) => g.items.length > 0,
-      ),
-    [filtered],
+      GROUP_ORDER.filter((lv) => !browsing || (lv !== 'expired' && lv !== 'urgent'))
+        .map((lv) => ({ lv, items: filtered.filter((i) => expiryLevel(i.expiry_date) === lv) }))
+        .filter((g) => g.items.length > 0),
+    [filtered, browsing],
   )
 
-  const locationOf = (i: Item) => {
+  const locationOf = (i: Item, withSpace = fridges.length > 1) => {
     const c = compById.get(i.compartment_id)
     if (!c) return ''
     const f = fridgeById.get(c.fridge_id)
-    return fridges.length > 1 && f ? `${f.name} · ${c.name}` : c.name
+    return withSpace && fridges.length > 1 && f ? `${f.name} · ${c.name}` : c.name
   }
 
   const row = (i: Item, showLocation: boolean) => (
-    <ItemRow key={i.id} item={i} location={showLocation ? locationOf(i) : undefined} onOpen={onOpen} onUseOne={onUseOne} />
+    <ItemRow
+      key={i.id}
+      item={i}
+      location={showLocation ? locationOf(i) : undefined}
+      onOpen={onOpen}
+      onUseOne={onUseOne}
+    />
   )
 
   const visibleFridges = fridges.filter((f) => fridgeId === 'all' || f.id === fridgeId)
   const empty = (
     <p className="py-14 text-center text-sm text-muted">
-      {items.length ? '조건에 맞는 식품이 없어요' : '아직 넣은 식품이 없어요. 식품 넣기를 눌러 시작해 보세요'}
+      {hideFocus && items.length
+        ? '나머지 식품은 위에 모두 있어요'
+        : items.length
+          ? '조건에 맞는 식품이 없어요'
+          : '아직 넣은 식품이 없어요. 식품 넣기를 눌러 시작해 보세요'}
     </p>
   )
 
   return (
     <div className="flex flex-col gap-3.5">
-      {/* 먼저 챙길 식품 */}
-      <Card className="p-3.5">
-        <div className="mb-2.5 flex items-baseline justify-between px-0.5">
-          <h2 className="text-[15px] font-bold">먼저 챙길 식품</h2>
-          <span className="text-xs text-muted">{todayLabel()}</span>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {LEVEL_FILTERS.map((l) => {
-            const n = counts[l.id]
-            const selected = level === l.id
-            return (
-              <button
-                key={l.id}
-                onClick={() => setLevel(selected ? 'all' : l.id)}
-                aria-pressed={selected}
-                className={cx(
-                  'rounded-xl px-3 py-2 text-left ring-2 ring-inset transition',
-                  n > 0 ? l.on : 'bg-sunken/60 text-faint',
-                  selected ? 'ring-current' : 'ring-transparent',
-                )}
-              >
-                <span className="block text-[11px] font-semibold">{l.label}</span>
-                <span className="tabular block text-[22px] leading-tight font-extrabold">{n}</span>
-              </button>
-            )
-          })}
-        </div>
-      </Card>
+      <TodayFocus
+        due={focus.due}
+        expired={focus.expired}
+        next={focus.next}
+        locationOf={(i) => locationOf(i, true)}
+        onOpen={onOpen}
+        onAct={onAct}
+      />
 
+      <h2 className="mt-3 flex items-baseline gap-1.5 px-1 text-[15px] font-extrabold">
+        {hideFocus ? '그 밖의 식품' : '모든 식품'}
+        <span className="tabular text-sm font-semibold text-faint">
+          {hideFocus ? items.length - focus.due.length - focus.expired.length : items.length}
+        </span>
+      </h2>
       <div className="flex items-center gap-2">
         <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3 transition focus-within:border-accent focus-within:ring-4 focus-within:ring-accent-soft">
           <Search size={17} className="shrink-0 text-faint" strokeWidth={2.2} />
@@ -154,6 +164,19 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
           ))}
         </div>
       )}
+
+      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <Chip active={level === 'all'} onClick={() => setLevel('all')}>
+          기한 전체
+        </Chip>
+        {LEVEL_FILTERS.filter((l) => counts[l.id] > 0).map((l) => (
+          <Chip key={l.id} active={level === l.id} onClick={() => setLevel(level === l.id ? 'all' : l.id)}>
+            <span className={cx('h-1.5 w-1.5 rounded-full', LEVEL_DOT[l.id])} />
+            {l.label}
+            <span className="tabular">{counts[l.id]}</span>
+          </Chip>
+        ))}
+      </div>
 
       {view === 'expiry'
         ? groups.length
