@@ -167,17 +167,27 @@ function noteTexture(note: Note) {
         g.arc(128, 24, 13, 0, Math.PI * 2)
         g.fill()
       }
-      // 한 글자씩 채워 줄바꿈, 넘치면 … 으로
       g.fillStyle = token('ink')
       g.font = `bold 46px ${FONT}`
       g.textAlign = 'left'
+      // 어절(띄어쓰기) 단위로 줄바꿈(keep-all). 한 어절이 한 줄보다 길 때만 글자 단위로 자른다
+      const MAX = 226
       const lines: string[] = []
       let line = ''
-      for (const ch of note.body.replace(/\s+/g, ' ')) {
-        if (g.measureText(line + ch).width > 226) {
-          lines.push(line)
-          line = ch.trimStart()
-        } else line += ch
+      for (const word of note.body.trim().split(/\s+/)) {
+        const next = line ? `${line} ${word}` : word
+        if (g.measureText(next).width <= MAX) {
+          line = next
+          continue
+        }
+        if (line) lines.push(line)
+        line = ''
+        for (const ch of word) {
+          if (line && g.measureText(line + ch).width > MAX) {
+            lines.push(line)
+            line = ch
+          } else line += ch
+        }
       }
       lines.push(line)
       const shown = lines.slice(0, 3)
