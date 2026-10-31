@@ -1,18 +1,21 @@
-import { List, Plus, Settings as SettingsIcon, type LucideIcon } from 'lucide-react'
+import { List, Plus, Settings as SettingsIcon, Thermometer, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
+import type { SmartThings } from '../lib/smartthings'
 import { FRIDGE_TEMPLATES } from '../lib/templates'
 import type { Household, Item } from '../lib/types'
+import { FridgeDevice } from './FridgeDevice'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
 import { Settings } from './Settings'
 import { cx } from '../lib/cx'
 import { Button, Card, Logo, SunnyEgg } from './ui'
 
-type Tab = 'list' | 'settings'
+type Tab = 'list' | 'device' | 'settings'
 /** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: 'list', label: '재고', icon: List },
+  { id: 'device', label: '온도', icon: Thermometer },
   { id: 'settings', label: '설정', icon: SettingsIcon },
 ]
 type SheetState = { mode: 'add'; compartmentId?: string } | { mode: 'edit'; item: Item } | null
@@ -22,11 +25,12 @@ const LAST_COMPARTMENT_KEY = 'fridge-last-compartment'
 interface Props {
   repo: Repo
   household: Household
+  smartthings: SmartThings
   isLocal?: boolean
   onSignOut?: () => void
 }
 
-export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
+export function Main({ repo, household, smartthings, isLocal = false, onSignOut }: Props) {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('list')
@@ -147,6 +151,8 @@ export function Main({ repo, household, isLocal = false, onSignOut }: Props) {
             onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
           />
         )}
+
+        {tab === 'device' && <FridgeDevice st={smartthings} />}
 
         {tab === 'settings' && (
           <Settings
