@@ -226,6 +226,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             household={household}
             fridges={snap.fridges}
             compartments={snap.compartments}
+            me={snap.me}
+            members={snap.members}
             isLocal={isLocal}
             onSignOut={onSignOut}
             onChanged={reload}
@@ -317,6 +319,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           fridges={snap.fridges}
           compartments={snap.compartments}
           history={snap.history}
+          members={snap.members}
           item={sheet.mode === 'edit' ? sheet.item : undefined}
           defaultCompartmentId={defaultCompartment}
           onClose={() => setSheet(null)}
