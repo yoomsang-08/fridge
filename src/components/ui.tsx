@@ -127,6 +127,24 @@ export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLBut
   )
 }
 
+/** 써니사이드업 팀 이스터에그: 로고를 연달아 누르면 잠깐 나오는 반숙 달걀 */
+export function SunnyEgg({ size = 36 }: { size?: number }) {
+  return (
+    <span className="grid shrink-0 animate-[egg-pop_400ms_cubic-bezier(.3,1.6,.5,1)] place-items-center" aria-hidden>
+      <svg width={size} height={size} viewBox="0 0 48 48">
+        <path
+          d="M24 4c7 0 9 6 14 8s7 8 5 14-2 12-9 15-12 2-17 0S5 35 4 28s3-11 6-15 7-9 14-9Z"
+          fill="#fff"
+          stroke="var(--color-line)"
+          strokeWidth="1.5"
+        />
+        <circle cx="23" cy="24" r="9" fill="#f6c343" />
+        <circle cx="20" cy="21" r="2.5" fill="#fff" opacity=".7" />
+      </svg>
+    </span>
+  )
+}
+
 /** 앱 로고: 초록 바탕의 냉장고 */
 export function Logo({ size = 36 }: { size?: number }) {
   return (

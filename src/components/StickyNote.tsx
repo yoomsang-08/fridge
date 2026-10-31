@@ -2,6 +2,7 @@ import { Heart } from 'lucide-react'
 import { magnetOf, notePaper, timeAgo } from '../lib/notes'
 import type { Note } from '../lib/types'
 import { cx } from '../lib/cx'
+import { SunnyEgg } from './ui'
 
 /** 살짝 기울어 붙은 느낌. 메모마다 고정된 각도 */
 const TILTS = ['-rotate-[1.5deg]', 'rotate-[1deg]', '-rotate-[0.5deg]', 'rotate-[1.5deg]']
@@ -59,11 +60,8 @@ function Magnet({ body }: { body: string }) {
   }
   if (kind === 'egg') {
     return (
-      <span
-        aria-hidden
-        className={cx(place, 'grid h-[18px] w-5 place-items-center rounded-[45%] bg-surface shadow-card ring-1 ring-ink/10')}
-      >
-        <span className="h-2 w-2 rounded-full bg-note-yellow ring-1 ring-ink/25" />
+      <span className="absolute -top-0.5 left-1/2 -translate-x-1/2">
+        <SunnyEgg size={22} />
       </span>
     )
   }

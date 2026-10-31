@@ -86,3 +86,10 @@ body {
     opacity: 0;
   }
 }
+
+@keyframes egg-pop {
+  from {
+    transform: scale(0.4) rotate(-20deg);
+  }
+}
+
