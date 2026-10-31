@@ -409,7 +409,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
 
   // 측면 단면: 왼쪽이 뒤, 오른쪽이 앞(문)
   const D = shape.depth
-  const doorD = 240
+  const doorD = shape.doors.length ? 240 : 0
   const bodyD = D - doorD
   const inner = { x: wall, y: wall, w: bodyD - wall, h: H - wall * 2 }
   const bands = new Map<string, Compartment[]>()

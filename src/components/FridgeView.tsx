@@ -1,4 +1,4 @@
-import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square } from 'lucide-react'
+import { Archive, DoorClosed, DoorOpen, PanelRight, Refrigerator, Rotate3d, Square } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
 import { isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
@@ -72,7 +72,10 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const shape = useMemo(() => shapeOf(fridge), [fridge])
   const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
   const byComp = useMemo(() => itemsBy(items), [items])
-  const anyOpen = shape.doors.some((d) => doorOpen[d.id] ?? true)
+  // 팬트리처럼 문이 없으면 늘 열린 것처럼 보여 준다
+  const noDoors = shape.doors.length === 0
+  const anyOpen = noDoors || shape.doors.some((d) => doorOpen[d.id] ?? true)
+  const spaces = [...fridges].sort((a, b) => Number(a.template === 'pantry') - Number(b.template === 'pantry'))
   const unplaced = mine.filter((c) => !c.layout)
   const selected = mine.find((c) => c.id === selectedId) ?? null
   const fridgeItems = mine.flatMap((c) => byComp.get(c.id) ?? [])
@@ -96,17 +99,29 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
     <div className="flex flex-col gap-3">
       {header}
 
+      {fridges.length > 1 && (
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          {spaces.map((f) => {
+            const Icon = f.template === 'pantry' ? Archive : Refrigerator
+            return (
+              <Chip
+                key={f.id}
+                active={f.id === fridge.id}
+                onClick={() => {
+                  setFridgeId(f.id)
+                  setSelectedId(null)
+                  setSide(false)
+                }}
+              >
+                <Icon size={16} strokeWidth={2.2} />
+                {f.name}
+              </Chip>
+            )
+          })}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
-        {fridges.length > 1 && (
-          <Segmented
-            value={fridge.id}
-            options={fridges.map((f) => [f.id, f.name] as const)}
-            onChange={(id) => {
-              setFridgeId(id)
-              setSelectedId(null)
-            }}
-          />
-        )}
         {webgl && (
           <Segmented
             className="ml-auto"
@@ -133,19 +148,21 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
               </IconButton>
             )
           )}
-          <button
-            onClick={() => setAllDoors(!anyOpen)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-sunken px-3 text-sm font-bold text-ink transition active:brightness-95"
-          >
-            {anyOpen ? <DoorClosed size={18} /> : <DoorOpen size={18} />}
-            {anyOpen ? '문 닫기' : '문 열기'}
-          </button>
+          {!noDoors && (
+            <button
+              onClick={() => setAllDoors(!anyOpen)}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-sunken px-3 text-sm font-bold text-ink transition active:brightness-95"
+            >
+              {anyOpen ? <DoorClosed size={18} /> : <DoorOpen size={18} />}
+              {anyOpen ? '문 닫기' : '문 열기'}
+            </button>
+          )}
         </div>
 
         {egg && (
           <div className="pointer-events-none absolute top-2 left-2 z-10 flex animate-[fade-in_200ms] items-center gap-2 rounded-full bg-surface/95 py-1 pr-3 pl-1 shadow-card">
             <SunnyEgg size={28} />
-            <span className="text-xs font-semibold text-muted">불 켜 뒀어요, 지선 님</span>
+            <span className="text-xs font-semibold text-muted">{noDoors ? '간식은 여기 숨겨 뒀어요, 지선 님' : '불 켜 뒀어요, 지선 님'}</span>
           </div>
         )}
 

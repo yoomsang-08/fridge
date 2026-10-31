@@ -305,7 +305,17 @@ function CabinetCompartment({
 
   return (
     <group position={[(x0 + x1) / 2, yBot, (z0 + z1) / 2]}>
-      {bin ? (
+      {shape.wood ? (
+        bin ? (
+          <Basket w={w} h={Math.min(h * 0.55, 0.16)} d={d} color={shape.wood.basket} selected={selected} />
+        ) : (
+          <mesh position={[0, 0.009, 0]}>
+            <boxGeometry args={[w + 0.024, 0.018, d + 0.01]} />
+            <meshStandardMaterial color={shape.wood.board} roughness={0.75} />
+            {selected && <Edges color={token('accent')} />}
+          </mesh>
+        )
+      ) : bin ? (
         <mesh position={[0, binH / 2, 0]}>
           <boxGeometry args={[w, binH, d]} />
           <meshStandardMaterial {...glass} opacity={0.18} depthWrite={false} />
@@ -323,7 +333,35 @@ function CabinetCompartment({
         <boxGeometry args={[w, h, d]} />
         <meshBasicMaterial color={token('accent')} transparent opacity={selected ? 0.12 : 0} depthWrite={false} />
       </mesh>
-      <ItemGrid items={items} width={w - 0.02} depth={d} maxSize={h * 0.6} floorY={0.008} onOpen={onOpen} />
+      <ItemGrid items={items} width={w - 0.02} depth={d} maxSize={h * 0.6} floorY={shape.wood && !bin ? 0.018 : 0.008} onOpen={onOpen} />
+    </group>
+  )
+}
+
+/** 팬트리 바구니: 바닥과 네 벽만 있는 둥근 통. 앞 벽을 낮게 해 안의 식품이 보이게 */
+function Basket({ w, h, d, color, selected }: { w: number; h: number; d: number; color: string; selected: boolean }) {
+  const t = 0.012
+  const front = h * 0.55
+  const mat = <meshStandardMaterial color={color} roughness={0.85} />
+  const edge = selected ? <Edges color={token('accent')} /> : null
+  return (
+    <group>
+      <RoundedBox args={[w, t, d]} radius={t / 2} position={[0, t / 2, 0]}>
+        {mat}
+      </RoundedBox>
+      {[-1, 1].map((side) => (
+        <RoundedBox key={side} args={[t, h, d]} radius={t / 2} position={[side * (w / 2 - t / 2), h / 2, 0]}>
+          {mat}
+          {edge}
+        </RoundedBox>
+      ))}
+      <RoundedBox args={[w, h, t]} radius={t / 2} position={[0, h / 2, -d / 2 + t / 2]}>
+        {mat}
+      </RoundedBox>
+      <RoundedBox args={[w, front, t]} radius={t / 2} position={[0, front / 2, d / 2 - t / 2]}>
+        {mat}
+        {edge}
+      </RoundedBox>
     </group>
   )
 }
@@ -586,8 +624,12 @@ function Cabinet({ shape }: { shape: FridgeShape }) {
   const D = shape.depth / 1000
   const bodyD = D - PANEL
   const zc = -PANEL / 2
-  const mat = <meshStandardMaterial color={shape.body} metalness={0.3} roughness={0.5} />
-  const inner = <meshStandardMaterial color="#f8fafc" roughness={0.8} />
+  const mat = shape.wood ? (
+    <meshStandardMaterial color={shape.body} roughness={0.75} />
+  ) : (
+    <meshStandardMaterial color={shape.body} metalness={0.3} roughness={0.5} />
+  )
+  const inner = <meshStandardMaterial color={shape.wood?.inner ?? '#f8fafc'} roughness={0.8} />
   const iw = W - WALL * 2
   const ih = H - WALL * 2
   return (
@@ -689,7 +731,8 @@ function CeilingLight({ shape, onEgg }: { shape: FridgeShape; onEgg: () => void 
       }}
     >
       <planeGeometry args={[W * 0.4, D * 0.3]} />
-      <meshBasicMaterial color="#ffffff" />
+      {/* 팬트리엔 조명이 없으니 안 보이게만 두고 누르는 자리는 그대로 */}
+      <meshBasicMaterial color="#ffffff" transparent={!!shape.wood} opacity={shape.wood ? 0 : 1} />
     </mesh>
   )
 }
@@ -787,10 +830,11 @@ export default function Fridge3D(props: Props) {
       onPointerMissed={(e) => e.type === 'click' && onSelect(null)}
     >
       <color attach="background" args={[token('bg')]} />
-      <hemisphereLight args={['#ffffff', '#cbd5e1', 1.4]} />
+      {/* 팬트리는 냉장고보다 살짝 따뜻한 빛 */}
+      <hemisphereLight args={shape.wood ? ['#fff6ea', '#d9cbb6', 1.4] : ['#ffffff', '#cbd5e1', 1.4]} />
       <directionalLight position={[2, 4, 5]} intensity={1.6} />
       <directionalLight position={[-3, 2, 2]} intensity={0.5} />
-      <pointLight position={[0, (shape.height / 1000) * 0.9, 0]} intensity={0.6} distance={2} />
+      {!shape.wood && <pointLight position={[0, (shape.height / 1000) * 0.9, 0]} intensity={0.6} distance={2} />}
       <CameraRig shape={shape} preset={camera} nonce={cameraNonce} />
 
       <Cabinet shape={shape} />
