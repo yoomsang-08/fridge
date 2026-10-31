@@ -831,12 +831,38 @@ function CeilingLight({ shape, onEgg }: { shape: FridgeShape; onEgg: () => void 
 
 // ---------- 카메라 ----------
 
-function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; preset: CameraPreset; nonce: number; closed: boolean }) {
+/** 칸을 고르면 카메라가 다가갈 상자(월드 좌표, m) */
+interface Focus {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function CameraRig({
+  shape,
+  preset,
+  nonce,
+  closed,
+  focus,
+}: {
+  shape: FridgeShape
+  preset: CameraPreset
+  nonce: number
+  closed: boolean
+  focus: Focus | null
+}) {
+  // 매 렌더마다 새 객체가 와도 같은 칸이면 다시 움직이지 않게 숫자로 비교한다
+  const fx0 = focus?.x
+  const fy0 = focus?.y
+  const fw0 = focus?.w
+  const fh0 = focus?.h
   const controls = useRef<OrbitControlsImpl>(null)
   const { camera, invalidate, size } = useThree()
   const H = shape.height / 1000
   const W = shape.width / 1000
   const goal = useRef<THREE.Vector3 | null>(null)
+  const goalTarget = useRef<THREE.Vector3 | null>(null)
   // 문이 한쪽으로만 열리면(쿠쿠) 열린 문까지 화면 가운데 오도록 그쪽으로 조금 옮긴다
   const hinges = new Set(shape.doors.map((d) => d.hinge))
   const shiftX = hinges.size === 1 ? (hinges.has('right') ? 0.4 : -0.4) * W : 0
@@ -853,6 +879,16 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
     const cam = camera as THREE.PerspectiveCamera
     const aspect = size.width / size.height
     const fov = (cam.fov * Math.PI) / 180
+    if (fx0 !== undefined && fy0 !== undefined && fw0 !== undefined && fh0 !== undefined) {
+      // 고른 칸이 화면 폭을 거의 채우도록(높이는 60%까지), 살짝 위에서 내려다보는 정면으로
+      const fx = fw0 / 0.92 / 2 / Math.tan(fov / 2) / aspect
+      const fy = fh0 / 0.6 / 2 / Math.tan(fov / 2)
+      const target = new THREE.Vector3(fx0, fy0, 0)
+      goal.current = new THREE.Vector3(0, 0.25, 1).normalize().multiplyScalar(Math.max(fx, fy) + shape.depth / 2000).add(target)
+      goalTarget.current = target
+      invalidate()
+      return
+    }
     // 문을 연 상태(폭 ≈ 2.6배)까지 화면에 들어오게
     const open = shape.doors.length === 0
     const fitH = (H * (open ? 1.02 : 1.0)) / 2 / Math.tan(fov / 2)
@@ -874,16 +910,22 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
             ? new THREE.Vector3(0.8, 0.2, 0.75)
             : new THREE.Vector3(0, 1.4, 0.7)
     goal.current = dir.normalize().multiplyScalar(dist).add(center)
-    controls.current?.target.copy(center)
+    goalTarget.current = center.clone()
     invalidate()
-  }, [preset, nonce, shape, camera, size, H, W, center, closeUp, portrait, invalidate])
+  }, [preset, nonce, shape, camera, size, H, W, center, closeUp, portrait, fx0, fy0, fw0, fh0, invalidate])
 
   useFrame((state, dt) => {
     if (!goal.current) return
-    camera.position.lerp(goal.current, Math.min(1, dt * 6))
+    const k = Math.min(1, dt * 6)
+    camera.position.lerp(goal.current, k)
+    // 바라보는 곳도 같이 옮겨야 칸으로 다가갈 때 화면이 튀지 않는다
+    if (goalTarget.current) controls.current?.target.lerp(goalTarget.current, k)
     controls.current?.update()
-    if (camera.position.distanceTo(goal.current) < 0.002) goal.current = null
-    else state.invalidate()
+    if (camera.position.distanceTo(goal.current) < 0.002) {
+      if (goalTarget.current) controls.current?.target.copy(goalTarget.current)
+      goal.current = null
+      goalTarget.current = null
+    } else state.invalidate()
   })
 
   return (
@@ -891,7 +933,7 @@ function CameraRig({ shape, preset, nonce, closed }: { shape: FridgeShape; prese
       ref={controls}
       makeDefault
       enableDamping={false}
-      minDistance={0.6}
+      minDistance={0.25}
       maxDistance={8}
       maxPolarAngle={Math.PI * 0.58}
       target={center}
@@ -907,6 +949,16 @@ export default function Fridge3D(props: Props) {
   const H = shape.height / 1000
 
   const placed = compartments.filter((c) => c.layout)
+  // 몸체 칸을 고르면 그 칸으로 다가간다. 문 포켓은 문과 함께 움직여서 제외
+  const picked = placed.find((c) => c.id === selectedId && !isDoorCompartment(c))
+  const focus: Focus | null = (() => {
+    if (!picked?.layout) return null
+    const W = shape.width / 1000
+    const iw = W - WALL * 2
+    const ih = H - WALL * 2
+    const l = picked.layout
+    return { x: -W / 2 + WALL + (l.x + l.w / 2) * iw, y: H - WALL - (l.y + l.h / 2) * ih, w: l.w * iw, h: l.h * ih }
+  })()
   const cabinet = placed.filter((c) => !isDoorCompartment(c))
   const pocketsByDoor = new Map<string, Compartment[]>()
   for (const c of placed.filter(isDoorCompartment)) {
@@ -942,7 +994,13 @@ export default function Fridge3D(props: Props) {
       <directionalLight position={[-3, 2, 2]} intensity={0.5} />
       {!shape.wood && <pointLight position={[0, (shape.height / 1000) * 0.9, 0]} intensity={0.6} distance={2} />}
       {/* 문 없는 팬트리는 '닫힘' 클로즈업 대상이 아니다 */}
-      <CameraRig shape={shape} preset={camera} nonce={cameraNonce} closed={shape.doors.length > 0 && !shape.doors.some((d) => doorOpen[d.id])} />
+      <CameraRig
+        shape={shape}
+        preset={camera}
+        nonce={cameraNonce}
+        closed={shape.doors.length > 0 && !shape.doors.some((d) => doorOpen[d.id])}
+        focus={focus}
+      />
 
       <Cabinet shape={shape} />
       <CeilingLight shape={shape} onEgg={onEgg} />
