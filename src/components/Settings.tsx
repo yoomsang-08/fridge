@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { formatCode } from '../lib/code'
 import { FRIDGE_TEMPLATES, ZONE_LABEL } from '../lib/templates'
 import type { Repo } from '../lib/repo'
-import type { Compartment, Fridge, Household, Zone } from '../lib/types'
+import type { Compartment, Fridge, Household, Me, Member, Zone } from '../lib/types'
 import { useDialog } from './Dialog'
 import { cx } from '../lib/cx'
 import { Button, Card, IconButton } from './ui'
@@ -13,12 +13,14 @@ interface Props {
   household: Household
   fridges: Fridge[]
   compartments: Compartment[]
+  me: Me
+  members: Member[]
   isLocal: boolean
   onSignOut?: () => void
   onChanged: () => void
 }
 
-export function Settings({ repo, household, fridges, compartments, isLocal, onSignOut, onChanged }: Props) {
+export function Settings({ repo, household, fridges, compartments, me, members, isLocal, onSignOut, onChanged }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -43,6 +45,36 @@ export function Settings({ repo, household, fridges, compartments, isLocal, onSi
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
+
+      <Card className="p-5">
+        <h2 className="text-[15px] font-extrabold">우리 집 식구</h2>
+        <ul className="mt-3 flex flex-col gap-1">
+          {members.map((m) => {
+            const mine = m.id === me.id
+            return (
+              <li key={m.id} className="flex min-h-11 items-center gap-2">
+                <span className={cx('font-bold', !m.name && 'text-faint')}>{m.name ?? '이름 없음'}</span>
+                {mine && (
+                  <span className="rounded-md bg-accent-soft px-1.5 py-px text-[11px] font-bold text-accent">나</span>
+                )}
+                {mine && (
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    className="ml-auto"
+                    onClick={async () => {
+                      const name = await ask('내 이름', m.name ?? '')
+                      if (name) run(() => repo.renameMe(name))
+                    }}
+                  >
+                    이름 바꾸기
+                  </Button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </Card>
 
       {!isLocal && (
         <Card className="p-5">

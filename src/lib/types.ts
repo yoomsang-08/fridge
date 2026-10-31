@@ -54,6 +54,8 @@ export interface Item {
   memo: string | null
   barcode: string | null
   status: ItemStatus
+  /** 넣은 사람(household_members.user_id) */
+  created_by: string | null
   created_at: string
   updated_at: string
 }
@@ -93,3 +95,6 @@ export interface Me {
   id: string
   name: string | null
 }
+
+/** 우리 집 식구 (같은 집 코드로 들어온 사람) */
+export type Member = Me
