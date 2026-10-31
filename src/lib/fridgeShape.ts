@@ -33,8 +33,16 @@ export interface FridgeShape {
   doorDepth: number
   /** 몸체 색 */
   body: string
-  /** 문 색과 재질 */
-  door: { color: string; metal: boolean }
+  /** 문 앞판 색과 재질. frame 은 문 옆면·테두리 색 */
+  door: { color: string; metal: boolean; frame: string }
+  /**
+   * 손잡이 모양.
+   * groove-h: 위아래 문이 만나는 곳의 가로 홈(비스포크)
+   * edge-v: 경첩 반대쪽 옆면에 세로로 숨은 손잡이(쿠쿠)
+   */
+  handle: 'groove-h' | 'edge-v'
+  /** 문 앞 표시창 위치(정면 기준 비율) */
+  display?: Layout
   doors: DoorSpec[]
   dividers: Divider[]
   /** 실제 치수를 확인하지 못해 추정한 값인지 */
@@ -43,20 +51,22 @@ export interface FridgeShape {
 
 const SHAPES: Record<string, Omit<FridgeShape, 'width' | 'height' | 'depth' | 'estimated'> & { size: [number, number, number] }> = {
   // 삼성 비스포크 4도어: 위 양문형 냉장실, 아래 왼쪽 냉동 · 오른쪽 맞춤보관
+  // 제조사 사진 기준: 몸체 옆면은 짙은 차콜, 문 앞판은 밝은 패널(패널 선택형), 위 문이 전체 높이의 약 55%
   'samsung-rf85-4door': {
     size: [912, 1853, 930],
     doorDepth: 90,
-    body: '#d9dde2',
-    door: { color: '#ece8e1', metal: false },
+    body: '#2e3034',
+    door: { color: '#e6e6e2', metal: false, frame: '#2e3034' },
+    handle: 'groove-h',
     doors: [
-      { id: 'top-left', label: '냉장실 왼쪽 문', rect: { x: 0, y: 0, w: 0.5, h: 0.6 }, hinge: 'left' },
-      { id: 'top-right', label: '냉장실 오른쪽 문', rect: { x: 0.5, y: 0, w: 0.5, h: 0.6 }, hinge: 'right' },
-      { id: 'bottom-left', label: '냉동실 문', rect: { x: 0, y: 0.605, w: 0.5, h: 0.395 }, hinge: 'left' },
-      { id: 'bottom-right', label: '맞춤보관실 문', rect: { x: 0.5, y: 0.605, w: 0.5, h: 0.395 }, hinge: 'right' },
+      { id: 'top-left', label: '냉장실 왼쪽 문', rect: { x: 0, y: 0, w: 0.5, h: 0.55 }, hinge: 'left' },
+      { id: 'top-right', label: '냉장실 오른쪽 문', rect: { x: 0.5, y: 0, w: 0.5, h: 0.55 }, hinge: 'right' },
+      { id: 'bottom-left', label: '냉동실 문', rect: { x: 0, y: 0.555, w: 0.5, h: 0.445 }, hinge: 'left' },
+      { id: 'bottom-right', label: '맞춤보관실 문', rect: { x: 0.5, y: 0.555, w: 0.5, h: 0.445 }, hinge: 'right' },
     ],
     dividers: [
-      { dir: 'h', at: 0.6, from: 0, to: 1 },
-      { dir: 'v', at: 0.5, from: 0.6, to: 1 },
+      { dir: 'h', at: 0.55, from: 0, to: 1 },
+      { dir: 'v', at: 0.5, from: 0.55, to: 1 },
     ],
   },
   // 쿠쿠 133L 스탠드 냉동고: 앞문 하나, 손잡이 왼쪽(경첩 오른쪽).
@@ -64,8 +74,10 @@ const SHAPES: Record<string, Omit<FridgeShape, 'width' | 'height' | 'depth' | 'e
   'cuckoo-upright-freezer-133': {
     size: [515, 1175, 620],
     doorDepth: 70,
-    body: '#b8bcc1',
-    door: { color: '#c3c7cc', metal: true },
+    body: '#6d7176',
+    door: { color: '#7d8186', metal: true, frame: '#5f6368' },
+    handle: 'edge-v',
+    display: { x: 0.43, y: 0.07, w: 0.12, h: 0.13 },
     doors: [{ id: 'main', label: '냉동고 문', rect: { x: 0, y: 0, w: 1, h: 1 }, hinge: 'right' }],
     dividers: [],
   },
@@ -75,7 +87,8 @@ const FALLBACK = {
   size: [700, 1800, 700] as [number, number, number],
   doorDepth: 70,
   body: '#d9dde2',
-  door: { color: '#eef0f2', metal: false },
+  door: { color: '#eef0f2', metal: false, frame: '#c7ccd2' },
+  handle: 'edge-v' as const,
   doors: [{ id: 'main', label: '문', rect: { x: 0, y: 0, w: 1, h: 1 }, hinge: 'left' as const }],
   dividers: [],
 }
@@ -95,7 +108,7 @@ export function shapeOf(fridge: Fridge): FridgeShape {
 export const isDoorCompartment = (c: Compartment) => c.section.startsWith('door')
 
 /** 서랍처럼 통으로 그릴 칸인지 (아니면 유리 선반) */
-export const isBin = (c: Compartment) => c.name.includes('서랍') || c.section === 'lower'
+export const isBin = (c: Compartment) => /서랍|야채|바스켓/.test(c.name) || c.section === 'lower'
 
 const center = (l: Layout) => ({ x: l.x + l.w / 2, y: l.y + l.h / 2 })
 const contains = (r: Layout, p: { x: number; y: number }) =>

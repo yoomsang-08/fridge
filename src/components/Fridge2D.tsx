@@ -157,20 +157,30 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
           const b = scale(d.rect, { x: 0, y: 0, w: W, h: H })
           const items = behind(d)
           const count = (lv: string) => items.filter((i) => expiryLevel(i.expiry_date) === lv).length
-          const handleX = d.hinge === 'left' ? b.x + b.w - 40 : b.x + 28
+          const free = d.hinge === 'left' ? b.x + b.w - 4 : b.x + 4
+          const atBottom = d.rect.y + d.rect.h < 0.999
+          // 표시창이 있으면 글자를 그 아래로
+          const top = shape.display ? Math.max(b.y, (shape.display.y + shape.display.h) * H + 10) : b.y
           const badges = (['expired', 'urgent', 'soon'] as const).filter((lv) => count(lv) > 0)
           return (
             <g key={d.id} className="cursor-pointer" onClick={onOpenDoors}>
-              <rect x={b.x + 4} y={b.y + 4} width={b.w - 8} height={b.h - 8} rx={14} fill={shape.door.color} stroke={STROKE} strokeWidth={2} />
-              <rect x={handleX} y={b.y + b.h * 0.3} width={12} height={Math.min(b.h * 0.4, 420)} rx={6} fill="#8b9097" />
-              <text x={b.x + b.w / 2} y={b.y + 80} fontSize={44} textAnchor="middle" fill="#334155" fontWeight="bold">
+              <rect x={b.x + 4} y={b.y + 4} width={b.w - 8} height={b.h - 8} rx={10} fill={shape.door.color} stroke={shape.door.frame} strokeWidth={6} />
+              {shape.handle === 'groove-h' ? (
+                <rect x={b.x + 4} y={atBottom ? b.y + b.h - 26 : b.y + 4} width={b.w - 8} height={22} fill="#1c1d20" />
+              ) : (
+                <rect x={d.hinge === 'left' ? free - 12 : free} y={b.y + b.h * 0.25} width={12} height={Math.min(b.h * 0.3, 350)} fill="#1c1d20" />
+              )}
+              {shape.display && (
+                <rect {...rectProps(scale(shape.display, { x: 0, y: 0, w: W, h: H }))} rx={8} fill="#111214" />
+              )}
+              <text x={b.x + b.w / 2} y={top + 80} fontSize={44} textAnchor="middle" fill="#334155" fontWeight="bold">
                 {d.label}
               </text>
-              <text x={b.x + b.w / 2} y={b.y + 140} fontSize={38} textAnchor="middle" fill="#64748b">
+              <text x={b.x + b.w / 2} y={top + 140} fontSize={38} textAnchor="middle" fill="#64748b">
                 {items.length}개
               </text>
               {badges.map((lv, i) => (
-                <g key={lv} transform={`translate(${b.x + b.w / 2 + (i - (badges.length - 1) / 2) * 110}, ${b.y + 220})`}>
+                <g key={lv} transform={`translate(${b.x + b.w / 2 + (i - (badges.length - 1) / 2) * 110}, ${top + 220})`}>
                   <circle r={46} fill={RING[lv]} />
                   <text y={4} fontSize={44} fontWeight="bold" textAnchor="middle" dominantBaseline="middle" fill={lv === 'soon' ? '#451a03' : '#fff'}>
                     {count(lv)}
@@ -243,7 +253,7 @@ export function Fridge2D({ view, shape, compartments, itemsByCompartment, select
                   onSelect={onSelect}
                   onOpen={onOpenItem}
                   fill="#f1f5f9"
-                  label={c.name.replace(/^(왼쪽|오른쪽) 문 /, '')}
+                  label={c.name.replace(/^.*문 /, '')}
                 />
               ))}
             </g>

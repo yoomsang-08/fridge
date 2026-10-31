@@ -235,6 +235,55 @@ function CabinetCompartment({
 
 // ---------- 문 ----------
 
+const GROOVE = '#1c1d20'
+
+/** 손잡이: 비스포크는 위아래 문 사이 가로 홈, 쿠쿠는 경첩 반대쪽 옆면의 세로 홈 */
+function Handle({ shape, door, dw, dh, sign }: { shape: FridgeShape; door: DoorSpec; dw: number; dh: number; sign: number }) {
+  if (shape.handle === 'groove-h') {
+    // 다른 문과 맞닿는 가로 모서리 쪽에 홈
+    const atBottom = door.rect.y + door.rect.h < 0.999
+    const y = atBottom ? -dh / 2 + 0.012 : dh / 2 - 0.012
+    return (
+      <mesh position={[0, y, PANEL + 0.002]}>
+        <boxGeometry args={[dw - 0.004, 0.024, 0.004]} />
+        <meshStandardMaterial color={GROOVE} roughness={0.7} />
+      </mesh>
+    )
+  }
+  return (
+    <mesh position={[sign * (dw / 2 - 0.006), dh * 0.1, PANEL + 0.002]}>
+      <boxGeometry args={[0.012, Math.min(dh * 0.3, 0.35), 0.004]} />
+      <meshStandardMaterial color={GROOVE} roughness={0.7} />
+    </mesh>
+  )
+}
+
+/** 문 앞 표시창(쿠쿠 상단 디스플레이). 정면 비율 좌표를 이 문의 로컬 좌표로 옮긴다 */
+function DoorDisplay({ shape, door, dw, dh }: { shape: FridgeShape; door: DoorSpec; dw: number; dh: number }) {
+  const d = shape.display!
+  const cx = d.x + d.w / 2
+  const cy = d.y + d.h / 2
+  if (cx < door.rect.x || cx > door.rect.x + door.rect.w || cy < door.rect.y || cy > door.rect.y + door.rect.h) return null
+  const lx = ((cx - door.rect.x) / door.rect.w - 0.5) * dw
+  const ly = (0.5 - (cy - door.rect.y) / door.rect.h) * dh
+  const w = (d.w / door.rect.w) * dw
+  const h = (d.h / door.rect.h) * dh
+  return (
+    <group position={[lx, ly, PANEL + 0.002]}>
+      <mesh>
+        <boxGeometry args={[w, h, 0.003]} />
+        <meshStandardMaterial color="#111214" roughness={0.3} />
+      </mesh>
+      {[0.28, 0.05, -0.18].map((t) => (
+        <mesh key={t} position={[0, h * t, 0.002]}>
+          <planeGeometry args={[w * 0.55, h * 0.08]} />
+          <meshBasicMaterial color="#9aa3ad" transparent opacity={0.7} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
 function Door({
   door,
   shape,
@@ -296,17 +345,19 @@ function Door({
           }}
         >
           <boxGeometry args={[dw, dh, PANEL]} />
+          <meshStandardMaterial color={shape.door.frame} metalness={0.3} roughness={0.5} />
+        </mesh>
+        {/* 문 앞판: 테두리를 살짝 남기고 덮는다 */}
+        <mesh position={[0, 0, PANEL + 0.0006]}>
+          <planeGeometry args={[dw - 0.006, dh - 0.006]} />
           <meshStandardMaterial
             color={shape.door.color}
-            metalness={shape.door.metal ? 0.6 : 0.05}
-            roughness={shape.door.metal ? 0.35 : 0.55}
+            metalness={shape.door.metal ? 0.55 : 0.02}
+            roughness={shape.door.metal ? 0.38 : 0.6}
           />
         </mesh>
-        {/* 손잡이: 경첩 반대편 */}
-        <mesh position={[sign * (dw / 2 - 0.035), 0, PANEL + 0.012]}>
-          <boxGeometry args={[0.018, Math.min(dh * 0.5, 0.45), 0.02]} />
-          <meshStandardMaterial color="#8b9097" metalness={0.7} roughness={0.3} />
-        </mesh>
+        <Handle shape={shape} door={door} dw={dw} dh={dh} sign={sign} />
+        {shape.display && <DoorDisplay shape={shape} door={door} dw={dw} dh={dh} />}
         {/* 문 가장자리 패킹: 닫았을 때 문 사이로 안이 비치지 않게 */}
         <mesh position={[sign * (dw / 2 - 0.004), 0, -0.012]}>
           <boxGeometry args={[0.016, dh - 0.01, 0.024]} />
@@ -439,6 +490,19 @@ function Cabinet({ shape }: { shape: FridgeShape }) {
         <boxGeometry args={[W, H, WALL]} />
         {inner}
       </mesh>
+      {/* 안쪽 흰 내벽: 바깥 몸체 색과 상관없이 안은 밝게 */}
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * (W / 2 - WALL - 0.0005), H / 2, zc]} rotation={[0, (-side * Math.PI) / 2, 0]}>
+          <planeGeometry args={[bodyD, H - WALL * 2]} />
+          {inner}
+        </mesh>
+      ))}
+      {[WALL + 0.0005, H - WALL - 0.0005].map((y, i) => (
+        <mesh key={y} position={[0, y, zc]} rotation={[i === 0 ? -Math.PI / 2 : Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[W - WALL * 2, bodyD]} />
+          {inner}
+        </mesh>
+      ))}
       {/* 칸막이 */}
       {shape.dividers.map((dv, i) =>
         dv.dir === 'h' ? (
