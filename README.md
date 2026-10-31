@@ -11,7 +11,7 @@
 - 재고 목록: 기한순 / 칸별 보기, 냉장고별 필터, 검색
 - 임박 표시: 기한 지남(빨강), 3일 이내(주황), 7일 이내(노랑)
 - −1 사용, 다 먹음, 버림 기록
-- 홈 화면에 설치(PWA), 두 기기 실시간 동기화
+- 홈 화면에 설치(PWA), 우리 집 코드로 여러 기기 실시간 공유
 
 ## 실행
 
@@ -27,10 +27,10 @@ npm run dev
 1. [Supabase](https://supabase.com/dashboard)에서 프로젝트 생성 (Region: Northeast Asia (Seoul))
 2. **SQL Editor** 에 `supabase/migrations/0001_init.sql` 내용을 붙여넣고 실행
 3. **Project Settings → API** 에서 Project URL 과 anon(publishable) key 를 복사해 `.env` 작성 (`cp .env.example .env`)
-4. **Authentication → Providers → Google** 활성화 (Google Cloud Console 에서 OAuth 클라이언트 생성 후 Client ID/Secret 입력)
-5. **Authentication → URL Configuration** 의 Site URL / Redirect URLs 에 배포 주소와 `http://localhost:5173` 추가
+4. 이어서 `supabase/migrations/0002_code_access.sql` 도 실행
+5. **Authentication → Sign In / Providers** 에서 **Allow anonymous sign-ins** 켜기
 
-처음 로그인한 사람이 "우리 집 만들기"를 누르고, 설정 화면의 초대코드를 배우자에게 전달하면 배우자는 "초대코드로 합류하기"로 같은 냉장고를 공유합니다.
+로그인 화면은 없습니다. 각 기기는 익명 계정으로 자동 접속하고, 처음 한 번 **우리 집 코드**(12자리)를 넣어야 데이터가 열립니다. 첫 기기에서 "우리 집 새로 만들기"를 누르면 설정 화면에 코드가 나옵니다.
 
 ## 배포
 
