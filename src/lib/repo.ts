@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Compartment, Fridge, Household, Item, ItemInput, Me, Note, NoteInput, Zone } from './types'
+import { hashtagsOf } from './notes'
+import type { Compartment, Fridge, Household, Item, ItemInput, Me, Member, Note, NoteInput, Zone } from './types'
 import type { FridgeTemplate } from './templates'
 
 export interface Snapshot {
@@ -11,6 +12,8 @@ export interface Snapshot {
   /** 냉장고 문 메모, 최근 것부터 */
   notes: Note[]
   me: Me
+  /** 우리 집 식구들. 나도 포함 */
+  members: Member[]
 }
 
 export type ItemAction = 'use' | 'consume' | 'discard'
@@ -35,6 +38,8 @@ export interface Repo {
   restoreNote(note: Note): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
   markNotesRead(ids: string[]): Promise<void>
+  /** 이 기기를 쓰는 사람의 이름 바꾸기 */
+  renameMe(name: string): Promise<void>
   /** 다른 기기에서 바뀌면 호출. 반환값은 구독 해제 */
   subscribe(onChange: () => void): () => void
 }
@@ -63,8 +68,9 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
         sb.from('items').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(300),
         sb.from('notes').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100),
-        sb.from('household_members').select('display_name').eq('household_id', hid).eq('user_id', uid).maybeSingle(),
+        sb.from('household_members').select('user_id, display_name').eq('household_id', hid).order('created_at'),
       ])
+      const members: Member[] = (check(m).data ?? []).map((r) => ({ id: r.user_id, name: r.display_name || null }))
       return {
         fridges: check(f).data as Fridge[],
         compartments: check(c).data as Compartment[],
@@ -72,7 +78,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         history: check(h).data as Item[],
         // 메모 테이블을 아직 만들지 않았어도 나머지 화면은 열리게
         notes: (n.data ?? []) as Note[],
-        me: { id: uid, name: m.data?.display_name || null },
+        me: members.find((x) => x.id === uid) ?? { id: uid, name: null },
+        members,
       }
     },
     async addFridge(t, name) {
@@ -144,13 +151,28 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         .eq('household_id', hid)
         .eq('user_id', uid ?? '')
         .maybeSingle()
-      check(await sb.from('notes').insert({ ...input, household_id: hid, author_name: m?.display_name || null }))
+      const { data: note } = check(
+        await sb
+          .from('notes')
+          .insert({ ...input, household_id: hid, author_name: m?.display_name || null })
+          .select('id')
+          .single(),
+      )
+      // #이름 이 있으면 그 식구 폰으로 알림. 알림이 안 가도 메모는 붙어 있으니 기다리지 않는다
+      if (hashtagsOf(input.body).length > 0) {
+        sb.functions.invoke('note-notify', { body: { note_id: note!.id } }).catch(() => {})
+      }
     },
     async deleteNote(id) {
       check(await sb.from('notes').delete().eq('id', id))
     },
     async restoreNote(note) {
       check(await sb.from('notes').insert(note))
+    },
+    async renameMe(name) {
+      const { data: auth } = await sb.auth.getSession()
+      const uid = auth.session?.user.id ?? ''
+      check(await sb.from('household_members').update({ display_name: name }).eq('household_id', hid).eq('user_id', uid))
     },
     async markNotesRead(ids) {
       if (ids.length === 0) return
@@ -177,7 +199,9 @@ const LOCAL_HID = 'local'
 export const LOCAL_HOUSEHOLD: Household = { id: LOCAL_HID, name: '우리 집 (체험 모드)', invite_code: '-' }
 
 /** 체험 모드는 혼자 쓰니 메모는 모두 '내 메모' */
-const LOCAL_ME: Me = { id: 'local-me', name: '나' }
+const LOCAL_ME_ID = 'local-me'
+const LOCAL_NAME_KEY = 'fridge-demo-name'
+const localMe = (): Me => ({ id: LOCAL_ME_ID, name: localStorage.getItem(LOCAL_NAME_KEY) || '나' })
 
 export function createLocalRepo(): Repo {
   type Stored = Omit<Snapshot, 'history' | 'me'>
@@ -199,7 +223,8 @@ export function createLocalRepo(): Repo {
     async load() {
       const s = read()
       const history = [...s.items].sort((a, b) => b.created_at.localeCompare(a.created_at))
-      return { ...s, items: s.items.filter((i) => i.status === 'active'), history, me: LOCAL_ME }
+      const me = localMe()
+      return { ...s, items: s.items.filter((i) => i.status === 'active'), history, me, members: [me] }
     },
     addFridge: (t, name) =>
       mutate((s) => {
@@ -259,6 +284,7 @@ export function createLocalRepo(): Repo {
           id: id(),
           household_id: LOCAL_HID,
           purchased_on: null,
+          created_by: LOCAL_ME_ID,
           barcode: null,
           status: 'active',
           created_at: now(),
@@ -283,8 +309,8 @@ export function createLocalRepo(): Repo {
           ...input,
           id: id(),
           household_id: LOCAL_HID,
-          author_id: LOCAL_ME.id,
-          author_name: LOCAL_ME.name,
+          author_id: LOCAL_ME_ID,
+          author_name: localMe().name,
           read_at: null,
           created_at: now(),
         })
@@ -298,6 +324,9 @@ export function createLocalRepo(): Repo {
         s.notes = [note, ...s.notes].sort((a, b) => b.created_at.localeCompare(a.created_at))
       }),
     markNotesRead: async () => {},
+    async renameMe(name) {
+      localStorage.setItem(LOCAL_NAME_KEY, name)
+    },
     subscribe(onChange) {
       // 같은 브라우저의 다른 탭에서 바뀐 경우
       const handler = (e: StorageEvent) => e.key === LOCAL_KEY && onChange()

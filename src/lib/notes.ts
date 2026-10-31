@@ -48,3 +48,20 @@ export function magnetOf(body: string): 'heart' | 'egg' | 'dot' {
   if (/계란|달걀|에그|써니|sunny/i.test(body)) return 'egg'
   return 'dot'
 }
+
+/** 메모 속 #이름. supabase/functions/note-notify 와 같은 규칙 */
+export const HASHTAG = /#([0-9A-Za-z가-힣_]+)/g
+export const hashtagsOf = (body: string) => [...new Set([...body.matchAll(HASHTAG)].map((m) => m[1]))]
+
+/** 메모 글을 보통 글과 #해시태그 조각으로 나눈다 (해시태그만 강조해 보여 주려고) */
+export function splitHashtags(body: string): { text: string; tag: boolean }[] {
+  const parts: { text: string; tag: boolean }[] = []
+  let last = 0
+  for (const m of body.matchAll(HASHTAG)) {
+    if (m.index > last) parts.push({ text: body.slice(last, m.index), tag: false })
+    parts.push({ text: m[0], tag: true })
+    last = m.index + m[0].length
+  }
+  if (last < body.length) parts.push({ text: body.slice(last), tag: false })
+  return parts
+}

@@ -16,7 +16,7 @@ import {
 } from '../lib/foodSearch'
 import { ZONE_LABEL } from '../lib/templates'
 import type { ItemAction } from '../lib/repo'
-import type { Compartment, Fridge, Item, ItemInput } from '../lib/types'
+import type { Compartment, Fridge, Item, ItemInput, Member } from '../lib/types'
 
 const QUICK_VISIBLE = 5
 
@@ -44,6 +44,8 @@ interface Props {
   compartments: Compartment[]
   /** 예전에 입력한 식품들: 이름 자동완성과 분류·단위 추천에 사용 */
   history: Item[]
+  /** 우리 집 식구: '누가 넣었는지' 표시용 */
+  members?: Member[]
   item?: Item
   defaultCompartmentId?: string
   onSave: (input: ItemInput, keepOpen: boolean) => Promise<void>
@@ -56,6 +58,7 @@ export function ItemSheet({
   fridges,
   compartments,
   history,
+  members = [],
   item,
   defaultCompartmentId,
   onSave,
@@ -493,6 +496,8 @@ export function ItemSheet({
 
           {error && <p className="rounded-xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
 
+          {item && <AddedBy item={item} members={members} />}
+
           {item && onAction && onDelete && (
             <div className="grid grid-cols-3 gap-2 border-t border-line pt-5">
               <Button
@@ -524,5 +529,15 @@ export function ItemSheet({
       {dialog}
       {scanning && <BarcodeScanner onDetected={lookupBarcode} onClose={() => setScanning(false)} />}
     </>
+  )
+}
+
+/** "민상 님이 10월 31일에 넣었어요" */
+function AddedBy({ item, members }: { item: Item; members: Member[] }) {
+  const who = members.find((m) => m.id === item.created_by)?.name
+  const d = new Date(item.created_at)
+  const when = `${d.getMonth() + 1}월 ${d.getDate()}일`
+  return (
+    <p className="tabular -mb-2 text-xs text-muted">{who ? `${who} 님이 ${when}에 넣었어요` : `${when}에 넣었어요`}</p>
   )
 }
