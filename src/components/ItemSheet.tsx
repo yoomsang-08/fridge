@@ -16,6 +16,7 @@ import {
   type FoodProduct,
 } from '../lib/foodSearch'
 import { ZONE_LABEL } from '../lib/templates'
+import { isPantry } from '../lib/fridgeShape'
 import type { ItemAction } from '../lib/repo'
 import type { Compartment, Container, Fridge, Item, ItemInput, Member } from '../lib/types'
 
@@ -304,6 +305,7 @@ export function ItemSheet({
     const c = compartments.find((x) => x.id === id)
     const f = fridges.find((x) => x.id === c?.fridge_id)
     if (!c) return ''
+    if (isPantry(f)) return f!.name
     return fridges.length > 1 && f ? `${f.name} · ${c.name}` : c.name
   }
   const placeSpace = fridges.find((f) => f.id === compartments.find((c) => c.id === compartmentId)?.fridge_id)
@@ -469,6 +471,7 @@ export function ItemSheet({
                         onClick={() => {
                           setSpaceId(f.id)
                           setCompartmentId(compartments.find((c) => c.fridge_id === f.id)?.id ?? '')
+                          if (isPantry(f)) setPlaceOpen(false)
                         }}
                       >
                         <SpaceIcon fridge={f} />
@@ -477,6 +480,11 @@ export function ItemSheet({
                     ))}
                   </div>
                 )}
+                {isPantry(fridges.find((f) => f.id === spaceId)) ? (
+                  <p className="rounded-xl bg-sunken px-3.5 py-3 text-sm text-muted">
+                    팬트리는 칸을 고르지 않아요. 넣은 순서대로 보여 드려요.
+                  </p>
+                ) : (
                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                   {compartments
                     .filter((c) => c.fridge_id === spaceId)
@@ -505,6 +513,7 @@ export function ItemSheet({
                       )
                     })}
                 </div>
+                )}
               </>
             )}
           </Field>
