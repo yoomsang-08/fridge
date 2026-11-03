@@ -1,7 +1,7 @@
 import { DoorClosed, DoorOpen, PanelRight, Rotate3d, Square, ZoomOut } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { expiryLevel, LEVEL_DOT } from '../lib/expiry'
-import { expandSlots, fitPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
+import { expandSlots, fitPantry, flowPantry, isPantry, isDoorCompartment, itemsBy, shapeOf, sortByUrgency } from '../lib/fridgeShape'
 import { ZONE_LABEL } from '../lib/templates'
 import { celebrationToday, hourKST } from '../lib/celebrations'
 import { DOOR_NOTE_COUNT } from '../lib/notes'
@@ -78,7 +78,13 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
 
   const fridge = fridges.find((f) => f.id === fridgeId) ?? fridges[0]
   const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
-  const byComp = useMemo(() => itemsBy(items), [items])
+  const byComp = useMemo(
+    () =>
+      isPantry(fridge)
+        ? flowPantry(mine, items.filter((i) => mine.some((c) => c.id === i.compartment_id)))
+        : itemsBy(items),
+    [items, fridge, mine],
+  )
   // 팬트리는 물건이 많으면 옆으로 늘어난다
   const shape = useMemo(
     () => fitPantry(shapeOf(fridge), mine.map((c) => byComp.get(c.id)?.length ?? 0)),
@@ -104,7 +110,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   const doorPhotos = fridge.id === fridges[0]?.id ? photos.slice(0, 2) : []
   // 생일·기념일에는 메인 냉장고를 꾸민다 (이스터에그)
   const celebration = useMemo(() => (fridge.id === fridges[0]?.id ? celebrationToday() : null), [fridge.id, fridges])
-  const nameOf = (i: Item) => mine.find((c) => c.id === i.compartment_id)?.name
+  const nameOf = (i: Item) => (isPantry(fridge) ? undefined : mine.find((c) => c.id === i.compartment_id)?.name)
 
   const changeMode = (m: Mode) => {
     setMode(m)

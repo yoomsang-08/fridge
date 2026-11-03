@@ -87,6 +87,7 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
     const c = compById.get(i.compartment_id)
     if (!c) return ''
     const f = fridgeById.get(c.fridge_id)
+    if (f?.template === 'pantry') return withSpace && fridges.length > 1 ? f.name : ''
     return withSpace && fridges.length > 1 && f ? `${f.name} · ${c.name}` : c.name
   }
 
@@ -201,7 +202,40 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
         : visibleFridges.map((f) => (
             <section key={f.id} className="flex flex-col gap-2">
               {fridges.length > 1 && <h2 className="mt-2 px-1 text-[15px] font-extrabold">{f.name}</h2>}
-              {compartments
+              {f.template === 'pantry' ? (
+                // 팬트리는 보관위치 없이 등록 순서대로 한 묶음
+                (() => {
+                  const first = compartments.find((c) => c.fridge_id === f.id)
+                  const inside = filtered
+                    .filter((i) => compById.get(i.compartment_id)?.fridge_id === f.id)
+                    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+                  if (!first || (!inside.length && (query || level !== 'all'))) return null
+                  return (
+                    <Card className="overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
+                        <span className="rounded-md bg-sunken px-1.5 py-px text-[11px] font-semibold text-muted">
+                          {ZONE_LABEL.pantry}
+                        </span>
+                        <span className="text-sm font-bold">등록한 순서대로</span>
+                        <span className="tabular text-sm text-faint">{inside.length}</span>
+                        <button
+                          onClick={() => onAddTo(first.id)}
+                          className="ml-auto flex h-8 items-center gap-0.5 rounded-lg px-2 text-sm font-semibold text-accent active:bg-accent-soft"
+                        >
+                          <Plus size={16} strokeWidth={2.4} />
+                          넣기
+                        </button>
+                      </div>
+                      {inside.length > 0 && (
+                        <ul className="divide-y divide-line border-t border-line">
+                          {inside.map((i) => row(i, false))}
+                        </ul>
+                      )}
+                    </Card>
+                  )
+                })()
+              ) : (
+                compartments
                 .filter((c) => c.fridge_id === f.id)
                 .map((c) => {
                   const inside = filtered.filter((i) => i.compartment_id === c.id)
@@ -229,7 +263,8 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
                       )}
                     </Card>
                   )
-                })}
+                })
+              )}
             </section>
           ))}
     </div>

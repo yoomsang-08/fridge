@@ -291,6 +291,25 @@ export function shapeOfItem(item: Item): Shape3D {
   return picked ?? guessContainer(item.name, item.unit) ?? UNIT_CONTAINER[item.unit] ?? CATEGORY_CONTAINER[item.category] ?? 'box'
 }
 
+/** 팬트리는 보관위치(칸)를 고르지 않는다. 등록한 순서대로 선반·바구니에 차례로 놓아 보여 준다 */
+export const isPantry = (f?: { template?: string | null } | null) => f?.template === 'pantry'
+
+/**
+ * 팬트리 품목을 등록 순서(오래된 것부터)로 칸 순서대로 채운다. 저장된 칸(compartment_id)은 무시해서 예전 데이터도 그대로 쓴다.
+ * 칸당 3개씩 채우되 넘치면 칸마다 고르게 늘린다
+ */
+export function flowPantry(compartments: Compartment[], items: Item[]): Map<string, Item[]> {
+  const out = new Map<string, Item[]>()
+  if (!compartments.length) return out
+  const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const per = Math.max(3, Math.ceil(sorted.length / compartments.length))
+  sorted.forEach((it, i) => {
+    const c = compartments[Math.min(compartments.length - 1, Math.floor(i / per))]
+    out.set(c.id, [...(out.get(c.id) ?? []), it])
+  })
+  return out
+}
+
 /**
  * 팬트리는 가상의 공간이라 모자라면 안 된다. 칸 하나에 식품이 많으면 선반장을 옆으로 늘린다.
  * 한 베이(800mm) 선반에 8개쯤이 보기 좋은 양. 넘치면 베이를 하나 더 붙이고(폰 화면을 생각해 최대 2베이), 그 뒤로는 식품을 작게 줄여 다 채운다
