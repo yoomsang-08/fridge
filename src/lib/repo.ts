@@ -40,6 +40,8 @@ export interface Repo {
   deleteItem(id: string): Promise<void>
   /** use: 1 만큼 사용, consume: 다 먹음, discard: 버림 */
   act(item: Item, action: ItemAction): Promise<void>
+  /** 다 먹음·버림으로 정리한 식품을 다시 재고로 되살린다 */
+  restoreItem(id: string): Promise<void>
   addNote(input: NoteInput): Promise<void>
   /** 냉장고 문에서 떼기 */
   deleteNote(id: string): Promise<void>
@@ -201,6 +203,10 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         action,
         quantity_delta: action === 'use' ? -1 : -item.quantity,
       })
+    },
+    async restoreItem(id) {
+      check(await sb.from('items').update({ status: 'active' }).eq('id', id))
+      await sb.from('item_logs').insert({ household_id: hid, item_id: id, action: 'edit' })
     },
     async addNote(input) {
       const { data: auth } = await sb.auth.getSession()
@@ -462,6 +468,10 @@ export function createLocalRepo(): Repo {
     act: (item, action) =>
       mutate((s) => {
         s.items = s.items.map((i) => (i.id === item.id ? { ...i, ...nextAfterAction(i, action), updated_at: now() } : i))
+      }),
+    restoreItem: (iid) =>
+      mutate((s) => {
+        s.items = s.items.map((i) => (i.id === iid ? { ...i, status: 'active', updated_at: now() } : i))
       }),
     addNote: (input) =>
       mutate((s) => {

@@ -69,6 +69,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())
   /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
+  const [undoItem, setUndoItem] = useState<{ id: string; name: string; action: ItemAction } | null>(null)
   const [removed, setRemoved] = useState<{ note: Note; comments: NoteComment[] } | null>(null)
   const egg = useSunnyEgg()
   const celebration = useMemo(() => celebrationToday(), [])
@@ -131,6 +132,12 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     return () => clearTimeout(timer)
   }, [removed])
 
+  useEffect(() => {
+    if (!undoItem) return
+    const timer = setTimeout(() => setUndoItem(null), 5000)
+    return () => clearTimeout(timer)
+  }, [undoItem])
+
   const openTab = (t: Tab) => {
     if (t !== 'notes') setFresh(new Set())
     setTab(t)
@@ -148,6 +155,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     const finished = action === 'consume' || (action === 'use' && item.quantity <= 1)
     return mutate(async () => {
       await repo.act(item, action)
+      if (finished || action === 'discard') setUndoItem({ id: item.id, name: item.name, action })
       if (finished && countCleanup(ymdKST()) === 10) eggToast('오늘 냉장고 정리왕')
     })
   }
@@ -328,6 +336,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             compartments={snap.compartments}
             me={snap.me}
             members={snap.members}
+            history={snap.history}
             isLocal={isLocal}
             onSignOut={onSignOut}
             onChanged={reload}
@@ -451,6 +460,29 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             }}
           >
             되돌리기
+          </button>
+        </div>
+      )}
+
+      {undoItem && !removed && (
+        <div
+          role="status"
+          className={cx('fixed inset-x-4 z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card',
+            showAdd ? 'bottom-[calc(9.75rem+env(safe-area-inset-bottom))] sm:bottom-24' : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] sm:bottom-8',
+          )}
+        >
+          <span className="min-w-0 flex-1 truncate">
+            {undoItem.name} {undoItem.action === 'discard' ? '버렸어요' : '다 먹었어요'}
+          </span>
+          <button
+            className="h-9 shrink-0 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
+            onClick={() => {
+              const { id } = undoItem
+              setUndoItem(null)
+              mutate(() => repo.restoreItem(id))
+            }}
+          >
+            되살리기
           </button>
         </div>
       )}
