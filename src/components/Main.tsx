@@ -1,5 +1,5 @@
 import { deviceLabel } from '../lib/device'
-import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, type LucideIcon } from 'lucide-react'
+import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, Utensils, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
 import { cameBackFromOAuth, type SmartThings } from '../lib/smartthings'
@@ -12,6 +12,7 @@ import { FridgeStatus } from './FridgeStatus'
 import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
+import { MealPlanView } from './MealPlan'
 import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
 import { NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from './NoteSheet'
@@ -24,11 +25,12 @@ import { Button, Card, EggToast, Logo, SunnyEgg } from './ui'
 
 const URGENT_LEVELS = new Set(['expired', 'urgent'])
 
-type Tab = 'list' | 'view' | 'notes' | 'settings'
-/** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
+type Tab = 'list' | 'view' | 'meals' | 'notes' | 'settings'
+/** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다. 가운데 식단표는 동그란 강조 버튼(탭 최대 4개 규칙의 예외) */
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: 'list', label: '재고', icon: List },
   { id: 'view', label: '냉장고', icon: Refrigerator },
+  { id: 'meals', label: '식단표', icon: Utensils },
   { id: 'notes', label: '메모', icon: NoteIcon },
   { id: 'settings', label: '설정', icon: SettingsIcon },
 ]
@@ -173,7 +175,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl pb-44 sm:pb-28">
+    <div className={cx('mx-auto min-h-dvh max-w-3xl pb-44 sm:pb-28', tab === 'meals' && 'lg:max-w-wide')}>
       <header className="sticky top-0 z-30 flex items-center gap-3 bg-bg/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-md sm:px-6">
         {/* 로고·제목을 누르면 홈(재고)으로, 맨 위로. 로고를 빠르게 다섯 번 누르면 이스터에그 */}
         <h1 className="min-w-0 flex-1">
@@ -206,21 +208,37 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             </span>
           </button>
         </h1>
-        <nav className="hidden rounded-xl bg-sunken p-[3px] text-sm sm:flex">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => openTab(t.id)}
-              className={cx(
-                'flex items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
-                tab === t.id ? 'bg-surface font-bold shadow-card' : 'text-muted',
-              )}
-            >
-              <t.icon size={16} strokeWidth={2.2} />
-              {t.label}
-              {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && <Badge count={unread.length} />}
-            </button>
-          ))}
+        <nav className="hidden items-center rounded-xl bg-sunken p-[3px] text-sm sm:flex">
+          {TABS.map((t) =>
+            t.id === 'meals' ? (
+              <button
+                key={t.id}
+                onClick={() => openTab(t.id)}
+                aria-label={t.label}
+                title={t.label}
+                aria-current={tab === t.id ? 'page' : undefined}
+                className={cx(
+                  'mx-1.5 -my-[5px] grid h-11 w-11 place-items-center rounded-full bg-accent-strong text-white shadow-card transition active:scale-95',
+                  tab === t.id && 'ring-2 ring-accent ring-offset-2 ring-offset-sunken',
+                )}
+              >
+                <t.icon size={20} strokeWidth={2.2} />
+              </button>
+            ) : (
+              <button
+                key={t.id}
+                onClick={() => openTab(t.id)}
+                className={cx(
+                  'flex items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
+                  tab === t.id ? 'bg-surface font-bold shadow-card' : 'text-muted',
+                )}
+              >
+                <t.icon size={16} strokeWidth={2.2} />
+                {t.label}
+                {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && <Badge count={unread.length} />}
+              </button>
+            ),
+          )}
         </nav>
       </header>
 
@@ -250,6 +268,10 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         )}
 
         {tab === 'list' && <NoteBanner unread={unread} onOpen={() => openTab('notes')} />}
+
+        {tab === 'meals' && (
+          <MealPlanView meals={snap.meals} items={snap.items} onSave={(date, slot, menu) => mutate(() => repo.setMeal(date, slot, menu))} />
+        )}
 
         {tab === 'notes' && (
           <NoteBoard
@@ -331,25 +353,44 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         className="fixed inset-x-0 bottom-0 z-30 grid border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
         style={{ gridTemplateColumns: `repeat(${TABS.length}, 1fr)` }}
       >
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => openTab(t.id)}
-            aria-current={tab === t.id ? 'page' : undefined}
-            className={cx(
-              'flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
-              tab === t.id ? 'text-accent' : 'text-faint',
-            )}
-          >
-            <span className="relative">
-              <t.icon size={23} strokeWidth={tab === t.id ? 2.3 : 1.9} />
-              {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && (
-                <Badge count={unread.length} className="absolute -top-1.5 -right-2.5" />
+        {TABS.map((t) =>
+          t.id === 'meals' ? (
+            <button
+              key={t.id}
+              onClick={() => openTab(t.id)}
+              aria-current={tab === t.id ? 'page' : undefined}
+              className="relative flex h-16 flex-col items-center justify-end pb-1.5 text-[11px] transition"
+            >
+              <span
+                className={cx(
+                  'absolute -top-[30px] grid h-[58px] w-[58px] place-items-center rounded-full bg-accent-strong text-white shadow-float ring-[5px] ring-bg transition active:scale-95',
+                  tab === t.id && 'outline-2 outline-offset-[6px] outline-accent',
+                )}
+              >
+                <t.icon size={26} strokeWidth={2.2} />
+              </span>
+              <span className={cx(tab === t.id ? 'font-extrabold text-accent' : 'font-semibold text-faint')}>{t.label}</span>
+            </button>
+          ) : (
+            <button
+              key={t.id}
+              onClick={() => openTab(t.id)}
+              aria-current={tab === t.id ? 'page' : undefined}
+              className={cx(
+                'flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
+                tab === t.id ? 'text-accent' : 'text-faint',
               )}
-            </span>
-            {t.label}
-          </button>
-        ))}
+            >
+              <span className="relative">
+                <t.icon size={23} strokeWidth={tab === t.id ? 2.3 : 1.9} />
+                {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && (
+                  <Badge count={unread.length} className="absolute -top-1.5 -right-2.5" />
+                )}
+              </span>
+              {t.label}
+            </button>
+          ),
+        )}
       </nav>
 
       {sheet?.mode === 'note-write' && (

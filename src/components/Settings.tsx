@@ -7,6 +7,7 @@ import type { Compartment, Fridge, Household, Me, Member, Zone } from '../lib/ty
 import { useDialog } from './Dialog'
 import { BackupSettings } from './BackupSettings'
 import { CategoryDaysSettings } from './CategoryDaysSettings'
+import { MealSlotSettings } from './MealSlotSettings'
 import { MemberDevices } from './MemberDevices'
 import { PushSettings } from './PushSettings'
 import { cx } from '../lib/cx'
@@ -233,6 +234,8 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
       </Card>
 
       {!isLocal && <BackupSettings householdId={household.id} />}
+
+      <MealSlotSettings />
 
       <CategoryDaysSettings repo={repo} onError={setError} />
 
