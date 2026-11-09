@@ -426,7 +426,9 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
       {undoItem && !removed && (
         <div
           role="status"
-          className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card sm:bottom-8"
+          className={cx('fixed inset-x-4 z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card',
+            showAdd ? 'bottom-[calc(9.75rem+env(safe-area-inset-bottom))] sm:bottom-24' : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] sm:bottom-8',
+          )}
         >
           <span className="min-w-0 flex-1 truncate">
             {undoItem.name} {undoItem.action === 'discard' ? '버렸어요' : '다 먹었어요'}
