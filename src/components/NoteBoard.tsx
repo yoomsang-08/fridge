@@ -69,7 +69,7 @@ export function NoteBoard({ notes, comments, photos, me, fresh, onOpen, onWrite,
       </div>
 
       <div className="rounded-[1.75rem] border border-line bg-surface p-4 shadow-card sm:p-5">
-        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
           {/* 메모 한 장 크기의 점선 칸 하나를 위아래 반반으로 */}
           <div className="flex min-h-36 flex-col self-start overflow-hidden rounded-md border-2 border-dashed border-line">
             <button onClick={onWrite} className={HALF}>

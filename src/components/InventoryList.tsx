@@ -118,17 +118,21 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
   )
 
   return (
-    <div className="flex flex-col gap-3.5">
-      <TodayFocus
-        due={focus.due}
-        expired={focus.expired}
-        next={focus.next}
-        locationOf={(i) => locationOf(i, true)}
-        onOpen={onOpen}
-        onAct={onAct}
-      />
+    // 1024px~ 는 왼쪽 '지금 챙길 식품' 360px 고정(따라오게) · 오른쪽 나머지 목록. 그 밑은 한 열
+    <div className="flex flex-col gap-3.5 lg:grid lg:grid-cols-[22.5rem_minmax(0,1fr)] lg:items-start lg:gap-8">
+      <div className="lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
+        <TodayFocus
+          due={focus.due}
+          expired={focus.expired}
+          next={focus.next}
+          locationOf={(i) => locationOf(i, true)}
+          onOpen={onOpen}
+          onAct={onAct}
+        />
+      </div>
 
-      <h2 className="mt-3 flex items-baseline gap-1.5 px-1 text-[15px] font-extrabold">
+      <div className="flex min-w-0 flex-col gap-3.5">
+      <h2 className="mt-3 lg:mt-0 flex items-baseline gap-1.5 px-1 text-[15px] font-extrabold">
         {hideFocus ? '그 밖의 식품' : '모든 식품'}
         <span className="tabular text-sm font-semibold text-faint">
           {hideFocus ? items.length - focus.due.length - focus.expired.length : items.length}
@@ -267,6 +271,7 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
               )}
             </section>
           ))}
+      </div>
     </div>
   )
 }

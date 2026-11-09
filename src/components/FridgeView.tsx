@@ -142,12 +142,11 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* 상태 카드(냉장·냉동 온도)는 냉장고를 볼 때만 */}
-      {!noDoors && header}
-
+    // 1024px~: 왼쪽 그림(남은 폭), 오른쪽 360px 에 상태와 식품 목록. 그 밑은 한 열(order 로 폰 순서 유지)
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start lg:gap-x-8">
+      <div className="contents lg:col-start-1 lg:row-start-1 lg:flex lg:min-w-0 lg:flex-col lg:gap-3">
       {/* 폰은 공간 칩 줄 아래에 3D·평면, sm 이상은 한 줄 양 끝 */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="order-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {fridges.length > 1 && (
           <div className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             {spaces.map((f) => (
@@ -182,7 +181,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
         </div>
       </div>
 
-      <Card className="relative overflow-hidden">
+      <Card className="relative order-3 overflow-hidden">
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
           {/* 칸으로 다가간 뒤엔 빈 곳을 찾기 어려우니 돌아가는 버튼을 따로 */}
           {mode === '3d' && zoomed && (
@@ -224,7 +223,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
         )}
 
         {mode === '3d' ? (
-          <div className={cx(noDoors ? 'h-[72dvh]' : 'h-[60dvh]', 'min-h-80 w-full touch-none')}>
+          <div className={cx(noDoors ? 'h-[72dvh]' : 'h-[60dvh]', 'min-h-80 w-full touch-none lg:mx-auto lg:h-[calc(100dvh-9rem)] lg:max-h-[56rem] lg:w-[min(100%,calc((100dvh-9rem)*0.85))]')}>
             <Suspense fallback={<div className="grid h-full place-items-center text-muted">불러오는 중…</div>}>
               <Fridge3D
                 shape={shape}
@@ -270,7 +269,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
         )}
       </Card>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-muted">
+      <div className="order-4 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-muted">
         {LEGEND.map(([lv, label]) => (
           <span key={lv} className="flex items-center gap-1.5">
             <span className={cx('h-2 w-2 rounded-full', LEVEL_DOT[lv])} />
@@ -288,8 +287,14 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
         </span>
       </div>
 
+      </div>
+
+      <div className="contents lg:col-start-2 lg:row-start-1 lg:flex lg:min-w-0 lg:flex-col lg:gap-3">
+      {/* 상태 카드(냉장·냉동 온도)는 냉장고를 볼 때만 */}
+      {!noDoors && <div className="order-1">{header}</div>}
+
       {unplaced.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="order-5 flex gap-2 overflow-x-auto">
           {unplaced.map((c) => (
             <Chip key={c.id} active={selectedId === c.id} onClick={() => setSelectedId(c.id)}>
               {c.name} {(byComp.get(c.id) ?? []).length}
@@ -298,7 +303,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
         </div>
       )}
 
-      <section className="flex flex-col gap-2">
+      <section className="order-6 flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2 px-1">
           <h3 className="text-[13px] font-bold text-muted">
             {selected
@@ -325,6 +330,7 @@ export function FridgeView({ fridges, compartments, items, onOpen, onUseOne, onA
           )}
         </Card>
       </section>
+      </div>
     </div>
   )
 }

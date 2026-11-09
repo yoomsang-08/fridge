@@ -173,8 +173,27 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl pb-44 sm:pb-28">
-      <header className="sticky top-0 z-30 flex items-center gap-3 bg-bg/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-md sm:px-6">
+    <div className="min-h-dvh pb-44 sm:pb-28 lg:pl-[max(var(--spacing-rail),env(safe-area-inset-left))]">
+      {/* 1024px~ 왼쪽 사이드 내비. 아래 탭·머리글 탭과 같은 내비를 두 번 보이지 않는다 */}
+      <nav
+        aria-label="주 메뉴"
+        className="fixed inset-y-0 left-0 z-30 hidden w-[max(var(--spacing-rail),calc(env(safe-area-inset-left)+4rem))] flex-col items-center border-r border-line bg-surface pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] lg:flex"
+      >
+        <button onClick={goHome} aria-label="홈으로" className="mb-4 grid h-12 w-12 place-items-center transition active:opacity-70">
+          {egg.on ? <SunnyEgg /> : <Logo />}
+        </button>
+        <div className="flex flex-1 flex-col gap-2">
+          {TABS.filter((t) => t.id !== 'settings').map((t) => (
+            <RailButton key={t.id} tab={t} active={tab === t.id} unread={unread.length} onClick={() => openTab(t.id)} />
+          ))}
+        </div>
+        {TABS.filter((t) => t.id === 'settings').map((t) => (
+          <RailButton key={t.id} tab={t} active={tab === t.id} unread={0} onClick={() => openTab(t.id)} />
+        ))}
+      </nav>
+
+    <div className="mx-auto max-w-reading lg:max-w-wide">
+      <header className="sticky top-0 z-30 flex items-center gap-3 bg-bg/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-md sm:px-6 lg:px-8">
         {/* 로고·제목을 누르면 홈(재고)으로, 맨 위로. 로고를 빠르게 다섯 번 누르면 이스터에그 */}
         <h1 className="min-w-0 flex-1">
           <button
@@ -206,13 +225,13 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             </span>
           </button>
         </h1>
-        <nav className="hidden rounded-xl bg-sunken p-[3px] text-sm sm:flex">
+        <nav className="hidden rounded-xl bg-sunken p-[3px] text-sm sm:flex lg:hidden">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => openTab(t.id)}
               className={cx(
-                'flex items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
+                'flex min-h-10 items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
                 tab === t.id ? 'bg-surface font-bold shadow-card' : 'text-muted',
               )}
             >
@@ -224,7 +243,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         </nav>
       </header>
 
-      <main className="px-4 pt-1 sm:px-6">
+      <main className="px-4 pt-1 sm:px-6 lg:px-8">
         {error && <p className="mb-3 rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
 
         {(tab === 'list' || tab === 'view') && noFridge && (
@@ -318,7 +337,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           onClick={() => setSheet({ mode: 'add' })}
           aria-label="식품 넣기"
           className={cx(
-            'fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center justify-center gap-1.5 overflow-hidden bg-accent text-base font-bold whitespace-nowrap text-white shadow-float transition-all duration-200 active:scale-95 sm:right-[max(1.5rem,calc(50vw-24rem+1.5rem))] sm:bottom-8',
+            'fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center justify-center gap-1.5 overflow-hidden bg-accent text-base font-bold whitespace-nowrap text-white shadow-float transition-all duration-200 active:scale-95 sm:right-[max(1.5rem,calc(50vw-22.5rem+1.5rem))] sm:bottom-8 lg:right-[max(2rem,calc((100vw-var(--spacing-rail)-70rem)/2+2rem))]',
             compactFab ? 'w-14 rounded-full' : 'w-[8.5rem] rounded-[1.25rem]',
           )}
         >
@@ -398,7 +417,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
       {removed && (
         <div
           role="status"
-          className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card sm:bottom-8"
+          className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card sm:bottom-8 lg:left-[calc(var(--spacing-rail)+1rem)]"
         >
           <span className="flex-1">메모를 뗐어요</span>
           <button
@@ -435,6 +454,27 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         />
       )}
     </div>
+    </div>
+  )
+}
+
+/** 사이드 내비 항목: 88×64 */
+function RailButton({ tab, active, unread, onClick }: { tab: (typeof TABS)[number]; active: boolean; unread: number; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cx(
+        'flex h-16 w-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl text-xs font-semibold transition active:opacity-70',
+        active ? 'bg-accent-soft text-accent' : 'text-muted',
+      )}
+    >
+      <span className="relative">
+        <tab.icon size={22} strokeWidth={active ? 2.3 : 1.9} />
+        {tab.id === 'notes' && !active && unread > 0 && <Badge count={unread} className="absolute -top-1.5 -right-2.5" />}
+      </span>
+      {tab.label}
+    </button>
   )
 }
 

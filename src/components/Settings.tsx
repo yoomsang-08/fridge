@@ -47,7 +47,7 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex max-w-reading flex-col gap-4">
       {error && <p className="rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
 
       <Card className="p-5">

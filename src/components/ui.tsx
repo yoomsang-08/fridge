@@ -44,7 +44,7 @@ export function Chip({
     <button
       {...props}
       className={cx(
-        'inline-flex h-9 shrink-0 items-center gap-1 rounded-full border px-3.5 text-sm whitespace-nowrap transition',
+        'inline-flex h-9 shrink-0 sm:h-11 items-center gap-1 rounded-full border px-3.5 text-sm whitespace-nowrap transition',
         tone === 'suggest'
           ? 'border-transparent bg-accent-soft font-semibold text-accent'
           : active
@@ -76,7 +76,7 @@ export function Segmented<T extends string>({
           aria-selected={value === v}
           onClick={() => onChange(v)}
           className={cx(
-            'rounded-[9px] px-3 py-1.5 transition',
+            'rounded-[9px] px-3 py-1.5 transition sm:min-h-10 sm:px-4',
             value === v ? 'bg-surface font-bold text-ink shadow-card' : 'text-muted',
           )}
         >
@@ -125,7 +125,7 @@ export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLBut
     <button
       {...props}
       className={cx(
-        'grid h-10 w-10 shrink-0 place-items-center rounded-xl transition active:bg-sunken',
+        'grid h-10 w-10 shrink-0 place-items-center rounded-xl transition active:bg-sunken sm:h-11 sm:w-11',
         // 기본 색은 따로 준 색이 없을 때만 (CSS 순서상 text-muted 가 이기는 문제)
         !hasTextColor(className) && 'text-muted',
         className,
