@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashtagsOf } from './notes'
 import { blobToDataUrl, PHOTO_LIMIT, preparePhoto } from './photos'
-import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, Me, Member, Note, NoteComment, NoteInput, Zone } from './types'
+import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, MealPlan, MealSlot, Me, Member, Note, NoteComment, NoteInput, Zone } from './types'
+import { mealsSince } from './meals'
 import type { FridgeTemplate } from './templates'
 import { DEFAULT_CATEGORIES, getCategories, setCategories, type Category, type CategoryDays } from './categories'
 
@@ -20,6 +21,8 @@ export interface Snapshot {
   me: Me
   /** 우리 집 식구들. 나도 포함 */
   members: Member[]
+  /** 식단표: 최근 두 달 전부터 다음 주까지 */
+  meals: MealPlan[]
 }
 
 export type ItemAction = 'use' | 'consume' | 'discard'
@@ -37,6 +40,8 @@ export interface Repo {
   deleteItem(id: string): Promise<void>
   /** use: 1 만큼 사용, consume: 다 먹음, discard: 버림 */
   act(item: Item, action: ItemAction): Promise<void>
+  /** 다 먹음·버림으로 정리한 식품을 다시 재고로 되살린다 */
+  restoreItem(id: string): Promise<void>
   addNote(input: NoteInput): Promise<void>
   /** 냉장고 문에서 떼기 */
   deleteNote(id: string): Promise<void>
@@ -49,6 +54,8 @@ export interface Repo {
   addPhoto(file: File): Promise<void>
   /** 사진 떼기: 파일까지 지운다 */
   deletePhoto(photo: FridgePhoto): Promise<void>
+  /** 식단표 칸 적기. 메뉴가 비어 있으면 그 칸을 비운다 */
+  setMeal(date: string, slot: MealSlot, menu: string): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
   markNotesRead(ids: string[]): Promise<void>
   /** 이 기기를 쓰는 사람의 이름 바꾸기 */
@@ -98,7 +105,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async load() {
       const { data: auth } = await sb.auth.getSession()
       const uid = auth.session?.user.id ?? ''
-      const [f, c, i, h, n, m, k, nc, ph] = await Promise.all([
+      const [f, c, i, h, n, m, k, nc, ph, mp] = await Promise.all([
         sb.from('fridges').select('*').eq('household_id', hid).order('sort_order').order('created_at'),
         sb.from('compartments').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
@@ -109,6 +116,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('categories').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('note_comments').select('*').eq('household_id', hid).order('created_at').limit(500),
         sb.from('fridge_photos').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(PHOTO_LIMIT),
+        sb.from('meal_plans').select('*').eq('household_id', hid).gte('plan_date', mealsSince()).order('plan_date'),
       ])
       // 0007 마이그레이션 전이면 테이블이 없으니 기본 분류로
       setCategories((k.data as Category[] | null) ?? DEFAULT_CATEGORIES)
@@ -132,6 +140,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         photos: await signPhotos((ph.data ?? []) as Omit<FridgePhoto, 'url'>[]),
         me: members.find((x) => x.id === uid) ?? { id: uid, name: null },
         members,
+        // 0019 마이그레이션 전이면 식단 없이
+        meals: (mp.data ?? []) as MealPlan[],
       }
     },
     async addFridge(t, name) {
@@ -193,6 +203,10 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         action,
         quantity_delta: action === 'use' ? -1 : -item.quantity,
       })
+    },
+    async restoreItem(id) {
+      check(await sb.from('items').update({ status: 'active' }).eq('id', id))
+      await sb.from('item_logs').insert({ household_id: hid, item_id: id, action: 'edit' })
     },
     async addNote(input) {
       const { data: auth } = await sb.auth.getSession()
@@ -285,6 +299,26 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       check(await sb.from('categories').update({ ...days, days_set: true }).eq('household_id', hid).eq('id', id))
       setCategories(getCategories().map((c) => (c.id === id ? { ...c, ...days } : c)))
     },
+    async setMeal(date, slot, menu) {
+      const text = menu.trim()
+      if (!text) {
+        check(await sb.from('meal_plans').delete().eq('household_id', hid).eq('plan_date', date).eq('slot', slot))
+        return
+      }
+      const { data: auth } = await sb.auth.getSession()
+      const { data: m } = await sb
+        .from('household_members')
+        .select('display_name')
+        .eq('household_id', hid)
+        .eq('user_id', auth.session?.user.id ?? '')
+        .maybeSingle()
+      check(
+        await sb.from('meal_plans').upsert(
+          { household_id: hid, plan_date: date, slot, menu: text, author_name: m?.display_name || null, updated_at: new Date().toISOString() },
+          { onConflict: 'household_id,plan_date,slot' },
+        ),
+      )
+    },
     async markNotesRead(ids) {
       if (ids.length === 0) return
       check(await sb.from('notes').update({ read_at: new Date().toISOString() }).in('id', ids).is('read_at', null))
@@ -297,7 +331,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         timer = setTimeout(onChange, 250)
       }
       const channel = sb.channel(`household-${hid}`)
-      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments', 'fridge_photos']) {
+      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments', 'fridge_photos', 'meal_plans']) {
         channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter: `household_id=eq.${hid}` }, changed)
         channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `household_id=eq.${hid}` }, changed)
         // 삭제는 Supabase 가 필터를 지원하지 않아(id 만 온다) 필터 없이 받는다
@@ -329,11 +363,11 @@ const applyLocalDays = () => DEFAULT_CATEGORIES.map((c) => ({ ...c, ...localDays
 const localMe = (): Me => ({ id: LOCAL_ME_ID, name: localStorage.getItem(LOCAL_NAME_KEY) || '나' })
 
 export function createLocalRepo(): Repo {
-  type Stored = Omit<Snapshot, 'history' | 'me'>
+  type Stored = Omit<Snapshot, 'history' | 'me' | 'members'>
   const read = (): Stored => {
     const raw = localStorage.getItem(LOCAL_KEY)
     const s = raw ? JSON.parse(raw) : {}
-    return { fridges: [], compartments: [], items: [], notes: [], comments: [], photos: [], ...s }
+    return { fridges: [], compartments: [], items: [], notes: [], comments: [], photos: [], meals: [], ...s }
   }
   const write = (s: Stored) => localStorage.setItem(LOCAL_KEY, JSON.stringify(s))
   const mutate = async (fn: (s: Stored) => void) => {
@@ -435,6 +469,10 @@ export function createLocalRepo(): Repo {
       mutate((s) => {
         s.items = s.items.map((i) => (i.id === item.id ? { ...i, ...nextAfterAction(i, action), updated_at: now() } : i))
       }),
+    restoreItem: (iid) =>
+      mutate((s) => {
+        s.items = s.items.map((i) => (i.id === iid ? { ...i, status: 'active', updated_at: now() } : i))
+      }),
     addNote: (input) =>
       mutate((s) => {
         s.notes.unshift({
@@ -496,6 +534,14 @@ export function createLocalRepo(): Repo {
     deletePhoto: (photo) =>
       mutate((s) => {
         s.photos = s.photos.filter((p) => p.id !== photo.id)
+      }),
+    setMeal: (date, slot, menu) =>
+      mutate((s) => {
+        const text = menu.trim()
+        const rest = s.meals.filter((m) => !(m.plan_date === date && m.slot === slot))
+        s.meals = text
+          ? [...rest, { id: id(), household_id: LOCAL_HID, plan_date: date, slot, menu: text, author_name: localMe().name, created_at: now(), updated_at: now() }]
+          : rest
       }),
     markNotesRead: async () => {},
     async renameMe(name) {

@@ -139,3 +139,18 @@ export interface Member extends Me {
   device: string | null
   joinedAt: string
 }
+
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'late'
+
+/** 식단표 한 칸: 어느 날, 어느 끼니에 무엇을 먹는지 */
+export interface MealPlan {
+  id: string
+  household_id: string
+  /** 'YYYY-MM-DD' */
+  plan_date: string
+  slot: MealSlot
+  menu: string
+  author_name: string | null
+  created_at: string
+  updated_at: string
+}

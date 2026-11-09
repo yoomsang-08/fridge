@@ -3,11 +3,13 @@ import { useState } from 'react'
 import { formatCode } from '../lib/code'
 import { FRIDGE_TEMPLATES, ZONE_LABEL } from '../lib/templates'
 import type { Repo } from '../lib/repo'
-import type { Compartment, Fridge, Household, Me, Member, Zone } from '../lib/types'
+import type { Compartment, Fridge, Household, Item, Me, Member, Zone } from '../lib/types'
 import { useDialog } from './Dialog'
 import { BackupSettings } from './BackupSettings'
 import { CategoryDaysSettings } from './CategoryDaysSettings'
+import { MealSlotSettings } from './MealSlotSettings'
 import { MemberDevices } from './MemberDevices'
+import { RecentlyDone } from './RecentlyDone'
 import { PushSettings } from './PushSettings'
 import { cx } from '../lib/cx'
 import { Button, Card, IconButton } from './ui'
@@ -19,12 +21,13 @@ interface Props {
   compartments: Compartment[]
   me: Me
   members: Member[]
+  history: Item[]
   isLocal: boolean
   onSignOut?: () => void
   onChanged: () => void
 }
 
-export function Settings({ repo, household, fridges, compartments, me, members, isLocal, onSignOut, onChanged }: Props) {
+export function Settings({ repo, household, fridges, compartments, me, members, history, isLocal, onSignOut, onChanged }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -85,6 +88,8 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
           />
         )}
       </Card>
+
+      <RecentlyDone history={history} onRestore={(id) => run(() => repo.restoreItem(id))} />
 
       {!isLocal && <PushSettings householdId={household.id} />}
 
@@ -233,6 +238,8 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
       </Card>
 
       {!isLocal && <BackupSettings householdId={household.id} />}
+
+      <MealSlotSettings />
 
       <CategoryDaysSettings repo={repo} onError={setError} />
 

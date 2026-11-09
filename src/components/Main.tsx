@@ -5,6 +5,7 @@ import {
   Refrigerator,
   Settings as SettingsIcon,
   StickyNote as NoteIcon,
+  Utensils,
   type LucideIcon,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -19,6 +20,7 @@ import { FridgeStatus } from './FridgeStatus'
 import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
+import { MealPlanView } from './MealPlan'
 import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
 import { NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from './NoteSheet'
@@ -31,11 +33,12 @@ import { Button, Card, EggToast, Logo, SunnyEgg } from './ui'
 
 const URGENT_LEVELS = new Set(['expired', 'urgent'])
 
-type Tab = 'list' | 'view' | 'notes' | 'settings'
-/** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다 */
+type Tab = 'list' | 'view' | 'meals' | 'notes' | 'settings'
+/** 폰에서는 아래 탭 메뉴, PC 에서는 머리글 오른쪽에 보인다. 가운데 식단표는 동그란 강조 버튼(탭 최대 4개 규칙의 예외) */
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: 'list', label: '재고', icon: List },
   { id: 'view', label: '냉장고', icon: Refrigerator },
+  { id: 'meals', label: '식단표', icon: Utensils },
   { id: 'notes', label: '메모', icon: NoteIcon },
   { id: 'settings', label: '설정', icon: SettingsIcon },
 ]
@@ -74,6 +77,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())
   /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
+  const [undoItem, setUndoItem] = useState<{ id: string; name: string; action: ItemAction } | null>(null)
   const [removed, setRemoved] = useState<{ note: Note; comments: NoteComment[] } | null>(null)
   const egg = useSunnyEgg()
   const celebration = useMemo(() => celebrationToday(), [])
@@ -138,6 +142,12 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     return () => clearTimeout(timer)
   }, [removed])
 
+  useEffect(() => {
+    if (!undoItem) return
+    const timer = setTimeout(() => setUndoItem(null), 5000)
+    return () => clearTimeout(timer)
+  }, [undoItem])
+
   const openTab = (t: Tab) => {
     if (t !== 'notes') setFresh(new Set())
     setTab(t)
@@ -155,6 +165,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     const finished = action === 'consume' || (action === 'use' && item.quantity <= 1)
     return mutate(async () => {
       await repo.act(item, action)
+      if (finished || action === 'discard') setUndoItem({ id: item.id, name: item.name, action })
       if (finished && countCleanup(ymdKST()) === 10) eggToast('오늘 냉장고 정리왕')
     })
   }
@@ -238,21 +249,37 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               </span>
             </button>
           </h1>
-          <nav className="hidden rounded-xl bg-sunken p-[3px] text-sm sm:flex lg:hidden">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => openTab(t.id)}
-                className={cx(
-                  'flex min-h-10 sm:min-h-11 items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
-                  tab === t.id ? 'bg-surface font-bold shadow-card' : 'text-muted',
-                )}
-              >
-                <t.icon size={16} strokeWidth={2.2} />
-                {t.label}
-                {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && <Badge count={unread.length} />}
-              </button>
-            ))}
+          <nav className="hidden items-center rounded-xl bg-sunken p-[3px] text-sm sm:flex lg:hidden">
+            {TABS.map((t) =>
+              t.id === 'meals' ? (
+                <button
+                  key={t.id}
+                  onClick={() => openTab(t.id)}
+                  aria-label={t.label}
+                  title={t.label}
+                  aria-current={tab === t.id ? 'page' : undefined}
+                  className={cx(
+                    'mx-1.5 -my-[5px] grid h-11 w-11 place-items-center rounded-full bg-accent-strong text-white shadow-card transition active:scale-95',
+                    tab === t.id && 'ring-2 ring-accent ring-offset-2 ring-offset-sunken',
+                  )}
+                >
+                  <t.icon size={20} strokeWidth={2.2} />
+                </button>
+              ) : (
+                <button
+                  key={t.id}
+                  onClick={() => openTab(t.id)}
+                  className={cx(
+                    'flex min-h-11 items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
+                    tab === t.id ? 'bg-surface font-bold shadow-card' : 'text-muted',
+                  )}
+                >
+                  <t.icon size={16} strokeWidth={2.2} />
+                  {t.label}
+                  {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && <Badge count={unread.length} />}
+                </button>
+              ),
+            )}
           </nav>
         </header>
 
@@ -282,6 +309,14 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           )}
 
           {tab === 'list' && <NoteBanner unread={unread} onOpen={() => openTab('notes')} />}
+
+          {tab === 'meals' && (
+            <MealPlanView
+              meals={snap.meals}
+              items={snap.items}
+              onSave={(date, slot, menu) => mutate(() => repo.setMeal(date, slot, menu))}
+            />
+          )}
 
           {tab === 'notes' && (
             <NoteBoard
@@ -338,6 +373,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               compartments={snap.compartments}
               me={snap.me}
               members={snap.members}
+              history={snap.history}
               isLocal={isLocal}
               onSignOut={onSignOut}
               onChanged={reload}
@@ -363,25 +399,46 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           className="fixed inset-x-0 bottom-0 z-30 grid border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
           style={{ gridTemplateColumns: `repeat(${TABS.length}, 1fr)` }}
         >
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => openTab(t.id)}
-              aria-current={tab === t.id ? 'page' : undefined}
-              className={cx(
-                'flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
-                tab === t.id ? 'text-accent' : 'text-faint',
-              )}
-            >
-              <span className="relative">
-                <t.icon size={23} strokeWidth={tab === t.id ? 2.3 : 1.9} />
-                {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && (
-                  <Badge count={unread.length} className="absolute -top-1.5 -right-2.5" />
+          {TABS.map((t) =>
+            t.id === 'meals' ? (
+              <button
+                key={t.id}
+                onClick={() => openTab(t.id)}
+                aria-current={tab === t.id ? 'page' : undefined}
+                className="relative flex h-16 flex-col items-center justify-end pb-1.5 text-[11px] transition"
+              >
+                <span
+                  className={cx(
+                    'absolute -top-[30px] grid h-[58px] w-[58px] place-items-center rounded-full bg-accent-strong text-white shadow-float ring-[5px] ring-bg transition active:scale-95',
+                    tab === t.id && 'outline-2 outline-offset-[6px] outline-accent',
+                  )}
+                >
+                  <t.icon size={26} strokeWidth={2.2} />
+                </span>
+                <span className={cx(tab === t.id ? 'font-extrabold text-accent' : 'font-semibold text-faint')}>
+                  {t.label}
+                </span>
+              </button>
+            ) : (
+              <button
+                key={t.id}
+                onClick={() => openTab(t.id)}
+                aria-current={tab === t.id ? 'page' : undefined}
+                className={cx(
+                  'flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
+                  tab === t.id ? 'text-accent' : 'text-faint',
                 )}
-              </span>
-              {t.label}
-            </button>
-          ))}
+              >
+                <span className="relative">
+                  <t.icon size={23} strokeWidth={tab === t.id ? 2.3 : 1.9} />
+                  {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && (
+                    <Badge count={unread.length} className="absolute -top-1.5 -right-2.5" />
+                  )}
+                </span>
+                {t.label}
+              </button>
+            ),
+          )}
         </nav>
 
         {sheet?.mode === 'note-write' && (
@@ -446,6 +503,33 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           </div>
         )}
 
+        {undoItem && !removed && (
+          <div
+            role="status"
+            className={cx(
+              'fixed inset-x-4 z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card',
+              showAdd
+                ? 'bottom-[calc(9.75rem+env(safe-area-inset-bottom))] sm:bottom-24'
+                : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] sm:bottom-8',
+              'lg:left-[calc(var(--spacing-rail)+1rem)]',
+            )}
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {undoItem.name} {undoItem.action === 'discard' ? '버렸어요' : '다 먹었어요'}
+            </span>
+            <button
+              className="h-9 shrink-0 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
+              onClick={() => {
+                const { id } = undoItem
+                setUndoItem(null)
+                mutate(() => repo.restoreItem(id))
+              }}
+            >
+              되살리기
+            </button>
+          </div>
+        )}
+
         {(sheet?.mode === 'add' || sheet?.mode === 'edit') && (
           <ItemSheet
             key={sheet.mode === 'edit' ? sheet.item.id : 'add'}
@@ -471,7 +555,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   )
 }
 
-/** 사이드 내비 항목: 72×64 */
+/** 사이드 내비 항목: 72×64. 식단표는 동그란 강조 버튼 */
 function RailButton({
   tab,
   active,
@@ -483,6 +567,25 @@ function RailButton({
   unread: number
   onClick: () => void
 }) {
+  if (tab.id === 'meals') {
+    return (
+      <button
+        onClick={onClick}
+        aria-current={active ? 'page' : undefined}
+        className="flex h-16 w-[4.5rem] flex-col items-center justify-center gap-1 text-xs transition active:opacity-70"
+      >
+        <span
+          className={cx(
+            'grid h-11 w-11 place-items-center rounded-full bg-accent-strong text-white shadow-card',
+            active && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
+          )}
+        >
+          <tab.icon size={20} strokeWidth={2.2} />
+        </span>
+        <span className={cx(active ? 'font-extrabold text-accent' : 'font-semibold text-muted')}>{tab.label}</span>
+      </button>
+    )
+  }
   return (
     <button
       onClick={onClick}
