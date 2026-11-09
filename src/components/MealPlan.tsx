@@ -238,7 +238,8 @@ function Strip({
   useEffect(() => {
     const el = ref.current
     const t = el?.querySelector<HTMLElement>('[data-today]')
-    if (el && t) el.scrollLeft = Math.max(0, t.offsetLeft - 72)
+    const label = el?.querySelector<HTMLElement>('.sticky')
+    if (el && t && label) el.scrollLeft += t.getBoundingClientRect().left - label.getBoundingClientRect().right - 6
   }, [])
   const days = weeks.flat()
   return (
