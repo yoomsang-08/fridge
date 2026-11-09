@@ -76,7 +76,7 @@ export function Segmented<T extends string>({
           aria-selected={value === v}
           onClick={() => onChange(v)}
           className={cx(
-            'rounded-[9px] px-3 py-1.5 transition sm:min-h-10 sm:px-4',
+            'rounded-[9px] px-3 py-1.5 transition sm:min-h-11 sm:px-4',
             value === v ? 'bg-surface font-bold text-ink shadow-card' : 'text-muted',
           )}
         >
