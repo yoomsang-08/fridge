@@ -248,7 +248,7 @@ function Strip({
         <div className="grid w-max grid-cols-[4.25rem_repeat(7,5.5rem)] gap-1.5 pr-4 sm:grid-cols-[5rem_repeat(7,5.5rem)] sm:pr-6">
           {weeks.map((days, w) => (
             <Fragment key={w}>
-              <div className={cx('sticky left-0 z-10 col-span-8 w-screen bg-bg pr-4 pl-4 sm:pl-6', w && 'mt-3')}>
+              <div className={cx('sticky left-0 z-10 col-span-8 w-screen bg-bg pr-4 pl-4 sm:pl-6', w ? 'mt-3' : false)}>
                 <span className="text-[15px] font-extrabold">{w ? '다음 주' : '이번 주'}</span>
                 <span className="ml-2 text-[13px] text-muted">{weekRange(days)}</span>
               </div>
