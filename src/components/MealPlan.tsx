@@ -221,7 +221,7 @@ export function MealPlanView({ meals, items, onSave }: Props) {
   )
 }
 
-/** 폰·태블릿용 옆으로 길게 보기: 두 주 14일을 한 줄로 늘어놓고 좌우로 민다. 끼니 이름은 왼쪽에 고정 */
+/** 폰·태블릿용 옆으로 길게 보기: PC처럼 이번 주(위)와 다음 주(아래)를 두 줄로 놓고, 요일 7열은 좌우로 민다. 끼니 이름은 왼쪽에 고정 */
 function Strip({
   weeks,
   slots,
@@ -241,67 +241,68 @@ function Strip({
     const label = el?.querySelector<HTMLElement>('.sticky')
     if (el && t && label) el.scrollLeft += t.getBoundingClientRect().left - label.getBoundingClientRect().right - 6
   }, [])
-  const days = weeks.flat()
   return (
     <div className="mt-3">
-      <p className="mb-2 px-0.5 text-[13px] text-muted">좌우로 밀어서 두 주를 볼 수 있어요.</p>
+      <p className="mb-2 px-0.5 text-[13px] text-muted">좌우로 밀면 요일을 더 볼 수 있어요. 위가 이번 주, 아래가 다음 주예요.</p>
       <div ref={ref} className="-mx-4 overflow-x-auto pb-2 sm:-mx-6">
-        <div className="grid w-max grid-cols-[4.25rem_repeat(14,5.5rem)] gap-1.5 pr-4 sm:grid-cols-[5rem_repeat(14,5.5rem)] sm:pr-6">
-          <span className="sticky left-0 z-10 bg-bg" />
-          {weeks.map((w, i) => (
-            <div key={i} className="col-span-7 px-1 pt-1 text-[13px] font-bold text-muted">
-              {i ? '다음 주' : '이번 주'} · {weekRange(w)}
-            </div>
-          ))}
-          <span className="sticky left-0 z-10 bg-bg" />
-          {days.map((d) => (
-            <div
-              key={d.date}
-              data-today={d.isToday ? '' : undefined}
-              className={cx(
-                'flex flex-col items-center rounded-2xl py-2 shadow-card',
-                d.isToday ? 'bg-accent-soft text-accent' : 'bg-surface',
-              )}
-            >
-              <b className="text-[15px] font-extrabold">{WEEKDAYS[d.dow]}</b>
-              <span className={cx('text-xs', d.isToday ? 'text-accent' : 'text-muted')}>
-                {d.month}/{d.day}
-                {d.isToday && ' 오늘'}
-              </span>
-            </div>
-          ))}
-          {slots.map((s) => (
-            <Fragment key={s}>
-              <span className="sticky left-0 z-10 flex items-center bg-bg pr-1.5 pl-4 sm:pl-6">
-                <span className="w-full rounded-lg bg-sunken py-1.5 text-center text-xs font-bold text-muted">
-                  {MEAL_LABEL[s]}
-                </span>
-              </span>
-              {days.map((d) => {
-                const menu = menuOf(d.date, s)
-                return (
-                  <button
-                    key={d.date}
-                    onClick={() => open(d.date, s)}
-                    aria-label={`${d.month}월 ${d.day}일 ${MEAL_LABEL[s]}${menu ? ` ${menu}` : ' 적기'}`}
-                    className={cx(
-                      'flex min-h-16 gap-1 rounded-2xl p-2.5 text-left text-sm leading-snug transition active:opacity-70',
-                      menu
-                        ? 'items-start bg-surface font-semibold shadow-card'
-                        : 'items-center justify-center border border-dashed border-line text-faint',
-                    )}
-                  >
-                    {menu ? (
-                      <>
-                        <span className="min-w-0 flex-1 break-keep [overflow-wrap:anywhere]">{menu}</span>
-                        {hasEgg(menu) && <EggMark />}
-                      </>
-                    ) : (
-                      <Plus size={18} />
-                    )}
-                  </button>
-                )
-              })}
+        <div className="grid w-max grid-cols-[4.25rem_repeat(7,5.5rem)] gap-1.5 pr-4 sm:grid-cols-[5rem_repeat(7,5.5rem)] sm:pr-6">
+          {weeks.map((days, w) => (
+            <Fragment key={w}>
+              <div className={cx('sticky left-0 z-10 col-span-8 w-screen bg-bg pr-4 pl-4 sm:pl-6', w ? 'mt-3' : false)}>
+                <span className="text-[15px] font-extrabold">{w ? '다음 주' : '이번 주'}</span>
+                <span className="ml-2 text-[13px] text-muted">{weekRange(days)}</span>
+              </div>
+              <span className="sticky left-0 z-10 bg-bg" />
+              {days.map((d) => (
+                <div
+                  key={d.date}
+                  data-today={d.isToday ? '' : undefined}
+                  className={cx(
+                    'flex flex-col items-center rounded-2xl py-2 shadow-card',
+                    d.isToday ? 'bg-accent-soft text-accent' : 'bg-surface',
+                  )}
+                >
+                  <b className="text-[15px] font-extrabold">{WEEKDAYS[d.dow]}</b>
+                  <span className={cx('text-xs', d.isToday ? 'text-accent' : 'text-muted')}>
+                    {d.month}/{d.day}
+                    {d.isToday && ' 오늘'}
+                  </span>
+                </div>
+              ))}
+              {slots.map((s) => (
+                <Fragment key={s}>
+                  <span className="sticky left-0 z-10 flex items-center bg-bg pr-1.5 pl-4 sm:pl-6">
+                    <span className="w-full rounded-lg bg-sunken py-1.5 text-center text-xs font-bold text-muted">
+                      {MEAL_LABEL[s]}
+                    </span>
+                  </span>
+                  {days.map((d) => {
+                    const menu = menuOf(d.date, s)
+                    return (
+                      <button
+                        key={d.date}
+                        onClick={() => open(d.date, s)}
+                        aria-label={`${d.month}월 ${d.day}일 ${MEAL_LABEL[s]}${menu ? ` ${menu}` : ' 적기'}`}
+                        className={cx(
+                          'flex min-h-16 gap-1 rounded-2xl p-2.5 text-left text-sm leading-snug transition active:opacity-70',
+                          menu
+                            ? 'items-start bg-surface font-semibold shadow-card'
+                            : 'items-center justify-center border border-dashed border-line text-faint',
+                        )}
+                      >
+                        {menu ? (
+                          <>
+                            <span className="min-w-0 flex-1 break-keep [overflow-wrap:anywhere]">{menu}</span>
+                            {hasEgg(menu) && <EggMark />}
+                          </>
+                        ) : (
+                          <Plus size={18} />
+                        )}
+                      </button>
+                    )
+                  })}
+                </Fragment>
+              ))}
             </Fragment>
           ))}
         </div>
