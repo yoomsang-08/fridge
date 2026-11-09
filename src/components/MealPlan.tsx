@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import { expiryLabel, expiryLevel, LEVEL_TEXT } from '../lib/expiry'
 import {
@@ -35,6 +35,21 @@ export function MealPlanView({ meals, items, onSave }: Props) {
   const slots = useMealSlots()
   const map = useMemo(() => mealMap(meals), [meals])
   const [week, setWeek] = useState<'0' | '1'>('0')
+  const [view, setViewState] = useState<'list' | 'strip'>(() => {
+    try {
+      return localStorage.getItem('fridge-meal-view') === 'strip' ? 'strip' : 'list'
+    } catch {
+      return 'list'
+    }
+  })
+  const setView = (v: 'list' | 'strip') => {
+    setViewState(v)
+    try {
+      localStorage.setItem('fridge-meal-view', v)
+    } catch {
+      /* 저장 못 해도 지금 화면은 바뀐다 */
+    }
+  }
   const [editing, setEditing] = useState<{ date: string; slot: MealSlot } | null>(null)
 
   const filled = (days: MealDay[]) =>
@@ -54,61 +69,76 @@ export function MealPlanView({ meals, items, onSave }: Props) {
       <div className="lg:hidden">
         <Segmented
           className="mt-4 [&>button]:flex-1"
-          value={week}
+          value={view}
           options={[
-            ['0', '이번 주'],
-            ['1', '다음 주'],
+            ['list', '목록'],
+            ['strip', '옆으로 길게'],
           ]}
-          onChange={setWeek}
+          onChange={setView}
         />
-        <WeekHead days={weeks[Number(week)]} done={filled(weeks[Number(week)])} total={total} />
-        <div className="flex flex-col gap-2.5">
-          {weeks[Number(week)].map((d) => {
-            return (
-              <section key={d.date} className="rounded-card bg-surface px-3.5 pt-3 pb-1.5 shadow-card">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-[17px] font-extrabold">{WEEKDAYS[d.dow]}요일</h3>
-                  <span className="text-[13px] text-muted">
-                    {d.month}월 {d.day}일
-                  </span>
-                  {d.isToday && (
-                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">
-                      오늘
-                    </span>
-                  )}
-                </div>
-                <ul>
-                  {slots.map((s) => {
-                    const menu = menuOf(d.date, s)
-                    return (
-                      <li key={s} className="border-t border-line first:border-t-0">
-                        <button
-                          onClick={() => open(d.date, s)}
-                          className="flex min-h-11 w-full items-center gap-2.5 py-1 text-left transition active:opacity-70"
-                        >
-                          <span className="w-[38px] shrink-0 rounded-lg bg-sunken py-1 text-center text-xs font-bold text-muted">
-                            {MEAL_LABEL[s]}
-                          </span>
-                          {menu ? (
-                            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[15px] font-semibold">
-                              <span className="min-w-0 break-keep">{menu}</span>
-                              <Egg menu={menu} />
-                            </span>
-                          ) : (
-                            <>
-                              <span className="flex-1 text-[15px] text-faint">눌러서 적기</span>
-                              <Plus size={16} className="text-faint" />
-                            </>
-                          )}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            )
-          })}
-        </div>
+        {view === 'strip' ? (
+          <Strip weeks={weeks} slots={slots} menuOf={menuOf} open={open} />
+        ) : (
+          <>
+            <Segmented
+              className="mt-3 [&>button]:flex-1"
+              value={week}
+              options={[
+                ['0', '이번 주'],
+                ['1', '다음 주'],
+              ]}
+              onChange={setWeek}
+            />
+            <WeekHead days={weeks[Number(week)]} done={filled(weeks[Number(week)])} total={total} />
+            <div className="flex flex-col gap-2.5">
+              {weeks[Number(week)].map((d) => {
+                return (
+                  <section key={d.date} className="rounded-card bg-surface px-3.5 pt-3 pb-1.5 shadow-card">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[17px] font-extrabold">{WEEKDAYS[d.dow]}요일</h3>
+                      <span className="text-[13px] text-muted">
+                        {d.month}월 {d.day}일
+                      </span>
+                      {d.isToday && (
+                        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">
+                          오늘
+                        </span>
+                      )}
+                    </div>
+                    <ul>
+                      {slots.map((s) => {
+                        const menu = menuOf(d.date, s)
+                        return (
+                          <li key={s} className="border-t border-line first:border-t-0">
+                            <button
+                              onClick={() => open(d.date, s)}
+                              className="flex min-h-11 w-full items-center gap-2.5 py-1 text-left transition active:opacity-70"
+                            >
+                              <span className="w-[38px] shrink-0 rounded-lg bg-sunken py-1 text-center text-xs font-bold text-muted">
+                                {MEAL_LABEL[s]}
+                              </span>
+                              {menu ? (
+                                <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[15px] font-semibold">
+                                  <span className="min-w-0 break-keep">{menu}</span>
+                                  <Egg menu={menu} />
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="flex-1 text-[15px] text-faint">눌러서 적기</span>
+                                  <Plus size={16} className="text-faint" />
+                                </>
+                              )}
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </section>
+                )
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* 넓은 화면: 두 주를 위아래 표로 */}
@@ -156,7 +186,7 @@ export function MealPlanView({ meals, items, onSave }: Props) {
                       >
                         {menu ? (
                           <>
-                            <span className="min-w-0 flex-1 break-keep">{menu}</span>
+                            <span className="min-w-0 flex-1 break-keep [overflow-wrap:anywhere]">{menu}</span>
                             <Egg menu={menu} />
                           </>
                         ) : (
@@ -187,6 +217,94 @@ export function MealPlanView({ meals, items, onSave }: Props) {
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** 폰·태블릿용 옆으로 길게 보기: 두 주 14일을 한 줄로 늘어놓고 좌우로 민다. 끼니 이름은 왼쪽에 고정 */
+function Strip({
+  weeks,
+  slots,
+  menuOf,
+  open,
+}: {
+  weeks: MealDay[][]
+  slots: MealSlot[]
+  menuOf: (date: string, slot: MealSlot) => string
+  open: (date: string, slot: MealSlot) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  // 처음 열 때 오늘이 왼쪽 끝 가까이 오게
+  useEffect(() => {
+    const el = ref.current
+    const t = el?.querySelector<HTMLElement>('[data-today]')
+    if (el && t) el.scrollLeft = Math.max(0, t.offsetLeft - 72)
+  }, [])
+  const days = weeks.flat()
+  return (
+    <div className="mt-3">
+      <p className="mb-2 px-0.5 text-[13px] text-muted">좌우로 밀어서 두 주를 볼 수 있어요.</p>
+      <div ref={ref} className="-mx-4 overflow-x-auto pb-2 sm:-mx-6">
+        <div className="grid w-max grid-cols-[4.25rem_repeat(14,5.5rem)] gap-1.5 pr-4 sm:grid-cols-[5rem_repeat(14,5.5rem)] sm:pr-6">
+          <span className="sticky left-0 z-10 bg-bg" />
+          {weeks.map((w, i) => (
+            <div key={i} className="col-span-7 px-1 pt-1 text-[13px] font-bold text-muted">
+              {i ? '다음 주' : '이번 주'} · {weekRange(w)}
+            </div>
+          ))}
+          <span className="sticky left-0 z-10 bg-bg" />
+          {days.map((d) => (
+            <div
+              key={d.date}
+              data-today={d.isToday ? '' : undefined}
+              className={cx(
+                'flex flex-col items-center rounded-2xl py-2 shadow-card',
+                d.isToday ? 'bg-accent-soft text-accent' : 'bg-surface',
+              )}
+            >
+              <b className="text-[15px] font-extrabold">{WEEKDAYS[d.dow]}</b>
+              <span className={cx('text-xs', d.isToday ? 'text-accent' : 'text-muted')}>
+                {d.month}/{d.day}
+                {d.isToday && ' 오늘'}
+              </span>
+            </div>
+          ))}
+          {slots.map((s) => (
+            <Fragment key={s}>
+              <span className="sticky left-0 z-10 flex items-center bg-bg pr-1.5 pl-4 sm:pl-6">
+                <span className="w-full rounded-lg bg-sunken py-1.5 text-center text-xs font-bold text-muted">
+                  {MEAL_LABEL[s]}
+                </span>
+              </span>
+              {days.map((d) => {
+                const menu = menuOf(d.date, s)
+                return (
+                  <button
+                    key={d.date}
+                    onClick={() => open(d.date, s)}
+                    aria-label={`${d.month}월 ${d.day}일 ${MEAL_LABEL[s]}${menu ? ` ${menu}` : ' 적기'}`}
+                    className={cx(
+                      'flex min-h-16 gap-1 rounded-2xl p-2.5 text-left text-sm leading-snug transition active:opacity-70',
+                      menu
+                        ? 'items-start bg-surface font-semibold shadow-card'
+                        : 'items-center justify-center border border-dashed border-line text-faint',
+                    )}
+                  >
+                    {menu ? (
+                      <>
+                        <span className="min-w-0 flex-1 break-keep [overflow-wrap:anywhere]">{menu}</span>
+                        {hasEgg(menu) && <EggMark />}
+                      </>
+                    ) : (
+                      <Plus size={18} />
+                    )}
+                  </button>
+                )
+              })}
+            </Fragment>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
