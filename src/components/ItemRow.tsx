@@ -55,7 +55,7 @@ export function ItemRow({
       </button>
       <button
         onClick={() => onUseOne(i)}
-        className="h-9 min-w-12 shrink-0 rounded-xl bg-sunken px-2.5 text-xs font-bold text-ink transition active:brightness-95"
+        className="h-9 sm:h-11 min-w-12 shrink-0 rounded-xl bg-sunken px-2.5 text-xs font-bold text-ink transition active:brightness-95"
         title={i.quantity > 1 ? '1개 사용' : '다 먹음'}
       >
         {i.quantity > 1 ? '−1' : '다 먹음'}

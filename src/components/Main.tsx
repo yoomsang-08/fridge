@@ -1,5 +1,13 @@
 import { deviceLabel } from '../lib/device'
-import { List, Plus, Refrigerator, Settings as SettingsIcon, StickyNote as NoteIcon, Utensils, type LucideIcon } from 'lucide-react'
+import {
+  List,
+  Plus,
+  Refrigerator,
+  Settings as SettingsIcon,
+  StickyNote as NoteIcon,
+  Utensils,
+  type LucideIcon,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Repo, Snapshot } from '../lib/repo'
 import { cameBackFromOAuth, type SmartThings } from '../lib/smartthings'
@@ -112,7 +120,9 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   const unread = useMemo(() => (snap ? snap.notes.filter((n) => isUnread(n, snap.me)) : []), [snap])
 
   // 홈 화면 앱 아이콘 숫자: 안 읽은 메모 + 3일 안에 챙길 식품(지남 포함)
-  const badgeCount = snap ? unread.length + snap.items.filter((i) => URGENT_LEVELS.has(expiryLevel(i.expiry_date))).length : 0
+  const badgeCount = snap
+    ? unread.length + snap.items.filter((i) => URGENT_LEVELS.has(expiryLevel(i.expiry_date))).length
+    : 0
   useEffect(() => {
     if (!snap) return
     setAppBadge(badgeCount)
@@ -183,331 +193,416 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   }
 
   return (
-    <div className={cx('mx-auto min-h-dvh max-w-3xl pb-44 sm:pb-28', tab === 'meals' && 'lg:max-w-wide')}>
-      <header className="sticky top-0 z-30 flex items-center gap-3 bg-bg/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-md sm:px-6">
-        {/* 로고·제목을 누르면 홈(재고)으로, 맨 위로. 로고를 빠르게 다섯 번 누르면 이스터에그 */}
-        <h1 className="min-w-0 flex-1">
-          <button
-            onClick={goHome}
-            aria-label={egg.on ? undefined : '냉장고를 부탁해, 홈으로'}
-            className="flex w-fit max-w-full items-center gap-3 text-left transition active:opacity-70"
-          >
-            <span className="shrink-0">{egg.on ? <SunnyEgg /> : <Logo />}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[17px] leading-tight font-extrabold tracking-tight">냉장고를 부탁해</span>
-              <span className="block truncate text-xs text-muted">
-                {egg.on ? (
-                  '써니사이드업 팀이 지선 님을 응원해요'
-                ) : celebration?.kind === 'flag' ? (
-                  // 국경일은 축하색 없이 담담하게
-                  celebration.title
-                ) : celebration ? (
-                  // 생일·기념일에는 집 이름 대신 축하 한 줄 (냉장고 탭에는 가랜드)
-                  <span className="font-semibold text-accent">{celebration.title}</span>
-                ) : fridayNight ? (
-                  '불금이에요, 냉장고 털기 좋은 날'
-                ) : (
-                  <>
-                    {household.name}
-                    {snap.items.length > 0 && ` · 식품 ${snap.items.length}개`}
-                  </>
-                )}
+    <div className="min-h-dvh pb-44 sm:pb-28 lg:pl-[max(var(--spacing-rail),env(safe-area-inset-left))]">
+      {/* 1024px~ 왼쪽 사이드 내비. 아래 탭·머리글 탭과 같은 내비를 두 번 보이지 않는다 */}
+      <nav
+        aria-label="주 메뉴"
+        className="fixed inset-y-0 left-0 z-30 hidden w-[max(var(--spacing-rail),calc(env(safe-area-inset-left)+4rem))] flex-col items-center border-r border-line bg-surface pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] lg:flex"
+      >
+        <button
+          onClick={goHome}
+          aria-label="홈으로"
+          className="mb-4 grid h-12 w-12 place-items-center transition active:opacity-70"
+        >
+          {egg.on ? <SunnyEgg /> : <Logo />}
+        </button>
+        <div className="flex flex-1 flex-col gap-2">
+          {TABS.filter((t) => t.id !== 'settings').map((t) => (
+            <RailButton key={t.id} tab={t} active={tab === t.id} unread={unread.length} onClick={() => openTab(t.id)} />
+          ))}
+        </div>
+        {TABS.filter((t) => t.id === 'settings').map((t) => (
+          <RailButton key={t.id} tab={t} active={tab === t.id} unread={0} onClick={() => openTab(t.id)} />
+        ))}
+      </nav>
+
+      <div className="mx-auto max-w-reading lg:max-w-wide">
+        <header className="sticky top-0 z-30 flex items-center gap-3 bg-bg/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-md sm:px-6 lg:px-8">
+          {/* 로고·제목을 누르면 홈(재고)으로, 맨 위로. 로고를 빠르게 다섯 번 누르면 이스터에그 */}
+          <h1 className="min-w-0 flex-1">
+            <button
+              onClick={goHome}
+              aria-label={egg.on ? undefined : '냉장고를 부탁해, 홈으로'}
+              className="flex w-fit max-w-full items-center gap-3 text-left transition active:opacity-70"
+            >
+              <span className="shrink-0">{egg.on ? <SunnyEgg /> : <Logo />}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[17px] leading-tight font-extrabold tracking-tight">냉장고를 부탁해</span>
+                <span className="block truncate text-xs text-muted">
+                  {egg.on ? (
+                    '써니사이드업 팀이 지선 님을 응원해요'
+                  ) : celebration?.kind === 'flag' ? (
+                    // 국경일은 축하색 없이 담담하게
+                    celebration.title
+                  ) : celebration ? (
+                    // 생일·기념일에는 집 이름 대신 축하 한 줄 (냉장고 탭에는 가랜드)
+                    <span className="font-semibold text-accent">{celebration.title}</span>
+                  ) : fridayNight ? (
+                    '불금이에요, 냉장고 털기 좋은 날'
+                  ) : (
+                    <>
+                      {household.name}
+                      {snap.items.length > 0 && ` · 식품 ${snap.items.length}개`}
+                    </>
+                  )}
+                </span>
               </span>
-            </span>
+            </button>
+          </h1>
+          <nav className="hidden items-center rounded-xl bg-sunken p-[3px] text-sm sm:flex lg:hidden">
+            {TABS.map((t) =>
+              t.id === 'meals' ? (
+                <button
+                  key={t.id}
+                  onClick={() => openTab(t.id)}
+                  aria-label={t.label}
+                  title={t.label}
+                  aria-current={tab === t.id ? 'page' : undefined}
+                  className={cx(
+                    'mx-1.5 -my-[5px] grid h-11 w-11 place-items-center rounded-full bg-accent-strong text-white shadow-card transition active:scale-95',
+                    tab === t.id && 'ring-2 ring-accent ring-offset-2 ring-offset-sunken',
+                  )}
+                >
+                  <t.icon size={20} strokeWidth={2.2} />
+                </button>
+              ) : (
+                <button
+                  key={t.id}
+                  onClick={() => openTab(t.id)}
+                  className={cx(
+                    'flex min-h-11 items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
+                    tab === t.id ? 'bg-surface font-bold shadow-card' : 'text-muted',
+                  )}
+                >
+                  <t.icon size={16} strokeWidth={2.2} />
+                  {t.label}
+                  {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && <Badge count={unread.length} />}
+                </button>
+              ),
+            )}
+          </nav>
+        </header>
+
+        <main className="px-4 pt-1 sm:px-6 lg:px-8">
+          {error && <p className="mb-3 rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
+
+          {(tab === 'list' || tab === 'view') && noFridge && (
+            <Card className="p-5">
+              <h2 className="text-lg font-extrabold">먼저 냉장고를 등록해 주세요</h2>
+              <p className="mt-1 text-sm text-muted">
+                우리 집 냉장고 모델의 칸 구성으로 바로 만들어요. 칸은 나중에 설정에서 바꿀 수 있어요.
+              </p>
+              <Button
+                className="mt-4 w-full"
+                onClick={() =>
+                  mutate(async () => {
+                    for (const t of FRIDGE_TEMPLATES.filter((t) => t.id !== 'custom')) await repo.addFridge(t, t.name)
+                  })
+                }
+              >
+                삼성 비스포크 + 쿠쿠 냉동고 등록
+              </Button>
+              <button className="mt-2 w-full py-2 text-sm font-semibold text-muted" onClick={() => openTab('settings')}>
+                다른 냉장고로 직접 등록하기
+              </button>
+            </Card>
+          )}
+
+          {tab === 'list' && <NoteBanner unread={unread} onOpen={() => openTab('notes')} />}
+
+          {tab === 'meals' && (
+            <MealPlanView
+              meals={snap.meals}
+              items={snap.items}
+              onSave={(date, slot, menu) => mutate(() => repo.setMeal(date, slot, menu))}
+            />
+          )}
+
+          {tab === 'notes' && (
+            <NoteBoard
+              notes={snap.notes}
+              comments={snap.comments}
+              me={snap.me}
+              fresh={fresh}
+              onOpen={(note) => setSheet({ mode: 'note-view', note })}
+              onWrite={() => setSheet({ mode: 'note-write' })}
+              photos={snap.photos}
+              onOpenPhoto={(photo) => setSheet({ mode: 'photo-view', photo })}
+              onAddPhoto={(file) => mutate(() => repo.addPhoto(file))}
+            />
+          )}
+
+          {tab === 'list' && !noFridge && (
+            <InventoryList
+              fridges={snap.fridges}
+              compartments={snap.compartments}
+              items={snap.items}
+              onOpen={(item) => setSheet({ mode: 'edit', item })}
+              onUseOne={(item) => act(item, 'use')}
+              onAct={(item, action) => act(item, action)}
+              onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
+            />
+          )}
+
+          {tab === 'view' && noFridge && (
+            <div className="mb-4">
+              <FridgeStatus st={smartthings} />
+            </div>
+          )}
+
+          {tab === 'view' && !noFridge && (
+            <FridgeView
+              fridges={snap.fridges}
+              compartments={snap.compartments}
+              items={snap.items}
+              onOpen={(item) => setSheet({ mode: 'edit', item })}
+              onUseOne={(item) => act(item, 'use')}
+              onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
+              notes={snap.notes}
+              photos={snap.photos}
+              onOpenNotes={() => openTab('notes')}
+              header={<FridgeStatus st={smartthings} />}
+            />
+          )}
+
+          {tab === 'settings' && (
+            <Settings
+              repo={repo}
+              household={household}
+              fridges={snap.fridges}
+              compartments={snap.compartments}
+              me={snap.me}
+              members={snap.members}
+              history={snap.history}
+              isLocal={isLocal}
+              onSignOut={onSignOut}
+              onChanged={reload}
+            />
+          )}
+        </main>
+
+        {showAdd && (
+          <button
+            onClick={() => setSheet({ mode: 'add' })}
+            aria-label="식품 넣기"
+            className={cx(
+              'fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center justify-center gap-1.5 overflow-hidden bg-accent text-base font-bold whitespace-nowrap text-white shadow-float transition-all duration-200 active:scale-95 sm:right-[max(1.5rem,calc(50vw-22.5rem+1.5rem))] sm:bottom-8 lg:right-[max(2rem,calc((100vw-var(--spacing-rail)-70rem)/2+2rem))]',
+              compactFab ? 'w-14 rounded-full' : 'w-[8.5rem] rounded-[1.25rem]',
+            )}
+          >
+            <Plus size={22} strokeWidth={2.6} className="shrink-0" />
+            {!compactFab && '식품 넣기'}
           </button>
-        </h1>
-        <nav className="hidden items-center rounded-xl bg-sunken p-[3px] text-sm sm:flex">
+        )}
+
+        <nav
+          className="fixed inset-x-0 bottom-0 z-30 grid border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
+          style={{ gridTemplateColumns: `repeat(${TABS.length}, 1fr)` }}
+        >
           {TABS.map((t) =>
             t.id === 'meals' ? (
               <button
                 key={t.id}
                 onClick={() => openTab(t.id)}
-                aria-label={t.label}
-                title={t.label}
                 aria-current={tab === t.id ? 'page' : undefined}
-                className={cx(
-                  'mx-1.5 -my-[5px] grid h-11 w-11 place-items-center rounded-full bg-accent-strong text-white shadow-card transition active:scale-95',
-                  tab === t.id && 'ring-2 ring-accent ring-offset-2 ring-offset-sunken',
-                )}
+                className="relative flex h-16 flex-col items-center justify-end pb-1.5 text-[11px] transition"
               >
-                <t.icon size={20} strokeWidth={2.2} />
+                <span
+                  className={cx(
+                    'absolute -top-[30px] grid h-[58px] w-[58px] place-items-center rounded-full bg-accent-strong text-white shadow-float ring-[5px] ring-bg transition active:scale-95',
+                    tab === t.id && 'outline-2 outline-offset-[6px] outline-accent',
+                  )}
+                >
+                  <t.icon size={26} strokeWidth={2.2} />
+                </span>
+                <span className={cx(tab === t.id ? 'font-extrabold text-accent' : 'font-semibold text-faint')}>
+                  {t.label}
+                </span>
               </button>
             ) : (
               <button
                 key={t.id}
                 onClick={() => openTab(t.id)}
+                aria-current={tab === t.id ? 'page' : undefined}
                 className={cx(
-                  'flex items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 transition',
-                  tab === t.id ? 'bg-surface font-bold shadow-card' : 'text-muted',
+                  'flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
+                  tab === t.id ? 'text-accent' : 'text-faint',
                 )}
               >
-                <t.icon size={16} strokeWidth={2.2} />
+                <span className="relative">
+                  <t.icon size={23} strokeWidth={tab === t.id ? 2.3 : 1.9} />
+                  {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && (
+                    <Badge count={unread.length} className="absolute -top-1.5 -right-2.5" />
+                  )}
+                </span>
                 {t.label}
-                {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && <Badge count={unread.length} />}
               </button>
             ),
           )}
         </nav>
-      </header>
 
-      <main className="px-4 pt-1 sm:px-6">
-        {error && <p className="mb-3 rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
-
-        {(tab === 'list' || tab === 'view') && noFridge && (
-          <Card className="p-5">
-            <h2 className="text-lg font-extrabold">먼저 냉장고를 등록해 주세요</h2>
-            <p className="mt-1 text-sm text-muted">
-              우리 집 냉장고 모델의 칸 구성으로 바로 만들어요. 칸은 나중에 설정에서 바꿀 수 있어요.
-            </p>
-            <Button
-              className="mt-4 w-full"
-              onClick={() =>
-                mutate(async () => {
-                  for (const t of FRIDGE_TEMPLATES.filter((t) => t.id !== 'custom')) await repo.addFridge(t, t.name)
-                })
-              }
-            >
-              삼성 비스포크 + 쿠쿠 냉동고 등록
-            </Button>
-            <button className="mt-2 w-full py-2 text-sm font-semibold text-muted" onClick={() => openTab('settings')}>
-              다른 냉장고로 직접 등록하기
-            </button>
-          </Card>
-        )}
-
-        {tab === 'list' && <NoteBanner unread={unread} onOpen={() => openTab('notes')} />}
-
-        {tab === 'meals' && (
-          <MealPlanView meals={snap.meals} items={snap.items} onSave={(date, slot, menu) => mutate(() => repo.setMeal(date, slot, menu))} />
-        )}
-
-        {tab === 'notes' && (
-          <NoteBoard
-            notes={snap.notes}
-            comments={snap.comments}
+        {sheet?.mode === 'note-write' && (
+          <NoteWriteSheet
             me={snap.me}
-            fresh={fresh}
-            onOpen={(note) => setSheet({ mode: 'note-view', note })}
-            onWrite={() => setSheet({ mode: 'note-write' })}
-            photos={snap.photos}
-            onOpenPhoto={(photo) => setSheet({ mode: 'photo-view', photo })}
-            onAddPhoto={(file) => mutate(() => repo.addPhoto(file))}
+            members={snap.members}
+            onClose={() => setSheet(null)}
+            onSave={async (input) => {
+              await mutate(() => repo.addNote(input))
+              setSheet(null)
+            }}
           />
         )}
 
-        {tab === 'list' && !noFridge && (
-          <InventoryList
-            fridges={snap.fridges}
-            compartments={snap.compartments}
-            items={snap.items}
-            onOpen={(item) => setSheet({ mode: 'edit', item })}
-            onUseOne={(item) => act(item, 'use')}
-            onAct={(item, action) => act(item, action)}
-            onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
+        {sheet?.mode === 'note-view' && (
+          <NoteViewSheet
+            note={snap.notes.find((n) => n.id === sheet.note.id) ?? sheet.note}
+            comments={snap.comments.filter((c) => c.note_id === sheet.note.id)}
+            me={snap.me}
+            onClose={() => setSheet(null)}
+            onRemove={async () => {
+              const note = sheet.note
+              const comments = snap.comments.filter((c) => c.note_id === note.id)
+              await mutate(() => repo.deleteNote(note.id))
+              setSheet(null)
+              setRemoved({ note, comments })
+            }}
+            onComment={(body) => mutate(() => repo.addComment(sheet.note.id, body))}
+            onDeleteComment={(id) => mutate(() => repo.deleteComment(id))}
           />
         )}
 
-        {tab === 'view' && noFridge && (
-          <div className="mb-4">
-            <FridgeStatus st={smartthings} />
+        {sheet?.mode === 'photo-view' && (
+          <PhotoViewSheet
+            photo={sheet.photo}
+            me={snap.me}
+            onClose={() => setSheet(null)}
+            onRemove={async () => {
+              await mutate(() => repo.deletePhoto(sheet.photo))
+              setSheet(null)
+            }}
+          />
+        )}
+
+        <EggToast />
+        {removed && (
+          <div
+            role="status"
+            className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card sm:bottom-8 lg:left-[calc(var(--spacing-rail)+1rem)]"
+          >
+            <span className="flex-1">메모를 뗐어요</span>
+            <button
+              className="h-9 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
+              onClick={() => {
+                const { note, comments } = removed
+                setRemoved(null)
+                mutate(() => repo.restoreNote(note, comments))
+              }}
+            >
+              되돌리기
+            </button>
           </div>
         )}
 
-        {tab === 'view' && !noFridge && (
-          <FridgeView
-            fridges={snap.fridges}
-            compartments={snap.compartments}
-            items={snap.items}
-            onOpen={(item) => setSheet({ mode: 'edit', item })}
-            onUseOne={(item) => act(item, 'use')}
-            onAddTo={(compartmentId) => setSheet({ mode: 'add', compartmentId })}
-            notes={snap.notes}
-            photos={snap.photos}
-            onOpenNotes={() => openTab('notes')}
-            header={<FridgeStatus st={smartthings} />}
-          />
+        {undoItem && !removed && (
+          <div
+            role="status"
+            className={cx(
+              'fixed inset-x-4 z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card',
+              showAdd
+                ? 'bottom-[calc(9.75rem+env(safe-area-inset-bottom))] sm:bottom-24'
+                : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] sm:bottom-8',
+              'lg:left-[calc(var(--spacing-rail)+1rem)]',
+            )}
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {undoItem.name} {undoItem.action === 'discard' ? '버렸어요' : '다 먹었어요'}
+            </span>
+            <button
+              className="h-9 shrink-0 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
+              onClick={() => {
+                const { id } = undoItem
+                setUndoItem(null)
+                mutate(() => repo.restoreItem(id))
+              }}
+            >
+              되살리기
+            </button>
+          </div>
         )}
 
-        {tab === 'settings' && (
-          <Settings
-            repo={repo}
-            household={household}
+        {(sheet?.mode === 'add' || sheet?.mode === 'edit') && (
+          <ItemSheet
+            key={sheet.mode === 'edit' ? sheet.item.id : 'add'}
             fridges={snap.fridges}
             compartments={snap.compartments}
-            me={snap.me}
-            members={snap.members}
             history={snap.history}
-            isLocal={isLocal}
-            onSignOut={onSignOut}
-            onChanged={reload}
+            members={snap.members}
+            item={sheet.mode === 'edit' ? sheet.item : undefined}
+            defaultCompartmentId={defaultCompartment}
+            onClose={() => setSheet(null)}
+            onSave={async (input, keepOpen) => {
+              localStorage.setItem(LAST_COMPARTMENT_KEY, input.compartment_id)
+              await mutate(() => (sheet.mode === 'edit' ? repo.updateItem(sheet.item.id, input) : repo.addItem(input)))
+              if (sheet.mode === 'add' && input.name.includes('아이스크림')) eggToast('지선 님 아이스크림 지킴이 출동')
+              if (!keepOpen) setSheet(null)
+            }}
+            onAction={(item, action) => act(item, action)}
+            onDelete={(item) => mutate(() => repo.deleteItem(item.id))}
           />
         )}
-      </main>
-
-      {showAdd && (
-        <button
-          onClick={() => setSheet({ mode: 'add' })}
-          aria-label="식품 넣기"
-          className={cx(
-            'fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center justify-center gap-1.5 overflow-hidden bg-accent text-base font-bold whitespace-nowrap text-white shadow-float transition-all duration-200 active:scale-95 sm:right-[max(1.5rem,calc(50vw-24rem+1.5rem))] sm:bottom-8',
-            compactFab ? 'w-14 rounded-full' : 'w-[8.5rem] rounded-[1.25rem]',
-          )}
-        >
-          <Plus size={22} strokeWidth={2.6} className="shrink-0" />
-          {!compactFab && '식품 넣기'}
-        </button>
-      )}
-
-      <nav
-        className="fixed inset-x-0 bottom-0 z-30 grid border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
-        style={{ gridTemplateColumns: `repeat(${TABS.length}, 1fr)` }}
-      >
-        {TABS.map((t) =>
-          t.id === 'meals' ? (
-            <button
-              key={t.id}
-              onClick={() => openTab(t.id)}
-              aria-current={tab === t.id ? 'page' : undefined}
-              className="relative flex h-16 flex-col items-center justify-end pb-1.5 text-[11px] transition"
-            >
-              <span
-                className={cx(
-                  'absolute -top-[30px] grid h-[58px] w-[58px] place-items-center rounded-full bg-accent-strong text-white shadow-float ring-[5px] ring-bg transition active:scale-95',
-                  tab === t.id && 'outline-2 outline-offset-[6px] outline-accent',
-                )}
-              >
-                <t.icon size={26} strokeWidth={2.2} />
-              </span>
-              <span className={cx(tab === t.id ? 'font-extrabold text-accent' : 'font-semibold text-faint')}>{t.label}</span>
-            </button>
-          ) : (
-            <button
-              key={t.id}
-              onClick={() => openTab(t.id)}
-              aria-current={tab === t.id ? 'page' : undefined}
-              className={cx(
-                'flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition',
-                tab === t.id ? 'text-accent' : 'text-faint',
-              )}
-            >
-              <span className="relative">
-                <t.icon size={23} strokeWidth={tab === t.id ? 2.3 : 1.9} />
-                {t.id === 'notes' && tab !== 'notes' && unread.length > 0 && (
-                  <Badge count={unread.length} className="absolute -top-1.5 -right-2.5" />
-                )}
-              </span>
-              {t.label}
-            </button>
-          ),
-        )}
-      </nav>
-
-      {sheet?.mode === 'note-write' && (
-        <NoteWriteSheet
-          me={snap.me}
-          members={snap.members}
-          onClose={() => setSheet(null)}
-          onSave={async (input) => {
-            await mutate(() => repo.addNote(input))
-            setSheet(null)
-          }}
-        />
-      )}
-
-      {sheet?.mode === 'note-view' && (
-        <NoteViewSheet
-          note={snap.notes.find((n) => n.id === sheet.note.id) ?? sheet.note}
-          comments={snap.comments.filter((c) => c.note_id === sheet.note.id)}
-          me={snap.me}
-          onClose={() => setSheet(null)}
-          onRemove={async () => {
-            const note = sheet.note
-            const comments = snap.comments.filter((c) => c.note_id === note.id)
-            await mutate(() => repo.deleteNote(note.id))
-            setSheet(null)
-            setRemoved({ note, comments })
-          }}
-          onComment={(body) => mutate(() => repo.addComment(sheet.note.id, body))}
-          onDeleteComment={(id) => mutate(() => repo.deleteComment(id))}
-        />
-      )}
-
-      {sheet?.mode === 'photo-view' && (
-        <PhotoViewSheet
-          photo={sheet.photo}
-          me={snap.me}
-          onClose={() => setSheet(null)}
-          onRemove={async () => {
-            await mutate(() => repo.deletePhoto(sheet.photo))
-            setSheet(null)
-          }}
-        />
-      )}
-
-      <EggToast />
-      {removed && (
-        <div
-          role="status"
-          className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card sm:bottom-8"
-        >
-          <span className="flex-1">메모를 뗐어요</span>
-          <button
-            className="h-9 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
-            onClick={() => {
-              const { note, comments } = removed
-              setRemoved(null)
-              mutate(() => repo.restoreNote(note, comments))
-            }}
-          >
-            되돌리기
-          </button>
-        </div>
-      )}
-
-      {undoItem && !removed && (
-        <div
-          role="status"
-          className={cx('fixed inset-x-4 z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card',
-            showAdd ? 'bottom-[calc(9.75rem+env(safe-area-inset-bottom))] sm:bottom-24' : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] sm:bottom-8',
-          )}
-        >
-          <span className="min-w-0 flex-1 truncate">
-            {undoItem.name} {undoItem.action === 'discard' ? '버렸어요' : '다 먹었어요'}
-          </span>
-          <button
-            className="h-9 shrink-0 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
-            onClick={() => {
-              const { id } = undoItem
-              setUndoItem(null)
-              mutate(() => repo.restoreItem(id))
-            }}
-          >
-            되살리기
-          </button>
-        </div>
-      )}
-
-      {(sheet?.mode === 'add' || sheet?.mode === 'edit') && (
-        <ItemSheet
-          key={sheet.mode === 'edit' ? sheet.item.id : 'add'}
-          fridges={snap.fridges}
-          compartments={snap.compartments}
-          history={snap.history}
-          members={snap.members}
-          item={sheet.mode === 'edit' ? sheet.item : undefined}
-          defaultCompartmentId={defaultCompartment}
-          onClose={() => setSheet(null)}
-          onSave={async (input, keepOpen) => {
-            localStorage.setItem(LAST_COMPARTMENT_KEY, input.compartment_id)
-            await mutate(() => (sheet.mode === 'edit' ? repo.updateItem(sheet.item.id, input) : repo.addItem(input)))
-            if (sheet.mode === 'add' && input.name.includes('아이스크림')) eggToast('지선 님 아이스크림 지킴이 출동')
-            if (!keepOpen) setSheet(null)
-          }}
-          onAction={(item, action) => act(item, action)}
-          onDelete={(item) => mutate(() => repo.deleteItem(item.id))}
-        />
-      )}
+      </div>
     </div>
+  )
+}
+
+/** 사이드 내비 항목: 72×64. 식단표는 동그란 강조 버튼 */
+function RailButton({
+  tab,
+  active,
+  unread,
+  onClick,
+}: {
+  tab: (typeof TABS)[number]
+  active: boolean
+  unread: number
+  onClick: () => void
+}) {
+  if (tab.id === 'meals') {
+    return (
+      <button
+        onClick={onClick}
+        aria-current={active ? 'page' : undefined}
+        className="flex h-16 w-[4.5rem] flex-col items-center justify-center gap-1 text-xs transition active:opacity-70"
+      >
+        <span
+          className={cx(
+            'grid h-11 w-11 place-items-center rounded-full bg-accent-strong text-white shadow-card',
+            active && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
+          )}
+        >
+          <tab.icon size={20} strokeWidth={2.2} />
+        </span>
+        <span className={cx(active ? 'font-extrabold text-accent' : 'font-semibold text-muted')}>{tab.label}</span>
+      </button>
+    )
+  }
+  return (
+    <button
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cx(
+        'flex h-16 w-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl text-xs font-semibold transition active:opacity-70',
+        active ? 'bg-accent-soft text-accent' : 'text-muted',
+      )}
+    >
+      <span className="relative">
+        <tab.icon size={22} strokeWidth={active ? 2.3 : 1.9} />
+        {tab.id === 'notes' && !active && unread > 0 && (
+          <Badge count={unread} className="absolute -top-1.5 -right-2.5" />
+        )}
+      </span>
+      {tab.label}
+    </button>
   )
 }
 

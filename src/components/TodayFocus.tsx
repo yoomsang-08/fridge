@@ -214,7 +214,7 @@ function FocusRow({
           <span className="block truncate text-xs text-muted">{location}</span>
         </span>
       </button>
-      <span className="flex shrink-0 gap-1.5">{children}</span>
+      <span className="flex shrink-0 gap-1.5 sm:gap-2">{children}</span>
     </li>
   )
 }
@@ -223,7 +223,7 @@ function QuickButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className="h-9 shrink-0 rounded-xl bg-sunken px-2.5 text-xs font-bold text-ink transition active:brightness-95"
+      className="h-9 sm:h-11 shrink-0 rounded-xl bg-sunken px-2.5 text-xs font-bold text-ink transition active:brightness-95"
     />
   )
 }
