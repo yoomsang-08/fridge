@@ -14,6 +14,8 @@ export interface Snapshot {
   history: Item[]
   /** 냉장고 문 메모, 최근 것부터 */
   notes: Note[]
+  /** 보관함에 넣은 지난 메모, 최근 것부터 */
+  archivedNotes: Note[]
   /** 메모 댓글, 오래된 것부터 */
   comments: NoteComment[]
   /** 냉장고 문 사진, 최근 것부터 */
@@ -47,6 +49,10 @@ export interface Repo {
   addNote(input: NoteInput): Promise<void>
   /** 냉장고 문에서 떼기 */
   deleteNote(id: string): Promise<void>
+  /** 지난 메모를 보관함으로 옮기기 (댓글도 그대로 남는다) */
+  archiveNote(id: string): Promise<void>
+  /** 보관함 메모를 다시 냉장고 문에 붙이기 */
+  unarchiveNote(id: string): Promise<void>
   /** 뗀 메모 되돌리기: 같은 메모와 댓글을 그대로 다시 붙인다 */
   restoreNote(note: Note, comments: NoteComment[]): Promise<void>
   addComment(noteId: string, body: string): Promise<void>
@@ -114,7 +120,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('compartments').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
         sb.from('items').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(300),
-        sb.from('notes').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100),
+        sb.from('notes').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(300),
         // 0016 전에는 last_seen_at·device 칸이 없어서 * 로 읽는다
         sb.from('household_members').select('*').eq('household_id', hid).order('created_at'),
         sb.from('categories').select('*').eq('household_id', hid).order('sort_order'),
@@ -139,7 +145,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         items: check(i).data as Item[],
         history: check(h).data as Item[],
         // 메모 테이블을 아직 만들지 않았어도 나머지 화면은 열리게
-        notes: (n.data ?? []) as Note[],
+        notes: ((n.data ?? []) as Note[]).filter((x) => !x.archived_at).slice(0, 100),
+        archivedNotes: ((n.data ?? []) as Note[]).filter((x) => x.archived_at),
         // 0008 마이그레이션 전이면 댓글 없이
         comments: (nc.data ?? []) as NoteComment[],
         // 0011 마이그레이션 전이면 사진 없이
@@ -239,6 +246,12 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     },
     async deleteNote(id) {
       check(await sb.from('notes').delete().eq('id', id))
+    },
+    async archiveNote(id) {
+      check(await sb.from('notes').update({ archived_at: new Date().toISOString() }).eq('id', id))
+    },
+    async unarchiveNote(id) {
+      check(await sb.from('notes').update({ archived_at: null }).eq('id', id))
     },
     async restoreNote(note, comments) {
       check(await sb.from('notes').insert(note))
@@ -379,7 +392,7 @@ export function createLocalRepo(): Repo {
   const read = (): Stored => {
     const raw = localStorage.getItem(LOCAL_KEY)
     const s = raw ? JSON.parse(raw) : {}
-    return { fridges: [], compartments: [], items: [], notes: [], comments: [], photos: [], meals: [], mealSlots: null, ...s }
+    return { fridges: [], compartments: [], items: [], notes: [], archivedNotes: [], comments: [], photos: [], meals: [], mealSlots: null, ...s }
   }
   const write = (s: Stored) => localStorage.setItem(LOCAL_KEY, JSON.stringify(s))
   const mutate = async (fn: (s: Stored) => void) => {
@@ -500,11 +513,27 @@ export function createLocalRepo(): Repo {
     deleteNote: (nid) =>
       mutate((s) => {
         s.notes = s.notes.filter((n) => n.id !== nid)
+        s.archivedNotes = s.archivedNotes.filter((n) => n.id !== nid)
         s.comments = s.comments.filter((c) => c.note_id !== nid)
+      }),
+    archiveNote: (nid) =>
+      mutate((s) => {
+        const n = s.notes.find((x) => x.id === nid)
+        if (!n) return
+        s.notes = s.notes.filter((x) => x.id !== nid)
+        s.archivedNotes = [{ ...n, archived_at: now() }, ...s.archivedNotes].sort((a, b) => b.created_at.localeCompare(a.created_at))
+      }),
+    unarchiveNote: (nid) =>
+      mutate((s) => {
+        const n = s.archivedNotes.find((x) => x.id === nid)
+        if (!n) return
+        s.archivedNotes = s.archivedNotes.filter((x) => x.id !== nid)
+        s.notes = [{ ...n, archived_at: null }, ...s.notes].sort((a, b) => b.created_at.localeCompare(a.created_at))
       }),
     restoreNote: (note, comments) =>
       mutate((s) => {
-        s.notes = [note, ...s.notes].sort((a, b) => b.created_at.localeCompare(a.created_at))
+        const key = note.archived_at ? 'archivedNotes' : 'notes'
+        s[key] = [note, ...s[key]].sort((a, b) => b.created_at.localeCompare(a.created_at))
         s.comments = [...s.comments, ...comments].sort((a, b) => a.created_at.localeCompare(b.created_at))
       }),
     addComment: (noteId, body) =>
