@@ -94,6 +94,8 @@ export interface Note {
   author_name: string | null
   /** 상대가 처음 본 시각. 아직 안 봤으면 null */
   read_at: string | null
+  /** 보관함으로 옮긴 시각. 냉장고 문에 붙어 있으면 없음 (0021 전에는 칸 자체가 없다) */
+  archived_at?: string | null
   created_at: string
 }
 

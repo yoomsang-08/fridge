@@ -1,10 +1,10 @@
-import { Check, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Check, X } from 'lucide-react'
 import { useState } from 'react'
 import { isMine, NOTE_COLORS, NOTE_SUGGESTIONS, notePaper, timeAgo } from '../lib/notes'
 import type { FridgePhoto, Me, Member, Note, NoteColor, NoteComment, NoteInput } from '../lib/types'
 import { cx } from '../lib/cx'
 import { Sheet } from './Sheet'
-import { NoteText } from './StickyNote'
+import { NoteText, StickyNote } from './StickyNote'
 import { Button, Chip, Field, TextInput } from './ui'
 
 const MAX = 200
@@ -132,6 +132,8 @@ export function NoteViewSheet({
   me,
   onClose,
   onRemove,
+  onArchive,
+  onUnarchive,
   onComment,
   onDeleteComment,
 }: {
@@ -141,6 +143,10 @@ export function NoteViewSheet({
   me: Me
   onClose: () => void
   onRemove: () => Promise<void>
+  /** 있으면 '보관함에 넣기' 버튼이 보인다 (냉장고 문에 붙은 메모) */
+  onArchive?: () => Promise<void>
+  /** 있으면 보관함 메모로 보고 '다시 붙이기' 버튼이 보인다 */
+  onUnarchive?: () => Promise<void>
   onComment: (body: string) => Promise<void>
   onDeleteComment: (id: string) => Promise<void>
 }) {
@@ -233,8 +239,47 @@ export function NoteViewSheet({
         {comments.length === 0 && <p className="mt-1 text-sm text-faint">아직 댓글이 없어요.</p>}
         {error && <p className="mt-2 text-sm text-expired">{error}</p>}
       </section>
-      <RemoveButton onRemove={onRemove} />
+      {(onArchive || onUnarchive) && (
+        <ArchiveButton
+          onRun={(onArchive ?? onUnarchive)!}
+          archived={!!onUnarchive}
+        />
+      )}
+      {onUnarchive ? (
+        <RemoveButton onRemove={onRemove} label="완전히 지우기" confirm="정말 지울까요? 댓글도 함께 사라져요" />
+      ) : (
+        <RemoveButton onRemove={onRemove} />
+      )}
     </Sheet>
+  )
+}
+
+/** 보관함에 넣기 / 다시 붙이기 */
+function ArchiveButton({ onRun, archived }: { onRun: () => Promise<void>; archived: boolean }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const Icon = archived ? ArchiveRestore : Archive
+  return (
+    <div className="mt-5 flex flex-col gap-1">
+      <Button
+        variant="secondary"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true)
+          setError(null)
+          try {
+            await onRun()
+          } catch {
+            setError('옮기지 못했어요. 잠시 뒤 다시 해 주세요.')
+            setBusy(false)
+          }
+        }}
+      >
+        <Icon size={18} strokeWidth={2.3} />
+        {archived ? '다시 냉장고에 붙이기' : '보관함에 넣기'}
+      </Button>
+      {error && <p className="text-sm text-expired">{error}</p>}
+    </div>
   )
 }
 
@@ -278,9 +323,11 @@ export function PhotoViewSheet({
 function RemoveButton({
   onRemove,
   confirm,
+  label = '냉장고에서 떼기',
   failText = '떼지 못했어요. 잠시 뒤 다시 해 주세요.',
 }: {
   onRemove: () => Promise<void>
+  label?: string
   confirm?: string
   failText?: string
 }) {
@@ -303,9 +350,45 @@ function RemoveButton({
         }}
         className="h-9 rounded-xl px-3 text-[13px] font-semibold text-expired/80 transition active:bg-expired-soft"
       >
-        {asked ? confirm : '냉장고에서 떼기'}
+        {asked ? confirm : label}
       </button>
       {error && <p className="text-sm text-expired">{error}</p>}
     </div>
+  )
+}
+
+/** 보관함: 지난 메모를 모아 둔 곳. 눌러서 다시 보고, 다시 붙이거나 지울 수 있다 */
+export function NoteArchiveSheet({
+  notes,
+  comments,
+  onClose,
+  onOpen,
+}: {
+  notes: Note[]
+  comments: NoteComment[]
+  onClose: () => void
+  onOpen: (note: Note) => void
+}) {
+  const countOf = new Map<string, number>()
+  for (const c of comments) countOf.set(c.note_id, (countOf.get(c.note_id) ?? 0) + 1)
+  return (
+    <Sheet title="보관함" onClose={onClose}>
+      {notes.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted">
+          아직 보관한 메모가 없어요.
+          <br />
+          지난 메모는 &lsquo;보관함에 넣기&rsquo;로 여기에 모아 두세요.
+        </p>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-muted">메모 {notes.length}개 · 기한 없이 계속 보관돼요</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
+            {notes.map((n) => (
+              <StickyNote key={n.id} note={n} comments={countOf.get(n.id) ?? 0} onClick={() => onOpen(n)} />
+            ))}
+          </div>
+        </>
+      )}
+    </Sheet>
   )
 }

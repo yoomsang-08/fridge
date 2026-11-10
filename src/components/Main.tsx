@@ -24,7 +24,7 @@ import { syncMealSlots } from '../lib/meals'
 import { MealPlanView } from './MealPlan'
 import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
-import { NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from './NoteSheet'
+import { NoteArchiveSheet, NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from './NoteSheet'
 import { Settings } from './Settings'
 import { celebrationToday, hourKST, weekdayKST, ymdKST } from '../lib/celebrations'
 import { countCleanup, eggToast } from '../lib/eggToast'
@@ -47,7 +47,8 @@ type SheetState =
   | { mode: 'add'; compartmentId?: string }
   | { mode: 'edit'; item: Item }
   | { mode: 'note-write' }
-  | { mode: 'note-view'; note: Note }
+  | { mode: 'note-view'; note: Note; archived?: boolean }
+  | { mode: 'note-archive' }
   | { mode: 'photo-view'; photo: FridgePhoto }
   | null
 
@@ -327,6 +328,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               comments={snap.comments}
               me={snap.me}
               fresh={fresh}
+              archivedCount={snap.archivedNotes.length}
+              onOpenArchive={() => setSheet({ mode: 'note-archive' })}
               onOpen={(note) => setSheet({ mode: 'note-view', note })}
               onWrite={() => setSheet({ mode: 'note-write' })}
               photos={snap.photos}
@@ -456,9 +459,18 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           />
         )}
 
+        {sheet?.mode === 'note-archive' && (
+          <NoteArchiveSheet
+            notes={snap.archivedNotes}
+            comments={snap.comments}
+            onClose={() => setSheet(null)}
+            onOpen={(note) => setSheet({ mode: 'note-view', note, archived: true })}
+          />
+        )}
+
         {sheet?.mode === 'note-view' && (
           <NoteViewSheet
-            note={snap.notes.find((n) => n.id === sheet.note.id) ?? sheet.note}
+            note={[...snap.notes, ...snap.archivedNotes].find((n) => n.id === sheet.note.id) ?? sheet.note}
             comments={snap.comments.filter((c) => c.note_id === sheet.note.id)}
             me={snap.me}
             onClose={() => setSheet(null)}
@@ -469,6 +481,22 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               setSheet(null)
               setRemoved({ note, comments })
             }}
+            onArchive={
+              sheet.archived
+                ? undefined
+                : async () => {
+                    await mutate(() => repo.archiveNote(sheet.note.id))
+                    setSheet(null)
+                  }
+            }
+            onUnarchive={
+              sheet.archived
+                ? async () => {
+                    await mutate(() => repo.unarchiveNote(sheet.note.id))
+                    setSheet(null)
+                  }
+                : undefined
+            }
             onComment={(body) => mutate(() => repo.addComment(sheet.note.id, body))}
             onDeleteComment={(id) => mutate(() => repo.deleteComment(id))}
           />

@@ -1,4 +1,4 @@
-import { ImagePlus, Plus } from 'lucide-react'
+import { Archive, ImagePlus, Plus } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { isMine } from '../lib/notes'
 import { PHOTO_LIMIT } from '../lib/photos'
@@ -14,6 +14,9 @@ interface Props {
   me: Me
   /** 이번에 메모 탭을 열기 전까지 안 봤던 메모. 탭에 있는 동안 '새 메모'로 보인다 */
   fresh: Set<string>
+  /** 보관함에 들어 있는 메모 수 */
+  archivedCount: number
+  onOpenArchive: () => void
   onOpen: (note: Note) => void
   onWrite: () => void
   onOpenPhoto: (photo: FridgePhoto) => void
@@ -24,7 +27,7 @@ const HALF =
   'flex flex-1 flex-col items-center justify-center gap-1 py-3 text-sm font-bold text-accent transition active:bg-accent-soft'
 
 /** 메모 탭: 냉장고 문 한 짝에 메모와 사진이 붙어 있는 모양 */
-export function NoteBoard({ notes, comments, photos, me, fresh, onOpen, onWrite, onOpenPhoto, onAddPhoto }: Props) {
+export function NoteBoard({ notes, comments, photos, me, fresh, archivedCount, onOpenArchive, onOpen, onWrite, onOpenPhoto, onAddPhoto }: Props) {
   const countOf = new Map<string, number>()
   for (const c of comments) countOf.set(c.note_id, (countOf.get(c.note_id) ?? 0) + 1)
   const input = useRef<HTMLInputElement>(null)
@@ -58,7 +61,8 @@ export function NoteBoard({ notes, comments, photos, me, fresh, onOpen, onWrite,
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
         {/* 열 장이 넘게 붙으면 제목이 살짝 바뀐다 (이스터에그) */}
         <h2 className="text-2xl font-extrabold tracking-tight">{notes.length + photos.length > 10 ? '냉장고 문이 꽉 찼어요' : '냉장고 문'}</h2>
         <p className="mt-0.5 text-sm text-muted">
@@ -66,6 +70,14 @@ export function NoteBoard({ notes, comments, photos, me, fresh, onOpen, onWrite,
             ? [notes.length && `메모 ${notes.length}개`, photos.length && `사진 ${photos.length}장`].filter(Boolean).join(' · ') + ' 붙어 있어요'
             : '장보기 부탁이나 한마디, 사진을 냉장고 문에 붙여 보세요.'}
         </p>
+        </div>
+        <button
+          onClick={onOpenArchive}
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-sunken px-3.5 text-sm font-bold text-ink transition active:brightness-95"
+        >
+          <Archive size={16} strokeWidth={2.3} />
+          보관함{archivedCount > 0 && ` ${archivedCount}`}
+        </button>
       </div>
 
       <div className="rounded-[1.75rem] border border-line bg-surface p-4 shadow-card sm:p-5">
