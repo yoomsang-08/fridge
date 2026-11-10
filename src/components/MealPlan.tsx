@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import { expiryLabel, expiryLevel, LEVEL_TEXT } from '../lib/expiry'
@@ -7,9 +7,12 @@ import {
   hasEgg,
   mealKey,
   mealMap,
-  mealWeeks,
+  mealWeek,
+  MEAL_AHEAD_WEEKS,
+  MEAL_BACK_WEEKS,
   MEAL_LABEL,
   useMealSlots,
+  weekName,
   WEEKDAYS,
   type MealDay,
 } from '../lib/meals'
@@ -29,12 +32,16 @@ const weekRange = (days: MealDay[]) => {
   return `${a.month}월 ${a.day}일 – ${b.month}월 ${b.day}일`
 }
 
-/** 식단표 탭: 이번 주 + 다음 주. 폰은 한 주씩 카드, 넓은 화면(1024px~)은 두 주를 표로 */
+/** 식단표 탭: 이번 주 + 다음 주, 화살표로 지난 주(8주 전까지)도 보고 고칠 수 있다. 폰은 한 주씩 카드, 넓은 화면(1024px~)은 두 주를 표로 */
 export function MealPlanView({ meals, items, onSave }: Props) {
-  const weeks = useMemo(() => mealWeeks(), [])
+  // 이번 주 = 0, 지난 주 = -1 … 다음 주 = 1
+  const [wk, setWk] = useState(0)
+  // 두 주씩 보는 화면(옆으로 길게·넓은 화면)은 wk 부터 두 주. 다음 주가 아래에 오도록 마지막은 0부터
+  const pair = Math.min(wk, 0)
+  const weeks = useMemo(() => [pair, pair + 1].map((o) => mealWeek(o)), [pair])
+  const one = useMemo(() => mealWeek(wk), [wk])
   const slots = useMealSlots()
   const map = useMemo(() => mealMap(meals), [meals])
-  const [week, setWeek] = useState<'0' | '1'>('0')
   const [view, setViewState] = useState<'list' | 'strip'>(() => {
     try {
       return localStorage.getItem('fridge-meal-view') === 'strip' ? 'strip' : 'list'
@@ -63,7 +70,8 @@ export function MealPlanView({ meals, items, onSave }: Props) {
   return (
     <div className="pb-6">
       <h2 className="text-2xl font-extrabold tracking-tight">식단표</h2>
-      <p className="mt-1 text-sm text-muted">이번 주와 다음 주, 뭘 먹을지 적어 두세요.</p>
+      <p className="mt-1 text-sm text-muted">뭘 먹을지 적어 두세요. 지난 주 식단도 다시 보고 고칠 수 있어요.</p>
+      <WeekPager wk={wk} onChange={setWk} />
 
       {/* 폰·태블릿 세로: 한 주씩 */}
       <div className="lg:hidden">
@@ -77,21 +85,12 @@ export function MealPlanView({ meals, items, onSave }: Props) {
           onChange={setView}
         />
         {view === 'strip' ? (
-          <Strip weeks={weeks} slots={slots} menuOf={menuOf} open={open} />
+          <Strip weeks={weeks} start={pair} slots={slots} menuOf={menuOf} open={open} />
         ) : (
           <>
-            <Segmented
-              className="mt-3 [&>button]:flex-1"
-              value={week}
-              options={[
-                ['0', '이번 주'],
-                ['1', '다음 주'],
-              ]}
-              onChange={setWeek}
-            />
-            <WeekHead days={weeks[Number(week)]} done={filled(weeks[Number(week)])} total={total} />
+            <WeekHead days={one} done={filled(one)} total={total} />
             <div className="flex flex-col gap-2.5">
-              {weeks[Number(week)].map((d) => {
+              {one.map((d) => {
                 return (
                   <section key={d.date} className="rounded-card bg-surface px-3.5 pt-3 pb-1.5 shadow-card">
                     <div className="flex items-center gap-2">
@@ -146,7 +145,7 @@ export function MealPlanView({ meals, items, onSave }: Props) {
         {weeks.map((days, w) => (
           <div key={w}>
             <div className="mt-5 mb-2.5 flex items-baseline gap-2.5 px-0.5">
-              <h3 className="text-lg font-extrabold">{w ? '다음 주' : '이번 주'}</h3>
+              <h3 className="text-lg font-extrabold">{weekName(pair + w)}</h3>
               <span className="text-[13px] text-muted">
                 {weekRange(days)} · {total}끼 중 {filled(days)}끼 적었어요
               </span>
@@ -224,11 +223,13 @@ export function MealPlanView({ meals, items, onSave }: Props) {
 /** 폰·태블릿용 옆으로 길게 보기: PC처럼 이번 주(위)와 다음 주(아래)를 두 줄로 놓고, 요일 7열은 좌우로 민다. 끼니 이름은 왼쪽에 고정 */
 function Strip({
   weeks,
+  start,
   slots,
   menuOf,
   open,
 }: {
   weeks: MealDay[][]
+  start: number
   slots: MealSlot[]
   menuOf: (date: string, slot: MealSlot) => string
   open: (date: string, slot: MealSlot) => void
@@ -243,13 +244,13 @@ function Strip({
   }, [])
   return (
     <div className="mt-3">
-      <p className="mb-2 px-0.5 text-[13px] text-muted">좌우로 밀면 요일을 더 볼 수 있어요. 위가 이번 주, 아래가 다음 주예요.</p>
+      <p className="mb-2 px-0.5 text-[13px] text-muted">좌우로 밀면 요일을 더 볼 수 있어요. 위쪽 주가 먼저, 아래쪽 주가 그다음이에요.</p>
       <div ref={ref} className="-mx-4 overflow-x-auto pb-2 sm:-mx-6">
         <div className="grid w-max grid-cols-[4.25rem_repeat(7,5.5rem)] gap-1.5 pr-4 sm:grid-cols-[5rem_repeat(7,5.5rem)] sm:pr-6">
           {weeks.map((days, w) => (
             <Fragment key={w}>
               <div className={cx('sticky left-0 z-10 col-span-8 w-screen bg-bg pr-4 pl-4 sm:pl-6', w ? 'mt-3' : false)}>
-                <span className="text-[15px] font-extrabold">{w ? '다음 주' : '이번 주'}</span>
+                <span className="text-[15px] font-extrabold">{weekName(start + w)}</span>
                 <span className="ml-2 text-[13px] text-muted">{weekRange(days)}</span>
               </div>
               <span className="sticky left-0 z-10 bg-bg" />
@@ -307,6 +308,30 @@ function Strip({
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+/** 이전 주 / 이번 주로 / 다음 주 */
+function WeekPager({ wk, onChange }: { wk: number; onChange: (n: number) => void }) {
+  const btn = 'flex min-h-11 items-center justify-center gap-1 rounded-xl bg-sunken px-3 text-sm font-bold transition active:opacity-70 disabled:opacity-35'
+  return (
+    <div className="mt-4 flex items-center gap-2">
+      <button className={btn} disabled={wk <= -MEAL_BACK_WEEKS} onClick={() => onChange(wk - 1)} aria-label="이전 주">
+        <ChevronLeft size={18} />
+        이전 주
+      </button>
+      <button
+        className={cx(btn, 'flex-1', wk === 0 ? 'text-accent' : 'text-ink')}
+        disabled={wk === 0}
+        onClick={() => onChange(0)}
+      >
+        {wk === 0 ? '이번 주' : `${weekName(wk)} · 이번 주로`}
+      </button>
+      <button className={btn} disabled={wk >= MEAL_AHEAD_WEEKS} onClick={() => onChange(wk + 1)} aria-label="다음 주">
+        다음 주
+        <ChevronRight size={18} />
+      </button>
     </div>
   )
 }
