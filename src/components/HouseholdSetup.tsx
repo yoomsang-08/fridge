@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { formatCode } from '../lib/code'
+import { formatCode, normalizeCode } from '../lib/code'
 import { Button, Chip, Logo, TextInput } from './ui'
 
 type Step =
@@ -8,6 +8,13 @@ type Step =
   | { kind: 'code' }
   /** 누구인지 고르기. names 가 있으면 기존 식구로 이어 쓰기 */
   | { kind: 'who'; mode: 'join' | 'create'; names: string[] }
+
+/** 코드가 틀린 것과 서버·접속 문제를 구분해 안내한다 */
+function codeError(error: { message: string }): string {
+  return /invalid invite code/i.test(error.message)
+    ? '집 코드를 다시 확인해 주세요. (12자리, 0~9와 A~F)'
+    : `접속에 문제가 있어요. 잠시 뒤 다시 해 주세요. (${error.message})`
+}
 
 /** 이 기기에서 처음 열었을 때: 집 코드를 넣고 누구인지 골라 합류하거나, 우리 집을 새로 만들기 */
 export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () => void }) {
@@ -18,10 +25,7 @@ export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () 
   const [busy, setBusy] = useState(false)
 
   // 붙여 넣거나 하이픈을 섞어 써도 12자리 영숫자만 남기고, 4자리씩 끊어 보여 준다
-  const raw = code
-    .toUpperCase()
-    .replace(/[^0-9A-Z]/g, '')
-    .slice(0, 12)
+  const raw = normalizeCode(code)
 
   /** 코드가 맞는지 보고, 그 집 식구 이름을 받아 온다 */
   const checkCode = async () => {
@@ -30,7 +34,7 @@ export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () 
     const { data, error } = await sb.rpc('household_member_names', { p_code: raw })
     setBusy(false)
     // 0013 마이그레이션 전이면 함수가 없으니 이름을 새로 받는다
-    if (error && error.code !== 'PGRST202') return setError('집 코드를 다시 확인해 주세요.')
+    if (error && error.code !== 'PGRST202') return setError(codeError(error))
     setStep({ kind: 'who', mode: 'join', names: ((data ?? []) as { name: string }[]).map((r) => r.name) })
   }
 
@@ -42,7 +46,7 @@ export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () 
         ? await sb.rpc('create_household', { p_name: '우리 집', p_display_name: name })
         : await sb.rpc('join_household', { p_code: raw, p_display_name: name })
     setBusy(false)
-    if (error) setError(mode === 'join' ? '집 코드를 다시 확인해 주세요.' : error.message)
+    if (error) setError(mode === 'join' ? codeError(error) : error.message)
     else onDone()
   }
 
@@ -88,7 +92,11 @@ export function HouseholdSetup({ sb, onDone }: { sb: SupabaseClient; onDone: () 
             placeholder="집 코드 12자리"
             aria-label="우리 집 코드"
             autoCapitalize="characters"
+            autoCorrect="off"
             autoComplete="off"
+            inputMode="text"
+            enterKeyHint="next"
+            lang="en"
             spellCheck={false}
             className="tabular h-14 text-center font-mono text-lg font-bold tracking-[0.2em]"
           />
