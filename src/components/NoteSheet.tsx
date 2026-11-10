@@ -5,7 +5,7 @@ import type { FridgePhoto, Me, Member, Note, NoteColor, NoteComment, NoteInput }
 import { cx } from '../lib/cx'
 import { Sheet } from './Sheet'
 import { NoteText, StickyNote } from './StickyNote'
-import { Button, Chip, Field, TextInput } from './ui'
+import { Button, Chip, Field, SunnyEgg, TextInput } from './ui'
 
 const MAX = 200
 const LAST_COLOR_KEY = 'fridge-last-note-color'
@@ -374,7 +374,9 @@ export function NoteArchiveSheet({
   return (
     <Sheet title="보관함" onClose={onClose}>
       {notes.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted">
+        <p className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted">
+          {/* 이스터에그: 빈 보관함은 반숙 달걀이 지키고 있다 */}
+          <SunnyEgg size={36} />
           아직 보관한 메모가 없어요.
           <br />
           지난 메모는 &lsquo;보관함에 넣기&rsquo;로 여기에 모아 두세요.

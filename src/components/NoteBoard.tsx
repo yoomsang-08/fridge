@@ -63,17 +63,17 @@ export function NoteBoard({ notes, comments, photos, me, fresh, archivedCount, o
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-        {/* 열 장이 넘게 붙으면 제목이 살짝 바뀐다 (이스터에그) */}
-        <h2 className="text-2xl font-extrabold tracking-tight">{notes.length + photos.length > 10 ? '냉장고 문이 꽉 찼어요' : '냉장고 문'}</h2>
-        <p className="mt-0.5 text-sm text-muted">
-          {notes.length + photos.length > 0
-            ? [notes.length && `메모 ${notes.length}개`, photos.length && `사진 ${photos.length}장`].filter(Boolean).join(' · ') + ' 붙어 있어요'
-            : '장보기 부탁이나 한마디, 사진을 냉장고 문에 붙여 보세요.'}
-        </p>
+          {/* 열 장이 넘게 붙으면 제목이 살짝 바뀐다 (이스터에그) */}
+          <h2 className="text-2xl font-extrabold tracking-tight">{notes.length + photos.length > 10 ? '냉장고 문이 꽉 찼어요' : '냉장고 문'}</h2>
+          <p className="mt-0.5 text-sm text-muted">
+            {notes.length + photos.length > 0
+              ? [notes.length && `메모 ${notes.length}개`, photos.length && `사진 ${photos.length}장`].filter(Boolean).join(' · ') + ' 붙어 있어요'
+              : '장보기 부탁이나 한마디, 사진을 냉장고 문에 붙여 보세요.'}
+          </p>
         </div>
         <button
           onClick={onOpenArchive}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-sunken px-3.5 text-sm font-bold text-ink transition active:brightness-95"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-sunken px-3.5 sm:h-11 sm:px-4 text-sm font-bold text-ink transition active:brightness-95"
         >
           <Archive size={16} strokeWidth={2.3} />
           보관함{archivedCount > 0 && ` ${archivedCount}`}

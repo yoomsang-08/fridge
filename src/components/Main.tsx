@@ -473,12 +473,13 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             note={[...snap.notes, ...snap.archivedNotes].find((n) => n.id === sheet.note.id) ?? sheet.note}
             comments={snap.comments.filter((c) => c.note_id === sheet.note.id)}
             me={snap.me}
-            onClose={() => setSheet(null)}
+            // 보관함에서 연 메모는 닫으면 보관함으로 돌아간다
+            onClose={() => setSheet(sheet.archived ? { mode: 'note-archive' } : null)}
             onRemove={async () => {
               const note = sheet.note
               const comments = snap.comments.filter((c) => c.note_id === note.id)
               await mutate(() => repo.deleteNote(note.id))
-              setSheet(null)
+              setSheet(sheet.archived ? { mode: 'note-archive' } : null)
               setRemoved({ note, comments })
             }}
             onArchive={
@@ -493,7 +494,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               sheet.archived
                 ? async () => {
                     await mutate(() => repo.unarchiveNote(sheet.note.id))
-                    setSheet(null)
+                    setSheet({ mode: 'note-archive' })
                   }
                 : undefined
             }
