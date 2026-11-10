@@ -23,6 +23,8 @@ export interface Snapshot {
   members: Member[]
   /** 식단표: 최근 두 달 전부터 다음 주까지 */
   meals: MealPlan[]
+  /** 식단표에 보일 끼니(집 단위). null 이면 아직 정하지 않음 */
+  mealSlots: MealSlot[] | null
 }
 
 export type ItemAction = 'use' | 'consume' | 'discard'
@@ -56,6 +58,8 @@ export interface Repo {
   deletePhoto(photo: FridgePhoto): Promise<void>
   /** 식단표 칸 적기. 메뉴가 비어 있으면 그 칸을 비운다 */
   setMeal(date: string, slot: MealSlot, menu: string): Promise<void>
+  /** 식단표에 보일 끼니 고르기. 집 식구 모두에게 같게 보인다 */
+  setMealSlots(slots: MealSlot[]): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
   markNotesRead(ids: string[]): Promise<void>
   /** 이 기기를 쓰는 사람의 이름 바꾸기 */
@@ -105,7 +109,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async load() {
       const { data: auth } = await sb.auth.getSession()
       const uid = auth.session?.user.id ?? ''
-      const [f, c, i, h, n, m, k, nc, ph, mp] = await Promise.all([
+      const [f, c, i, h, n, m, k, nc, ph, mp, hs] = await Promise.all([
         sb.from('fridges').select('*').eq('household_id', hid).order('sort_order').order('created_at'),
         sb.from('compartments').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
@@ -117,6 +121,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('note_comments').select('*').eq('household_id', hid).order('created_at').limit(500),
         sb.from('fridge_photos').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(PHOTO_LIMIT),
         sb.from('meal_plans').select('*').eq('household_id', hid).gte('plan_date', mealsSince()).order('plan_date'),
+        // 0020 마이그레이션 전이면 이 칸이 없어 오류 → 무시하고 기본값
+        sb.from('households').select('meal_slots').eq('id', hid).maybeSingle(),
       ])
       // 0007 마이그레이션 전이면 테이블이 없으니 기본 분류로
       setCategories((k.data as Category[] | null) ?? DEFAULT_CATEGORIES)
@@ -142,6 +148,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         members,
         // 0019 마이그레이션 전이면 식단 없이
         meals: (mp.data ?? []) as MealPlan[],
+        // 0020 마이그레이션 전이면 null
+        mealSlots: ((hs.data as { meal_slots?: MealSlot[] | null } | null)?.meal_slots ?? null),
       }
     },
     async addFridge(t, name) {
@@ -319,6 +327,9 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         ),
       )
     },
+    async setMealSlots(slots) {
+      check(await sb.from('households').update({ meal_slots: slots }).eq('id', hid))
+    },
     async markNotesRead(ids) {
       if (ids.length === 0) return
       check(await sb.from('notes').update({ read_at: new Date().toISOString() }).in('id', ids).is('read_at', null))
@@ -337,6 +348,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         // 삭제는 Supabase 가 필터를 지원하지 않아(id 만 온다) 필터 없이 받는다
         channel.on('postgres_changes', { event: 'DELETE', schema: 'public', table }, changed)
       }
+      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'households', filter: `id=eq.${hid}` }, changed)
       channel.subscribe()
       return () => {
         clearTimeout(timer)
@@ -367,7 +379,7 @@ export function createLocalRepo(): Repo {
   const read = (): Stored => {
     const raw = localStorage.getItem(LOCAL_KEY)
     const s = raw ? JSON.parse(raw) : {}
-    return { fridges: [], compartments: [], items: [], notes: [], comments: [], photos: [], meals: [], ...s }
+    return { fridges: [], compartments: [], items: [], notes: [], comments: [], photos: [], meals: [], mealSlots: null, ...s }
   }
   const write = (s: Stored) => localStorage.setItem(LOCAL_KEY, JSON.stringify(s))
   const mutate = async (fn: (s: Stored) => void) => {
@@ -542,6 +554,10 @@ export function createLocalRepo(): Repo {
         s.meals = text
           ? [...rest, { id: id(), household_id: LOCAL_HID, plan_date: date, slot, menu: text, author_name: localMe().name, created_at: now(), updated_at: now() }]
           : rest
+      }),
+    setMealSlots: (slots) =>
+      mutate((s) => {
+        s.mealSlots = slots
       }),
     markNotesRead: async () => {},
     async renameMe(name) {

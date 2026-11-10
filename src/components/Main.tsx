@@ -20,6 +20,7 @@ import { FridgeStatus } from './FridgeStatus'
 import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
+import { syncMealSlots } from '../lib/meals'
 import { MealPlanView } from './MealPlan'
 import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
@@ -87,7 +88,9 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
 
   const reload = useCallback(async () => {
     try {
-      setSnap(await repo.load())
+      const next = await repo.load()
+      syncMealSlots(next.mealSlots, (ids) => repo.setMealSlots(ids))
+      setSnap(next)
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : '불러오지 못했어요')

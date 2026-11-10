@@ -239,7 +239,7 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
 
       {!isLocal && <BackupSettings householdId={household.id} />}
 
-      <MealSlotSettings />
+      <MealSlotSettings repo={repo} onChanged={onChanged} onError={setError} />
 
       <CategoryDaysSettings repo={repo} onError={setError} />
 
