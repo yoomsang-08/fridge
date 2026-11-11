@@ -20,7 +20,8 @@ import { FridgeStatus } from './FridgeStatus'
 import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
 import { ItemSheet } from './ItemSheet'
-import { syncMealSlots } from '../lib/meals'
+import { plannedUses, syncMealSlots } from '../lib/meals'
+import { PlannedUseContext } from '../lib/plannedUse'
 import { MealPlanView } from './MealPlan'
 import { NoteBanner } from './NoteBanner'
 import { NoteBoard } from './NoteBoard'
@@ -121,6 +122,13 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     }
   }, [repo, reload])
 
+  // 식단표에서 쓰기로 한 식품 (지난 날짜 식단·이미 먹거나 버린 식품은 뺀다)
+  const planned = useMemo(() => {
+    const all = snap ? plannedUses(snap.meals) : new Map()
+    const live = new Set(snap?.items.map((i) => i.id))
+    return new Map([...all].filter(([id]) => live.has(id)))
+  }, [snap])
+
   const unread = useMemo(() => (snap ? snap.notes.filter((n) => isUnread(n, snap.me)) : []), [snap])
 
   // 홈 화면 앱 아이콘 숫자: 안 읽은 메모 + 3일 안에 챙길 식품(지남 포함)
@@ -197,6 +205,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   }
 
   return (
+    <PlannedUseContext.Provider value={planned}>
     <div className="min-h-dvh pb-44 sm:pb-28 lg:pl-[max(var(--spacing-rail),env(safe-area-inset-left))]">
       {/* 1024px~ 왼쪽 사이드 내비. 아래 탭·머리글 탭과 같은 내비를 두 번 보이지 않는다 */}
       <nav
@@ -318,7 +327,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             <MealPlanView
               meals={snap.meals}
               items={snap.items}
-              onSave={(date, slot, menu) => mutate(() => repo.setMeal(date, slot, menu))}
+              onSave={(date, slot, menu, ids) => mutate(() => repo.setMeal(date, slot, menu, ids))}
             />
           )}
 
@@ -584,6 +593,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         )}
       </div>
     </div>
+    </PlannedUseContext.Provider>
   )
 }
 

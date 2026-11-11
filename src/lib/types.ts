@@ -152,6 +152,8 @@ export interface MealPlan {
   plan_date: string
   slot: MealSlot
   menu: string
+  /** 이 끼니에 쓸 냉장고 식품(items.id). 0022 마이그레이션 전 데이터에는 없을 수 있다 */
+  item_ids?: string[] | null
   author_name: string | null
   created_at: string
   updated_at: string

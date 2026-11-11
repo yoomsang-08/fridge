@@ -1,4 +1,5 @@
 import { ChevronDown, ScanBarcode } from 'lucide-react'
+import { PlannedChip } from './PlannedChip'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BarcodeScanner } from './BarcodeScanner'
 import { useDialog } from './Dialog'
@@ -755,6 +756,9 @@ function ItemSummary({
             </p>
           )}
         </div>
+      </div>
+      <div className="flex px-1 empty:hidden">
+        <PlannedChip itemId={item.id} />
       </div>
       {lv === 'expired' && (
         <div className="rounded-2xl bg-expired-soft p-3.5">

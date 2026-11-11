@@ -23,7 +23,7 @@ import { Button, Chip, Field, Segmented, SunnyEgg, TextInput } from './ui'
 interface Props {
   meals: Meal[]
   items: Item[]
-  onSave: (date: string, slot: MealSlot, menu: string) => Promise<void>
+  onSave: (date: string, slot: MealSlot, menu: string, itemIds: string[]) => Promise<void>
 }
 
 const weekRange = (days: MealDay[]) => {
@@ -209,9 +209,10 @@ export function MealPlanView({ meals, items, onSave }: Props) {
           meals={meals}
           items={items}
           current={(d, s) => menuOf(d, s)}
+          idsOf={(d, s) => map.get(mealKey(d, s))?.item_ids ?? []}
           onClose={() => setEditing(null)}
-          onSave={async (slot, menu) => {
-            await onSave(editing.date, slot, menu)
+          onSave={async (slot, menu, ids) => {
+            await onSave(editing.date, slot, menu, ids)
             setEditing(null)
           }}
         />
@@ -377,6 +378,7 @@ function MealSheet({
   meals,
   items,
   current,
+  idsOf,
   onClose,
   onSave,
 }: {
@@ -386,11 +388,16 @@ function MealSheet({
   meals: Meal[]
   items: Item[]
   current: (date: string, slot: MealSlot) => string
+  idsOf: (date: string, slot: MealSlot) => string[]
   onClose: () => void
-  onSave: (slot: MealSlot, menu: string) => Promise<void>
+  onSave: (slot: MealSlot, menu: string, itemIds: string[]) => Promise<void>
 }) {
   const [slot, setSlot] = useState(initial)
   const [menu, setMenu] = useState(current(date, initial))
+  /** 이 끼니에 쓰려고 고른 냉장고 식품 */
+  const [picked, setPicked] = useState<string[]>(() => idsOf(date, initial))
+  const [more, setMore] = useState(false)
+  const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [y, m, d] = date.split('-').map(Number)
@@ -406,16 +413,32 @@ function MealSheet({
     [items],
   )
 
+  // 이미 고른 식품은 기한이 넉넉해도 칩으로 계속 보인다
+  const extra = useMemo(() => items.filter((i) => picked.includes(i.id)), [items, picked])
+
   const pick = (s: MealSlot) => {
     setSlot(s)
     setMenu(current(date, s))
+    setPicked(idsOf(date, s))
   }
   const add = (text: string) => setMenu((v) => (v.trim() ? `${v.trim()}, ${text}` : text))
+  /** 냉장고 식품 고르기/빼기: 메뉴에 이름도 함께 넣고 뺀다 */
+  const toggleItem = (i: Item) => {
+    if (picked.includes(i.id)) {
+      setPicked(picked.filter((x) => x !== i.id))
+      setMenu((v) => v.split(/,\s*/).filter((t) => t.trim() !== i.name).join(', '))
+    } else {
+      setPicked([...picked, i.id])
+      if (!menu.includes(i.name)) add(i.name)
+    }
+  }
+  // 메뉴에서 이름을 지웠으면 연결도 풀린다
+  const linked = () => picked.filter((id) => { const it = items.find((x) => x.id === id); return it && menu.includes(it.name) })
   const save = async () => {
     setBusy(true)
     setError(null)
     try {
-      await onSave(slot, menu)
+      await onSave(slot, menu, linked())
     } catch {
       setError('저장하지 못했어요. 잠시 뒤에 다시 해 주세요.')
       setBusy(false)
@@ -436,7 +459,7 @@ function MealSheet({
               disabled={busy}
               onClick={async () => {
                 setBusy(true)
-                await onSave(slot, '').catch(() => setBusy(false))
+                await onSave(slot, '', []).catch(() => setBusy(false))
               }}
             >
               비우기
@@ -487,18 +510,46 @@ function MealSheet({
             </div>
           </Field>
         )}
-        {soonest.length > 0 && (
-          <Field label="냉장고에서 먼저 먹을 식품">
+        {items.length > 0 && (
+          <Field
+            label="냉장고 재료 쓰기"
+            aside={
+              items.length > soonest.length && (
+                <button className="min-h-9 px-1 text-[13px] font-bold text-accent sm:min-h-11" onClick={() => setMore(!more)}>
+                  {more ? '접기' : '다른 재료 고르기'}
+                </button>
+              )
+            }
+          >
+            <p className="mb-2 text-xs text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 재고는 그대로예요.</p>
             <div className="flex flex-wrap gap-2">
-              {soonest.map((i) => (
-                <Chip key={i.id} tone="suggest" onClick={() => add(i.name)}>
-                  {i.name}
-                  <span className={cx('text-xs font-semibold', LEVEL_TEXT[expiryLevel(i.expiry_date)])}>
-                    {expiryLabel(i.expiry_date)}
-                  </span>
-                </Chip>
-              ))}
+              {[...soonest, ...extra.filter((e) => !soonest.some((s) => s.id === e.id))].map((i) => {
+                const on = picked.includes(i.id)
+                return (
+                  <Chip key={i.id} active={on} tone={on ? 'default' : 'suggest'} aria-pressed={on} onClick={() => toggleItem(i)}>
+                    {i.name}
+                    <span className={cx('text-xs font-semibold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(i.expiry_date)])}>
+                      {expiryLabel(i.expiry_date)}
+                    </span>
+                  </Chip>
+                )
+              })}
             </div>
+            {more && (
+              <div className="mt-3 flex flex-col gap-2">
+                <TextInput value={q} placeholder="식품 이름 찾기" onChange={(e) => setQ(e.target.value)} />
+                <div className="flex flex-wrap gap-2">
+                  {items
+                    .filter((i) => !soonest.some((s) => s.id === i.id) && !picked.includes(i.id) && i.name.includes(q.trim()))
+                    .slice(0, 12)
+                    .map((i) => (
+                      <Chip key={i.id} onClick={() => toggleItem(i)}>
+                        {i.name}
+                      </Chip>
+                    ))}
+                </div>
+              </div>
+            )}
           </Field>
         )}
         {error && <p className="rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}

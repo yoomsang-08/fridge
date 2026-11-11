@@ -2,6 +2,7 @@ import { categoryOf } from '../lib/categories'
 import { expiryLabel, expiryLevel, LEVEL_TEXT } from '../lib/expiry'
 import type { Item } from '../lib/types'
 import { cx } from '../lib/cx'
+import { PlannedChip } from './PlannedChip'
 
 /** 목록 한 줄: 분류 타일 · 이름과 수량(·위치) · 기한 문구 · 빠른 사용 버튼. 재고 목록과 냉장고 보기에서 같이 쓴다 */
 export function ItemRow({
@@ -19,7 +20,7 @@ export function ItemRow({
   const lv = expiryLevel(i.expiry_date)
   const cat = categoryOf(i.category)
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
+    <li className="flex flex-wrap items-center gap-x-3 px-3 py-2.5 sm:px-4">
       <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onOpen(i)}>
         <span
           className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[22px]"
@@ -60,6 +61,9 @@ export function ItemRow({
       >
         {i.quantity > 1 ? '−1' : '다 먹음'}
       </button>
+      <div className="empty:hidden basis-full pt-1 pl-14">
+        <PlannedChip itemId={i.id} />
+      </div>
     </li>
   )
 }

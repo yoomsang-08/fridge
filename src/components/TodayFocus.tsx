@@ -5,6 +5,7 @@ import { daysLeft, expiryLevel, LEVEL_TEXT } from '../lib/expiry'
 import type { ItemAction } from '../lib/repo'
 import type { Item } from '../lib/types'
 import { cx } from '../lib/cx'
+import { PlannedChip } from './PlannedChip'
 import { Button, Card } from './ui'
 
 /** 사람에게 하는 말로: 오늘까지 먹어야 해요, 2일 지났어요 */
@@ -154,6 +155,9 @@ function Hero({
           </span>
         </span>
       </button>
+      <div className="flex px-4 pb-2.5 empty:hidden">
+        <PlannedChip itemId={i.id} />
+      </div>
       <div className={cx('mx-4 rounded-xl px-3.5 py-2.5', expired ? 'bg-expired-soft' : 'bg-urgent-soft')}>
         <p className={cx('text-[19px] leading-snug font-extrabold', LEVEL_TEXT[lv])}>{deadlineSentence(i)}</p>
         <p className="tabular text-xs text-muted">{dateText(i)}</p>
@@ -199,7 +203,7 @@ function FocusRow({
   const cat = categoryOf(i.category)
   const lv = expiryLevel(i.expiry_date)
   return (
-    <li className="flex items-center gap-3 px-3.5 py-3">
+    <li className="flex flex-wrap items-center gap-x-3 px-3.5 py-3">
       <button onClick={() => onOpen(i)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span
           className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[22px]"
@@ -215,6 +219,9 @@ function FocusRow({
         </span>
       </button>
       <span className="flex shrink-0 gap-1.5 sm:gap-2">{children}</span>
+      <div className="basis-full pt-1 pl-14 empty:hidden">
+        <PlannedChip itemId={i.id} />
+      </div>
     </li>
   )
 }
