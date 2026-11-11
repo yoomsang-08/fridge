@@ -403,7 +403,7 @@ function MealSheet({
   const [y, m, d] = date.split('-').map(Number)
   const dow = (new Date(y, m - 1, d).getDay() + 6) % 7
   const frequent = useMemo(() => frequentMenus(meals), [meals])
-  // 기한이 가까운 식품부터 3개. 눌러서 메뉴에 이름을 넣는다
+  // 기한이 가까운 식품부터 4개. 눌러서 사용예정으로 연결한다
   const soonest = useMemo(
     () =>
       items
@@ -422,23 +422,13 @@ function MealSheet({
     setPicked(idsOf(date, s))
   }
   const add = (text: string) => setMenu((v) => (v.trim() ? `${v.trim()}, ${text}` : text))
-  /** 냉장고 식품 고르기/빼기: 메뉴에 이름도 함께 넣고 뺀다 */
-  const toggleItem = (i: Item) => {
-    if (picked.includes(i.id)) {
-      setPicked(picked.filter((x) => x !== i.id))
-      setMenu((v) => v.split(/,\s*/).filter((t) => t.trim() !== i.name).join(', '))
-    } else {
-      setPicked([...picked, i.id])
-      if (!menu.includes(i.name)) add(i.name)
-    }
-  }
-  // 메뉴에서 이름을 지웠으면 연결도 풀린다
-  const linked = () => picked.filter((id) => { const it = items.find((x) => x.id === id); return it && menu.includes(it.name) })
+  /** 냉장고 식품 고르기/빼기: 사용예정 연결만 바꾸고, 메뉴명은 건드리지 않는다 */
+  const toggleItem = (i: Item) => setPicked((p) => (p.includes(i.id) ? p.filter((x) => x !== i.id) : [...p, i.id]))
   const save = async () => {
     setBusy(true)
     setError(null)
     try {
-      await onSave(slot, menu, linked())
+      await onSave(slot, menu, picked)
     } catch {
       setError('저장하지 못했어요. 잠시 뒤에 다시 해 주세요.')
       setBusy(false)
@@ -498,6 +488,9 @@ function MealSheet({
               </span>
             )}
           </div>
+          {picked.length > 0 && !menu.trim() && (
+            <p className="mt-2 text-xs break-keep text-muted">먹을 메뉴 이름을 적어 주세요</p>
+          )}
         </Field>
         {frequent.length > 0 && (
           <Field label="자주 적은 메뉴">
@@ -521,7 +514,7 @@ function MealSheet({
               )
             }
           >
-            <p className="mb-2 text-xs text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 재고는 그대로예요.</p>
+            <p className="mb-2 text-xs break-keep text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 식단표에는 위에 적은 메뉴명만 보여요.</p>
             <div className="flex flex-wrap gap-2">
               {[...soonest, ...extra.filter((e) => !soonest.some((s) => s.id === e.id))].map((i) => {
                 const on = picked.includes(i.id)
