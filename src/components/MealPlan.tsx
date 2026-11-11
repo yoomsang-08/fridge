@@ -515,7 +515,7 @@ function MealSheet({
             label="냉장고 재료 쓰기"
             aside={
               items.length > soonest.length && (
-                <button className="min-h-9 px-1 text-[13px] font-bold text-accent" onClick={() => setMore(!more)}>
+                <button className="min-h-9 px-1 text-[13px] font-bold text-accent sm:min-h-11" onClick={() => setMore(!more)}>
                   {more ? '접기' : '다른 재료 고르기'}
                 </button>
               )

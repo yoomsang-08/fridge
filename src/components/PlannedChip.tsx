@@ -63,7 +63,7 @@ export function PlannedChip({ itemId, className }: { itemId: string; className?:
         onClick={() => toggle(!open)}
         onMouseEnter={() => matchMedia('(hover: hover)').matches && toggle(true)}
         className={
-          'relative inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent transition before:absolute before:-inset-2 before:content-[""] active:brightness-95 ' +
+          'relative inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent transition before:absolute before:-inset-2 sm:before:-inset-3 before:content-[""] active:brightness-95 ' +
           (className ?? '')
         }
       >
