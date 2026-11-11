@@ -136,3 +136,37 @@ export function frequentMenus(meals: MealPlan[], limit = 6): string[] {
     .slice(0, limit)
     .map(([menu]) => menu)
 }
+
+// ---------- 사용 예정 (식단표에서 고른 냉장고 재료) ----------
+
+export interface PlannedUse {
+  date: string
+  slot: MealSlot
+  menu: string
+}
+
+/** 식품 id → 앞으로 그 식품을 쓰기로 한 식단들(빠른 날짜순). 지난 날짜 식단은 뺀다 */
+export function plannedUses(meals: MealPlan[], base: Date = today()): Map<string, PlannedUse[]> {
+  const todayStr = toDateString(base)
+  const order = MEAL_SLOTS.map((s) => s.id)
+  const out = new Map<string, PlannedUse[]>()
+  for (const m of meals) {
+    if (m.plan_date < todayStr) continue
+    for (const itemId of m.item_ids ?? []) {
+      const list = out.get(itemId) ?? []
+      list.push({ date: m.plan_date, slot: m.slot, menu: m.menu })
+      out.set(itemId, list)
+    }
+  }
+  for (const list of out.values())
+    list.sort((a, b) => a.date.localeCompare(b.date) || order.indexOf(a.slot) - order.indexOf(b.slot))
+  return out
+}
+
+/** '오늘', '내일', '11월 14일(금)' */
+export function plannedDayText(date: string, base: Date = today()): string {
+  if (date === toDateString(base)) return '오늘'
+  if (date === addDays(1, base)) return '내일'
+  const [y, m, d] = date.split('-').map(Number)
+  return `${m}월 ${d}일(${WEEKDAYS[(new Date(y, m - 1, d).getDay() + 6) % 7]})`
+}
