@@ -489,7 +489,7 @@ function MealSheet({
             )}
           </div>
           {picked.length > 0 && !menu.trim() && (
-            <p className="mt-2 text-xs text-muted">고른 재료는 메뉴명 대신 들어가지 않아요. 먹을 메뉴 이름을 적어 주세요.</p>
+            <p className="mt-2 text-xs break-keep text-muted">먹을 메뉴 이름을 적어 주세요</p>
           )}
         </Field>
         {frequent.length > 0 && (
@@ -514,7 +514,7 @@ function MealSheet({
               )
             }
           >
-            <p className="mb-2 text-xs text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 식단표에는 위에 적은 메뉴명만 보여요.</p>
+            <p className="mb-2 text-xs break-keep text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 식단표에는 위에 적은 메뉴명만 보여요.</p>
             <div className="flex flex-wrap gap-2">
               {[...soonest, ...extra.filter((e) => !soonest.some((s) => s.id === e.id))].map((i) => {
                 const on = picked.includes(i.id)
