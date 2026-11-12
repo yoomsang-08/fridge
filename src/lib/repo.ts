@@ -63,7 +63,8 @@ export interface Repo {
   /** 사진 떼기: 파일까지 지운다 */
   deletePhoto(photo: FridgePhoto): Promise<void>
   /** 식단표 칸 적기. 메뉴가 비어 있으면 그 칸을 비운다. itemIds 는 이 끼니에 쓸 냉장고 식품 */
-  setMeal(date: string, slot: MealSlot, menu: string, itemIds?: string[]): Promise<void>
+  /** menu = 어른 메뉴, kidMenu = 아이 메뉴. 둘 다 비면 그 칸을 지운다 */
+  setMeal(date: string, slot: MealSlot, menu: string, itemIds?: string[], kidMenu?: string): Promise<void>
   /** 식단표에 보일 끼니 고르기. 집 식구 모두에게 같게 보인다 */
   setMealSlots(slots: MealSlot[]): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
@@ -320,9 +321,10 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       check(await sb.from('categories').update({ ...days, days_set: true }).eq('household_id', hid).eq('id', id))
       setCategories(getCategories().map((c) => (c.id === id ? { ...c, ...days } : c)))
     },
-    async setMeal(date, slot, menu, itemIds) {
+    async setMeal(date, slot, menu, itemIds, kidMenu) {
       const text = menu.trim()
-      if (!text) {
+      const kid = (kidMenu ?? '').trim()
+      if (!text && !kid) {
         check(await sb.from('meal_plans').delete().eq('household_id', hid).eq('plan_date', date).eq('slot', slot))
         return
       }
@@ -336,9 +338,9 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       const row = { household_id: hid, plan_date: date, slot, menu: text, author_name: m?.display_name || null, updated_at: new Date().toISOString() }
       const upsert = (r: object) => sb.from('meal_plans').upsert(r, { onConflict: 'household_id,plan_date,slot' })
       const ids = itemIds ?? []
-      const res = await upsert({ ...row, item_ids: ids })
-      // 0022 를 아직 안 돌렸어도, 재료를 안 고른 식단은 그대로 저장된다
-      if (res.error && ids.length === 0) check(await upsert(row))
+      const res = await upsert({ ...row, kid_menu: kid || null, item_ids: ids })
+      // 0022·0023 를 아직 안 돌렸어도, 재료·아이 메뉴를 안 적은 식단은 그대로 저장된다
+      if (res.error && ids.length === 0 && !kid) check(await upsert(row))
       else check(res)
     },
     async setMealSlots(slots) {
@@ -577,12 +579,13 @@ export function createLocalRepo(): Repo {
       mutate((s) => {
         s.photos = s.photos.filter((p) => p.id !== photo.id)
       }),
-    setMeal: (date, slot, menu, itemIds) =>
+    setMeal: (date, slot, menu, itemIds, kidMenu) =>
       mutate((s) => {
         const text = menu.trim()
+        const kid = (kidMenu ?? '').trim()
         const rest = s.meals.filter((m) => !(m.plan_date === date && m.slot === slot))
-        s.meals = text
-          ? [...rest, { id: id(), household_id: LOCAL_HID, plan_date: date, slot, menu: text, item_ids: itemIds ?? [], author_name: localMe().name, created_at: now(), updated_at: now() }]
+        s.meals = text || kid
+          ? [...rest, { id: id(), household_id: LOCAL_HID, plan_date: date, slot, menu: text, kid_menu: kid || null, item_ids: itemIds ?? [], author_name: localMe().name, created_at: now(), updated_at: now() }]
           : rest
       }),
     setMealSlots: (slots) =>
