@@ -19,7 +19,7 @@ import {
 } from '../lib/meals'
 import type { Item, MealPlan as Meal, MealSlot } from '../lib/types'
 import { Sheet } from './Sheet'
-import { Button, Chip, Field, Segmented, SunnyEgg, TextInput } from './ui'
+import { Button, Chip, Field, Segmented, SunnyEgg, TextInput, WhoTag } from './ui'
 
 interface Props {
   meals: Meal[]
@@ -359,26 +359,12 @@ function WeekHead({ days, done, total }: { days: MealDay[]; done: number; total:
 type Menu = { adult: string; kid: string }
 const labelOf = ({ adult, kid }: Menu) => [adult && (kid ? `어른 ${adult}` : adult), kid && `아이 ${kid}`].filter(Boolean).join(', ')
 
-/** '어른' / '아이' 작은 태그. 어른은 무채색, 아이는 포인트 색 */
-function WhoTag({ who }: { who: 'adult' | 'kid' }) {
-  return (
-    <span
-      className={cx(
-        'shrink-0 rounded-full px-1.5 py-px text-[11px] leading-4 font-bold',
-        who === 'kid' ? 'bg-accent-soft text-accent' : 'bg-sunken text-muted',
-      )}
-    >
-      {who === 'kid' ? '아이' : '어른'}
-    </span>
-  )
-}
-
 /** 한 칸의 메뉴. 아이 메뉴가 있으면 어른·아이를 태그로 나눠 보여 주고, 어른 메뉴만 있으면 예전처럼 메뉴만 보인다 */
 function MenuLines({ text, cell = false, className }: { text: Menu; cell?: boolean; className?: string }) {
   const both = Boolean(text.kid)
   const lines: ['adult' | 'kid', string][] = [['adult', text.adult], ['kid', text.kid]]
   return (
-    <span className={cx('flex flex-col', cell ? 'gap-1 font-semibold' : 'gap-1 font-semibold', className)}>
+    <span className={cx('flex flex-col gap-1 font-semibold', className)}>
       {lines
         .filter(([, v]) => v)
         .map(([who, v]) => (
