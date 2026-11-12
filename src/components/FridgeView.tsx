@@ -6,7 +6,6 @@ import {
   fitPantry,
   flowPantry,
   isPantry,
-  pantryBox,
   isDoorCompartment,
   itemsBy,
   shapeOf,
@@ -96,18 +95,16 @@ export function FridgeView({
   }, [egg])
 
   const fridge = fridges.find((f) => f.id === fridgeId) ?? fridges[0]
-  const realMine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
-  // 팬트리는 선반 구분 없이 통 하나
-  const mine = useMemo(() => (isPantry(fridge) ? pantryBox(realMine) : realMine), [realMine, fridge])
+  const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
   const byComp = useMemo(
     () =>
       isPantry(fridge)
         ? flowPantry(
             mine,
-            items.filter((i) => realMine.some((c) => c.id === i.compartment_id)),
+            items.filter((i) => mine.some((c) => c.id === i.compartment_id)),
           )
         : itemsBy(items),
-    [items, fridge, mine, realMine],
+    [items, fridge, mine],
   )
   // 팬트리는 물건이 많으면 옆으로 늘어난다
   const shape = useMemo(
@@ -133,7 +130,11 @@ export function FridgeView({
   const urgent = sortByUrgency(fridgeItems).filter((i) =>
     ['expired', 'urgent', 'soon'].includes(expiryLevel(i.expiry_date)),
   )
-  const selectedItems = selected ? sortByUrgency(byComp.get(selected.id) ?? []) : []
+  // 팬트리는 선반·바구니 구분 없이 한 목록(실온 재료 챙기기용). 칸을 눌러도 나뉘지 않는다
+  const pantry = isPantry(fridge)
+  const selectedItems = selected ? sortByUrgency(pantry ? fridgeItems : (byComp.get(selected.id) ?? [])) : []
+  const showAll = pantry || !!selected
+  const listItems = selected ? selectedItems : pantry ? sortByUrgency(fridgeItems) : urgent
   // 메모는 집에 하나인 메인 냉장고(첫 번째)에만 붙인다
   const doorNotes = fridge.id === fridges[0]?.id ? notes.slice(0, DOOR_NOTE_COUNT) : []
   // 사진도 메인 냉장고 문에 최근 두 장만
@@ -359,9 +360,11 @@ export function FridgeView({
         <section className="order-6 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 px-1">
             <h3 className="text-[13px] font-bold text-muted">
-              {selected
-                ? `${selected.name} · ${isDoorCompartment(selected) ? '문' : ZONE_LABEL[selected.zone]}`
-                : `챙겨 먹을 것 ${urgent.length}개`}
+              {pantry
+                ? `${fridge.name} · 실온 ${listItems.length}개`
+                : selected
+                  ? `${selected.name} · ${isDoorCompartment(selected) ? '문' : ZONE_LABEL[selected.zone]}`
+                  : `챙겨 먹을 것 ${urgent.length}개`}
             </h3>
             {selected && (
               <button onClick={() => onAddTo(selected.id)} className="text-sm font-bold text-accent">
@@ -370,13 +373,13 @@ export function FridgeView({
             )}
           </div>
           <Card className="overflow-hidden">
-            {(selected ? selectedItems : urgent).length ? (
+            {listItems.length ? (
               <ul className="divide-y divide-line">
-                {(selected ? selectedItems : urgent).map((i) => (
+                {listItems.map((i) => (
                   <ItemRow
                     key={i.id}
                     item={i}
-                    location={selected ? undefined : nameOf(i)}
+                    location={showAll ? undefined : nameOf(i)}
                     onOpen={onOpen}
                     onUseOne={onUseOne}
                   />
@@ -384,7 +387,7 @@ export function FridgeView({
               </ul>
             ) : (
               <p className="px-4 py-6 text-center text-sm text-muted">
-                {selected ? '비어 있어요' : '급하게 먹을 건 없어요. 칸을 누르면 그 칸의 식품이 보여요'}
+                {showAll ? '비어 있어요' : '급하게 먹을 건 없어요. 칸을 누르면 그 칸의 식품이 보여요'}
               </p>
             )}
           </Card>
