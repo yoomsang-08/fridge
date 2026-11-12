@@ -352,6 +352,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               fridges={snap.fridges}
               compartments={snap.compartments}
               items={snap.items}
+              meals={snap.meals}
+              onOpenMeals={() => openTab('meals')}
               onOpen={(item) => setSheet({ mode: 'edit', item })}
               onUseOne={(item) => act(item, 'use')}
               onAct={(item, action) => act(item, action)}
