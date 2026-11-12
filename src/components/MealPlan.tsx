@@ -7,6 +7,7 @@ import {
   hasEgg,
   mealKey,
   mealMap,
+  mealText,
   mealWeek,
   MEAL_AHEAD_WEEKS,
   MEAL_BACK_WEEKS,
@@ -23,7 +24,7 @@ import { Button, Chip, Field, Segmented, SunnyEgg, TextInput } from './ui'
 interface Props {
   meals: Meal[]
   items: Item[]
-  onSave: (date: string, slot: MealSlot, menu: string, itemIds: string[]) => Promise<void>
+  onSave: (date: string, slot: MealSlot, menu: string, itemIds: string[], kidMenu: string) => Promise<void>
 }
 
 const weekRange = (days: MealDay[]) => {
@@ -64,8 +65,7 @@ export function MealPlanView({ meals, items, onSave }: Props) {
   const total = slots.length * 7
 
   const open = (date: string, slot: MealSlot) => setEditing({ date, slot })
-  const menuOf = (date: string, slot: MealSlot) => map.get(mealKey(date, slot))?.menu ?? ''
-  const Egg = ({ menu }: { menu: string }) => (hasEgg(menu) ? <EggMark /> : null)
+  const menuOf = (date: string, slot: MealSlot) => mealText(map.get(mealKey(date, slot)))
 
   return (
     <div className="pb-6">
@@ -106,7 +106,8 @@ export function MealPlanView({ meals, items, onSave }: Props) {
                     </div>
                     <ul>
                       {slots.map((s) => {
-                        const menu = menuOf(d.date, s)
+                        const text = menuOf(d.date, s)
+                        const has = text.adult || text.kid
                         return (
                           <li key={s} className="border-t border-line first:border-t-0">
                             <button
@@ -116,11 +117,8 @@ export function MealPlanView({ meals, items, onSave }: Props) {
                               <span className="w-[38px] shrink-0 rounded-lg bg-sunken py-1 text-center text-xs font-bold text-muted">
                                 {MEAL_LABEL[s]}
                               </span>
-                              {menu ? (
-                                <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[15px] font-semibold">
-                                  <span className="min-w-0 break-keep">{menu}</span>
-                                  <Egg menu={menu} />
-                                </span>
+                              {has ? (
+                                <MenuLines text={text} className="min-w-0 flex-1 py-1.5 text-[15px]" />
                               ) : (
                                 <>
                                   <span className="flex-1 text-[15px] text-faint">눌러서 적기</span>
@@ -170,12 +168,13 @@ export function MealPlanView({ meals, items, onSave }: Props) {
               {slots.map((s) => (
                 <Row key={s} label={MEAL_LABEL[s]}>
                   {days.map((d) => {
-                    const menu = menuOf(d.date, s)
+                    const text = menuOf(d.date, s)
+                    const menu = text.adult || text.kid
                     return (
                       <button
                         key={d.date}
                         onClick={() => open(d.date, s)}
-                        aria-label={`${d.month}월 ${d.day}일 ${MEAL_LABEL[s]}${menu ? ` ${menu}` : ' 적기'}`}
+                        aria-label={`${d.month}월 ${d.day}일 ${MEAL_LABEL[s]}${menu ? ` ${labelOf(text)}` : ' 적기'}`}
                         className={cx(
                           'flex min-h-16 gap-1 rounded-2xl p-2.5 text-left text-sm leading-snug transition active:opacity-70',
                           menu
@@ -184,10 +183,7 @@ export function MealPlanView({ meals, items, onSave }: Props) {
                         )}
                       >
                         {menu ? (
-                          <>
-                            <span className="min-w-0 flex-1 break-keep [overflow-wrap:anywhere]">{menu}</span>
-                            <Egg menu={menu} />
-                          </>
+                          <MenuLines text={text} cell className="min-w-0 flex-1" />
                         ) : (
                           <Plus size={18} />
                         )}
@@ -211,8 +207,8 @@ export function MealPlanView({ meals, items, onSave }: Props) {
           current={(d, s) => menuOf(d, s)}
           idsOf={(d, s) => map.get(mealKey(d, s))?.item_ids ?? []}
           onClose={() => setEditing(null)}
-          onSave={async (slot, menu, ids) => {
-            await onSave(editing.date, slot, menu, ids)
+          onSave={async (slot, menu, ids, kid) => {
+            await onSave(editing.date, slot, menu, ids, kid)
             setEditing(null)
           }}
         />
@@ -232,7 +228,7 @@ function Strip({
   weeks: MealDay[][]
   start: number
   slots: MealSlot[]
-  menuOf: (date: string, slot: MealSlot) => string
+  menuOf: (date: string, slot: MealSlot) => Menu
   open: (date: string, slot: MealSlot) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -279,12 +275,13 @@ function Strip({
                     </span>
                   </span>
                   {days.map((d) => {
-                    const menu = menuOf(d.date, s)
+                    const text = menuOf(d.date, s)
+                    const menu = text.adult || text.kid
                     return (
                       <button
                         key={d.date}
                         onClick={() => open(d.date, s)}
-                        aria-label={`${d.month}월 ${d.day}일 ${MEAL_LABEL[s]}${menu ? ` ${menu}` : ' 적기'}`}
+                        aria-label={`${d.month}월 ${d.day}일 ${MEAL_LABEL[s]}${menu ? ` ${labelOf(text)}` : ' 적기'}`}
                         className={cx(
                           'flex min-h-16 gap-1 rounded-2xl p-2.5 text-left text-sm leading-snug transition active:opacity-70',
                           menu
@@ -293,10 +290,7 @@ function Strip({
                         )}
                       >
                         {menu ? (
-                          <>
-                            <span className="min-w-0 flex-1 break-keep [overflow-wrap:anywhere]">{menu}</span>
-                            {hasEgg(menu) && <EggMark />}
-                          </>
+                          <MenuLines text={text} cell className="min-w-0 flex-1" />
                         ) : (
                           <Plus size={18} />
                         )}
@@ -362,6 +356,44 @@ function WeekHead({ days, done, total }: { days: MealDay[]; done: number; total:
   )
 }
 
+type Menu = { adult: string; kid: string }
+const labelOf = ({ adult, kid }: Menu) => [adult && (kid ? `어른 ${adult}` : adult), kid && `아이 ${kid}`].filter(Boolean).join(', ')
+
+/** '어른' / '아이' 작은 태그. 어른은 무채색, 아이는 포인트 색 */
+function WhoTag({ who }: { who: 'adult' | 'kid' }) {
+  return (
+    <span
+      className={cx(
+        'shrink-0 rounded-full px-1.5 py-px text-[11px] leading-4 font-bold',
+        who === 'kid' ? 'bg-accent-soft text-accent' : 'bg-sunken text-muted',
+      )}
+    >
+      {who === 'kid' ? '아이' : '어른'}
+    </span>
+  )
+}
+
+/** 한 칸의 메뉴. 아이 메뉴가 있으면 어른·아이를 태그로 나눠 보여 주고, 어른 메뉴만 있으면 예전처럼 메뉴만 보인다 */
+function MenuLines({ text, cell = false, className }: { text: Menu; cell?: boolean; className?: string }) {
+  const both = Boolean(text.kid)
+  const lines: ['adult' | 'kid', string][] = [['adult', text.adult], ['kid', text.kid]]
+  return (
+    <span className={cx('flex flex-col', cell ? 'gap-1 font-semibold' : 'gap-1 font-semibold', className)}>
+      {lines
+        .filter(([, v]) => v)
+        .map(([who, v]) => (
+          <span key={who} className={cx('flex gap-1.5', cell ? 'flex-col items-start gap-0.5' : 'items-baseline')}>
+            {both && <WhoTag who={who} />}
+            <span className="flex min-w-0 items-start gap-1">
+              <span className="min-w-0 break-keep [overflow-wrap:anywhere]">{v}</span>
+              {hasEgg(v) && <EggMark />}
+            </span>
+          </span>
+        ))}
+    </span>
+  )
+}
+
 /** 메뉴에 달걀이 있을 때 붙는 작은 반숙 달걀 (이스터에그) */
 function EggMark() {
   return (
@@ -387,13 +419,16 @@ function MealSheet({
   slots: MealSlot[]
   meals: Meal[]
   items: Item[]
-  current: (date: string, slot: MealSlot) => string
+  current: (date: string, slot: MealSlot) => Menu
   idsOf: (date: string, slot: MealSlot) => string[]
   onClose: () => void
-  onSave: (slot: MealSlot, menu: string, itemIds: string[]) => Promise<void>
+  onSave: (slot: MealSlot, menu: string, itemIds: string[], kidMenu: string) => Promise<void>
 }) {
   const [slot, setSlot] = useState(initial)
-  const [menu, setMenu] = useState(current(date, initial))
+  const [menu, setMenu] = useState(current(date, initial).adult)
+  const [kid, setKid] = useState(current(date, initial).kid)
+  /** 자주 적은 메뉴 칩이 들어갈 칸 */
+  const [target, setTarget] = useState<'adult' | 'kid'>('adult')
   /** 이 끼니에 쓰려고 고른 냉장고 식품 */
   const [picked, setPicked] = useState<string[]>(() => idsOf(date, initial))
   const [more, setMore] = useState(false)
@@ -418,23 +453,27 @@ function MealSheet({
 
   const pick = (s: MealSlot) => {
     setSlot(s)
-    setMenu(current(date, s))
+    setMenu(current(date, s).adult)
+    setKid(current(date, s).kid)
     setPicked(idsOf(date, s))
   }
-  const add = (text: string) => setMenu((v) => (v.trim() ? `${v.trim()}, ${text}` : text))
+  const add = (text: string) =>
+    (target === 'kid' ? setKid : setMenu)((v) => (v.trim() ? `${v.trim()}, ${text}` : text))
   /** 냉장고 식품 고르기/빼기: 사용예정 연결만 바꾸고, 메뉴명은 건드리지 않는다 */
   const toggleItem = (i: Item) => setPicked((p) => (p.includes(i.id) ? p.filter((x) => x !== i.id) : [...p, i.id]))
   const save = async () => {
     setBusy(true)
     setError(null)
     try {
-      await onSave(slot, menu, picked)
+      await onSave(slot, menu, picked, kid)
     } catch {
       setError('저장하지 못했어요. 잠시 뒤에 다시 해 주세요.')
       setBusy(false)
     }
   }
-  const saved = current(date, slot)
+  const savedText = current(date, slot)
+  const saved = savedText.adult || savedText.kid
+  const canSave = Boolean(menu.trim() || kid.trim())
 
   return (
     <Sheet
@@ -449,13 +488,13 @@ function MealSheet({
               disabled={busy}
               onClick={async () => {
                 setBusy(true)
-                await onSave(slot, '', []).catch(() => setBusy(false))
+                await onSave(slot, '', [], '').catch(() => setBusy(false))
               }}
             >
               비우기
             </Button>
           )}
-          <Button className="flex-1" disabled={busy || !menu.trim()} onClick={save}>
+          <Button className="flex-1" disabled={busy || !canSave} onClick={save}>
             저장
           </Button>
         </>
@@ -471,7 +510,7 @@ function MealSheet({
             ))}
           </div>
         </Field>
-        <Field label="무엇을 먹나요?">
+        <Field label="어른 메뉴">
           <div className="relative">
             <TextInput
               autoFocus
@@ -479,8 +518,9 @@ function MealSheet({
               maxLength={100}
               placeholder="예: 김치찌개와 계란말이"
               className={hasEgg(menu) ? 'pr-12' : undefined}
+              onFocus={() => setTarget('adult')}
               onChange={(e) => setMenu(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && menu.trim() && !busy && save()}
+              onKeyDown={(e) => e.key === 'Enter' && canSave && !busy && save()}
             />
             {hasEgg(menu) && (
               <span className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2">
@@ -488,12 +528,30 @@ function MealSheet({
               </span>
             )}
           </div>
-          {picked.length > 0 && !menu.trim() && (
+        </Field>
+        <Field label="아이 메뉴 (따로 먹을 때만)">
+          <div className="relative">
+            <TextInput
+              value={kid}
+              maxLength={100}
+              placeholder="예: 순한 계란찜"
+              className={hasEgg(kid) ? 'pr-12' : undefined}
+              onFocus={() => setTarget('kid')}
+              onChange={(e) => setKid(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && canSave && !busy && save()}
+            />
+            {hasEgg(kid) && (
+              <span className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2">
+                <EggMark />
+              </span>
+            )}
+          </div>
+          {picked.length > 0 && !canSave && (
             <p className="mt-2 text-xs break-keep text-muted">먹을 메뉴 이름을 적어 주세요</p>
           )}
         </Field>
         {frequent.length > 0 && (
-          <Field label="자주 적은 메뉴">
+          <Field label={`자주 적은 메뉴 (${target === 'kid' ? '아이' : '어른'} 칸에 들어가요)`}>
             <div className="flex flex-wrap gap-2">
               {frequent.map((f) => (
                 <Chip key={f} tone="suggest" onClick={() => add(f)}>

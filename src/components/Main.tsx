@@ -327,7 +327,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             <MealPlanView
               meals={snap.meals}
               items={snap.items}
-              onSave={(date, slot, menu, ids) => mutate(() => repo.setMeal(date, slot, menu, ids))}
+              onSave={(date, slot, menu, ids, kid) => mutate(() => repo.setMeal(date, slot, menu, ids, kid))}
             />
           )}
 

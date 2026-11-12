@@ -151,7 +151,10 @@ export interface MealPlan {
   /** 'YYYY-MM-DD' */
   plan_date: string
   slot: MealSlot
+  /** 어른 메뉴. 예전에 적은 식단은 모두 어른 메뉴다. 아이 메뉴만 적은 칸은 빈 문자열 */
   menu: string
+  /** 아이 메뉴. 0023 마이그레이션 전 데이터에는 없을 수 있다 */
+  kid_menu?: string | null
   /** 이 끼니에 쓸 냉장고 식품(items.id). 0022 마이그레이션 전 데이터에는 없을 수 있다 */
   item_ids?: string[] | null
   author_name: string | null

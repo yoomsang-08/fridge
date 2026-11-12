@@ -124,13 +124,19 @@ export function mealMap(meals: MealPlan[]): Map<string, MealPlan> {
   return new Map(meals.map((m) => [mealKey(m.plan_date, m.slot), m]))
 }
 
+/** 한 칸의 어른·아이 메뉴 (둘 다 없으면 빈 문자열) */
+export function mealText(m: MealPlan | undefined): { adult: string; kid: string } {
+  return { adult: m?.menu?.trim() ?? '', kid: m?.kid_menu?.trim() ?? '' }
+}
+
 /** 메뉴에 달걀이 들어 있으면 반숙 달걀 (이스터에그) */
 export const hasEgg = (menu: string) => /달걀|계란|써니/.test(menu)
 
 /** 자주 적은 메뉴, 많이 적은 순 */
 export function frequentMenus(meals: MealPlan[], limit = 6): string[] {
   const count = new Map<string, number>()
-  for (const m of meals) count.set(m.menu, (count.get(m.menu) ?? 0) + 1)
+  for (const m of meals)
+    for (const menu of [m.menu, m.kid_menu ?? '']) if (menu.trim()) count.set(menu, (count.get(menu) ?? 0) + 1)
   return [...count.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
@@ -154,7 +160,8 @@ export function plannedUses(meals: MealPlan[], base: Date = today()): Map<string
     if (m.plan_date < todayStr) continue
     for (const itemId of m.item_ids ?? []) {
       const list = out.get(itemId) ?? []
-      list.push({ date: m.plan_date, slot: m.slot, menu: m.menu })
+      const { adult, kid } = mealText(m)
+      list.push({ date: m.plan_date, slot: m.slot, menu: [adult, kid].filter(Boolean).join(' / ') })
       out.set(itemId, list)
     }
   }
