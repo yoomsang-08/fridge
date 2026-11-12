@@ -295,30 +295,33 @@ export function shapeOfItem(item: Item): Shape3D {
 export const isPantry = (f?: { template?: string | null } | null) => f?.template === 'pantry'
 
 /**
- * 팬트리 품목을 등록 순서(오래된 것부터)로 칸 순서대로 채운다. 저장된 칸(compartment_id)은 무시해서 예전 데이터도 그대로 쓴다.
- * 칸당 3개씩 채우되 넘치면 칸마다 고르게 늘린다
+ * 팬트리는 선반·바구니 구분 없이 통 하나로 본다(실온 재료 챙기기용). 칸 여러 개를 첫 칸 하나로 합치고 통 모양 layout 을 준다.
+ * 칸이 없으면 그대로 비워 둔다
  */
+export function pantryBox(compartments: Compartment[]): Compartment[] {
+  const host = compartments[0]
+  if (!host) return []
+  return [{ ...host, name: '팬트리', section: 'crate', layout: { x: 0.03, y: 0.04, w: 0.94, h: 0.92 } }]
+}
+
+/** 팬트리 품목을 전부 합쳐 등록 순서(오래된 것부터)로. 저장된 칸(compartment_id)은 무시해서 예전 데이터도 그대로 쓴다 */
 export function flowPantry(compartments: Compartment[], items: Item[]): Map<string, Item[]> {
   const out = new Map<string, Item[]>()
-  if (!compartments.length) return out
-  const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
-  const per = Math.max(3, Math.ceil(sorted.length / compartments.length))
-  sorted.forEach((it, i) => {
-    const c = compartments[Math.min(compartments.length - 1, Math.floor(i / per))]
-    out.set(c.id, [...(out.get(c.id) ?? []), it])
-  })
+  const host = compartments[0]
+  if (host) out.set(host.id, [...items].sort((a, b) => a.created_at.localeCompare(b.created_at)))
   return out
 }
 
 /**
- * 팬트리는 가상의 공간이라 모자라면 안 된다. 칸 하나에 식품이 많으면 선반장을 옆으로 늘린다.
- * 한 베이(800mm) 선반에 8개쯤이 보기 좋은 양. 넘치면 베이를 하나 더 붙이고(폰 화면을 생각해 최대 2베이), 그 뒤로는 식품을 작게 줄여 다 채운다
+ * 팬트리는 가상의 공간이라 모자라면 안 된다. 통 하나라 낮은 상자로 그리고, 식품이 많으면 옆으로 늘린다.
+ * 한 베이(800mm) 통에 12개쯤이 보기 좋은 양. 넘치면 베이를 하나 더 붙이고(폰 화면을 생각해 최대 2베이), 그 뒤로는 식품을 작게 줄여 다 채운다
  */
 export function fitPantry(shape: FridgeShape, perCompartment: number[]): FridgeShape {
   if (!shape.wood) return shape
   const most = Math.max(0, ...perCompartment)
-  const bays = most > 8 ? 2 : 1
-  return bays === 1 ? shape : { ...shape, width: shape.width * bays }
+  const bays = most > 12 ? 2 : 1
+  const low = { ...shape, height: Math.min(shape.height, 520) }
+  return bays === 1 ? low : { ...low, width: shape.width * bays }
 }
 
 /** 그림용 자리 id(`칸id#번호`)에서 실제 칸 id */

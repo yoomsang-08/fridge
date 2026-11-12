@@ -534,13 +534,16 @@ function CabinetCompartment({
   const w = x1 - x0
   const h = yTop - yBot
   const d = z1 - z0
+  const crate = shape.wood && c.section === 'crate'
   const bin = isBin(c)
   const binH = Math.min(h * 0.75, 0.3)
 
   return (
     <group position={[(x0 + x1) / 2, yBot, (z0 + z1) / 2]}>
       {shape.wood ? (
-        bin ? (
+        crate ? (
+          <Basket w={w} h={0.12} front={0.025} d={d} color={shape.wood.basket} selected={selected} />
+        ) : bin ? (
           <Basket w={w} h={Math.min(h * 0.45, 0.12)} d={d} color={shape.wood.basket} selected={selected} />
         ) : (
           <mesh position={[0, 0.009, 0]}>
@@ -567,15 +570,15 @@ function CabinetCompartment({
         <boxGeometry args={[w, h, d]} />
         <meshBasicMaterial color={token('accent')} transparent opacity={selected ? 0.12 : 0} depthWrite={false} />
       </mesh>
-      <ItemGrid items={items} width={w - 0.02} depth={d} maxSize={h * 0.6} floorY={shape.wood && !bin ? 0.018 : 0.008} onOpen={onOpen} spread={!!shape.wood} />
+      <ItemGrid items={items} width={w - 0.02} depth={d} maxSize={h * 0.6} floorY={shape.wood && !bin && !crate ? 0.018 : 0.012} onOpen={onOpen} spread={!!shape.wood} />
     </group>
   )
 }
 
 /** 팬트리 바구니: 바닥과 네 벽만 있는 둥근 통. 앞 벽을 낮게 해 안의 식품이 보이게 */
-function Basket({ w, h, d, color, selected }: { w: number; h: number; d: number; color: string; selected: boolean }) {
+function Basket({ w, h, d, color, selected, front: frontH }: { w: number; h: number; d: number; color: string; selected: boolean; front?: number }) {
   const t = 0.012
-  const front = h * 0.4
+  const front = frontH ?? h * 0.4
   const mat = <meshStandardMaterial color={color} roughness={0.85} />
   const edge = selected ? <Edges color={token('accent')} /> : null
   return (

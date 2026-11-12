@@ -6,6 +6,7 @@ import {
   fitPantry,
   flowPantry,
   isPantry,
+  pantryBox,
   isDoorCompartment,
   itemsBy,
   shapeOf,
@@ -95,16 +96,18 @@ export function FridgeView({
   }, [egg])
 
   const fridge = fridges.find((f) => f.id === fridgeId) ?? fridges[0]
-  const mine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
+  const realMine = useMemo(() => compartments.filter((c) => c.fridge_id === fridge.id), [compartments, fridge])
+  // 팬트리는 선반 구분 없이 통 하나
+  const mine = useMemo(() => (isPantry(fridge) ? pantryBox(realMine) : realMine), [realMine, fridge])
   const byComp = useMemo(
     () =>
       isPantry(fridge)
         ? flowPantry(
             mine,
-            items.filter((i) => mine.some((c) => c.id === i.compartment_id)),
+            items.filter((i) => realMine.some((c) => c.id === i.compartment_id)),
           )
         : itemsBy(items),
-    [items, fridge, mine],
+    [items, fridge, mine, realMine],
   )
   // 팬트리는 물건이 많으면 옆으로 늘어난다
   const shape = useMemo(
