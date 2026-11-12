@@ -1,10 +1,10 @@
 import { ChevronRight } from 'lucide-react'
 import { useMemo } from 'react'
 import { toDateString, today } from '../lib/expiry'
-import { hasEgg, MEAL_LABEL, MEAL_SLOTS } from '../lib/meals'
+import { hasEgg, MEAL_LABEL, MEAL_SLOTS, mealText } from '../lib/meals'
 import type { MealPlan, MealSlot } from '../lib/types'
 import { cx } from '../lib/cx'
-import { Card, SunnyEgg } from './ui'
+import { Card, SunnyEgg, WhoTag } from './ui'
 
 /** 하루 순서대로 (아침 → 야식). 적어 둔 끼니만 보인다 */
 const SLOTS: MealSlot[] = MEAL_SLOTS.map((s) => s.id)
@@ -25,8 +25,8 @@ export function TodayMeals({ meals, onOpen }: Props) {
     () =>
       SLOTS.map((slot) => ({
         slot,
-        menu: meals.find((m) => m.plan_date === todayStr && m.slot === slot)?.menu.trim() ?? '',
-      })).filter((m) => m.menu),
+        text: mealText(meals.find((m) => m.plan_date === todayStr && m.slot === slot)),
+      })).filter((m) => m.text.adult || m.text.kid),
     [meals, todayStr],
   )
 
@@ -59,7 +59,7 @@ export function TodayMeals({ meals, onOpen }: Props) {
                 <MealLine
                   key={m.slot}
                   slot={m.slot}
-                  menu={m.menu}
+                  text={m.text}
                   wide={filled.length === 1 || (filled.length % 2 === 1 && i === filled.length - 1)}
                 />
               ))}
@@ -71,15 +71,29 @@ export function TodayMeals({ meals, onOpen }: Props) {
   )
 }
 
-/** 끼니 하나: 끼니 이름 + 메뉴 */
-function MealLine({ slot, menu, wide }: { slot: MealSlot; menu: string; wide: boolean }) {
+/** 끼니 하나: 끼니 이름 + 메뉴. 아이 메뉴가 따로 있을 때만 어른/아이 칩을 붙인다 */
+function MealLine({ slot, text, wide }: { slot: MealSlot; text: { adult: string; kid: string }; wide: boolean }) {
+  const tagged = Boolean(text.kid)
+  const lines = (
+    [
+      ['adult', text.adult],
+      ['kid', text.kid],
+    ] as const
+  ).filter(([, v]) => v)
   return (
     <li className={cx('min-w-0 bg-surface px-4 py-4', wide && 'col-span-2')}>
       <span className="flex items-center gap-1.5 text-sm font-bold text-accent">
         {MEAL_LABEL[slot]}
-        {hasEgg(menu) && <SunnyEgg size={18} />}
+        {(hasEgg(text.adult) || hasEgg(text.kid)) && <SunnyEgg size={18} />}
       </span>
-      <span className="mt-1 block text-[21px] leading-snug font-extrabold break-keep [overflow-wrap:anywhere]">{menu}</span>
+      <span className="mt-1.5 flex flex-col gap-1.5">
+        {lines.map(([who, v]) => (
+          <span key={who} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+            {tagged && <WhoTag who={who} />}
+            <span className="min-w-0 text-[21px] leading-snug font-extrabold break-keep [overflow-wrap:anywhere]">{v}</span>
+          </span>
+        ))}
+      </span>
     </li>
   )
 }
