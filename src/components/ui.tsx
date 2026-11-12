@@ -33,6 +33,20 @@ export function Button({
   )
 }
 
+/** '어른' / '아이' 작은 태그. 어른은 무채색, 아이는 포인트 색 */
+export function WhoTag({ who }: { who: 'adult' | 'kid' }) {
+  return (
+    <span
+      className={cx(
+        'shrink-0 rounded-full px-1.5 py-px text-[11px] leading-4 font-bold',
+        who === 'kid' ? 'bg-accent-soft text-accent' : 'bg-sunken text-muted',
+      )}
+    >
+      {who === 'kid' ? '아이' : '어른'}
+    </span>
+  )
+}
+
 /** 선택 칩. tone="suggest" 는 자동완성처럼 '눌러서 채우기' 용 */
 export function Chip({
   active = false,
