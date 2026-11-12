@@ -3,11 +3,12 @@ import { useMemo, useState } from 'react'
 import { daysLeft, expiryLevel, isDueSoon, isExpired, LEVEL_DOT, LEVEL_GROUP, type ExpiryLevel } from '../lib/expiry'
 import type { ItemAction } from '../lib/repo'
 import { ZONE_LABEL } from '../lib/templates'
-import type { Compartment, Fridge, Item } from '../lib/types'
+import type { Compartment, Fridge, Item, MealPlan } from '../lib/types'
 import { cx } from '../lib/cx'
 import { ItemRow } from './ItemRow'
 import { SpaceIcon } from './SpaceIcon'
 import { TodayFocus } from './TodayFocus'
+import { TodayMeals } from './TodayMeals'
 import { Card, Chip, Segmented } from './ui'
 
 type View = 'expiry' | 'compartment'
@@ -25,6 +26,8 @@ interface Props {
   fridges: Fridge[]
   compartments: Compartment[]
   items: Item[]
+  meals: MealPlan[]
+  onOpenMeals: () => void
   onOpen: (item: Item) => void
   onUseOne: (item: Item) => void
   onAct: (item: Item, action: ItemAction) => void
@@ -38,7 +41,7 @@ function byExpiry(a: Item, b: Item) {
   return da - db || a.name.localeCompare(b.name, 'ko')
 }
 
-export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, onAct, onAddTo }: Props) {
+export function InventoryList({ fridges, compartments, items, meals, onOpenMeals, onOpen, onUseOne, onAct, onAddTo }: Props) {
   const [view, setView] = useState<View>('expiry')
   const [fridgeId, setFridgeId] = useState<string>('all')
   const [level, setLevel] = useState<LevelFilter>('all')
@@ -120,7 +123,8 @@ export function InventoryList({ fridges, compartments, items, onOpen, onUseOne, 
   return (
     // 1024px~ 는 왼쪽 '지금 챙길 식품' 360px 고정(따라오게) · 오른쪽 나머지 목록. 그 밑은 한 열
     <div className="flex flex-col gap-3.5 lg:grid lg:grid-cols-[22.5rem_minmax(0,1fr)] lg:items-start lg:gap-8">
-      <div className="lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
+      <div className="flex flex-col gap-4 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
+        <TodayMeals meals={meals} onOpen={onOpenMeals} />
         <TodayFocus
           due={focus.due}
           expired={focus.expired}

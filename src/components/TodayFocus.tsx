@@ -1,4 +1,4 @@
-import { ChevronDown, MapPin } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { categoryOf } from '../lib/categories'
 import { daysLeft, expiryLevel, LEVEL_TEXT } from '../lib/expiry'
@@ -6,7 +6,7 @@ import type { ItemAction } from '../lib/repo'
 import type { Item } from '../lib/types'
 import { cx } from '../lib/cx'
 import { PlannedChip } from './PlannedChip'
-import { Button, Card } from './ui'
+import { Card } from './ui'
 
 /** 사람에게 하는 말로: 오늘까지 먹어야 해요, 2일 지났어요 */
 function deadlineSentence(i: Item) {
@@ -15,12 +15,6 @@ function deadlineSentence(i: Item) {
   if (d === 0) return '오늘까지 먹어야 해요'
   if (d === 1) return '내일까지 먹어야 해요'
   return `${d}일 안에 먹어야 해요`
-}
-
-const dateText = (i: Item) => {
-  if (!i.expiry_date) return ''
-  const [, m, d] = i.expiry_date.split('-').map(Number)
-  return `${m}월 ${d}일 ${i.expiry_type === 'use_by' ? '소비기한' : '유통기한'}`
 }
 
 const VISIBLE = 3
@@ -37,16 +31,15 @@ interface Props {
   onAct: (item: Item, action: ItemAction) => void
 }
 
-/** 재고 화면 맨 위: 지금 해야 할 일을 크게. 제일 급한 하나 → 나머지 급한 것 → 기한 지난 것 */
+/** 재고 화면 오늘 식단표 아래: 지금 챙길 식품을 급한 순 목록으로. 기한 지난 것은 그 아래 따로 */
 export function TodayFocus({ due, expired, next, locationOf, onOpen, onAct }: Props) {
   const [moreDue, setMoreDue] = useState(false)
   const [moreExpired, setMoreExpired] = useState(false)
 
-  // 먹을 수 있는 것부터. 다 지났으면 지난 것 중 하나를 크게
-  const [hero, ...restDue] = due.length ? due : expired
-  const expiredList = due.length ? expired : expired.slice(1)
+  const restDue = due
+  const expiredList = expired
 
-  if (!hero) {
+  if (!due.length && !expired.length) {
     return (
       <Card className="flex items-center gap-3 p-4">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-accent-soft text-2xl" aria-hidden>
@@ -69,8 +62,10 @@ export function TodayFocus({ due, expired, next, locationOf, onOpen, onAct }: Pr
 
   return (
     <section className="flex flex-col gap-2.5" aria-label="오늘 챙길 식품">
-      <h2 className="px-1 text-[15px] font-extrabold">지금 챙길 식품</h2>
-      <Hero item={hero} location={locationOf(hero)} onOpen={onOpen} onAct={onAct} />
+      <h2 className="flex items-baseline gap-1.5 px-1 text-[15px] font-extrabold">
+        지금 챙길 식품
+        <span className="tabular text-sm font-semibold text-faint">{due.length + expired.length}</span>
+      </h2>
 
       {shownDue.length > 0 && (
         <Card className="overflow-hidden">
@@ -114,78 +109,6 @@ export function TodayFocus({ due, expired, next, locationOf, onOpen, onAct }: Pr
         </>
       )}
     </section>
-  )
-}
-
-/** 제일 급한 하나: 무엇을, 언제까지, 어디에 — 세 줄이면 바로 알 수 있게 */
-function Hero({
-  item: i,
-  location,
-  onOpen,
-  onAct,
-}: {
-  item: Item
-  location: string
-  onOpen: (item: Item) => void
-  onAct: (item: Item, action: ItemAction) => void
-}) {
-  const cat = categoryOf(i.category)
-  const lv = expiryLevel(i.expiry_date)
-  const expired = lv === 'expired'
-  const many = i.quantity > 1
-  return (
-    <Card className={cx('overflow-hidden ring-2', expired ? 'ring-expired/30' : 'ring-urgent/30')}>
-      <button onClick={() => onOpen(i)} className="flex w-full items-center gap-3.5 p-4 pb-3 text-left">
-        <span
-          className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-[34px]"
-          style={{ backgroundColor: cat.tint }}
-          aria-hidden
-        >
-          {cat.emoji}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[24px] leading-tight font-extrabold">{i.name}</span>
-          <span className="tabular mt-0.5 flex items-center gap-1 truncate text-[13px] text-muted">
-            <MapPin size={13} className="shrink-0" strokeWidth={2.2} />
-            <span className="truncate">
-              {location} · {i.quantity}
-              {i.unit}
-              {i.opened && ' · 개봉'}
-            </span>
-          </span>
-        </span>
-      </button>
-      <div className="flex px-4 pb-2.5 empty:hidden">
-        <PlannedChip itemId={i.id} />
-      </div>
-      <div className={cx('mx-4 rounded-xl px-3.5 py-2.5', expired ? 'bg-expired-soft' : 'bg-urgent-soft')}>
-        <p className={cx('text-[19px] leading-snug font-extrabold', LEVEL_TEXT[lv])}>{deadlineSentence(i)}</p>
-        <p className="tabular text-xs text-muted">{dateText(i)}</p>
-      </div>
-      <div className={cx('grid gap-2 p-4 pt-3', many ? 'grid-cols-2' : 'grid-cols-1')}>
-        {expired ? (
-          <>
-            <Button size="md" variant="secondary" onClick={() => onAct(i, 'discard')}>
-              버렸어요
-            </Button>
-            <Button size="md" variant="secondary" onClick={() => onOpen(i)}>
-              확인하기
-            </Button>
-          </>
-        ) : (
-          <>
-            {many && (
-              <Button size="md" variant="secondary" onClick={() => onAct(i, 'use')}>
-                1{i.unit} 썼어요
-              </Button>
-            )}
-            <Button size="md" onClick={() => onAct(i, 'consume')}>
-              다 먹었어요
-            </Button>
-          </>
-        )}
-      </div>
-    </Card>
   )
 }
 
