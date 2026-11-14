@@ -427,7 +427,7 @@ function MealSheet({
   /** 이 끼니에 쓰려고 고른 냉장고 식품 */
   const [picked, setPicked] = useState<string[]>(() => idsOf(date, initial))
   /** 추천 요리를 눌러서 새로 고른 재료. '적었어요'를 다시 눌러 뺄 때 같이 푼다 */
-  const [recipeAdds, setRecipeAdds] = useState<Record<string, string[]>>({})
+  const [recipeAdds, setRecipeAdds] = useState<Record<string, { fresh: string[]; used: string[] }>>({})
   const [more, setMore] = useState(false)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
@@ -565,21 +565,27 @@ function MealSheet({
           target={target === 'kid' ? '아이' : '어른'}
           onPick={(s) => {
             add(s.recipe.name)
-            const fresh = s.used.map((u) => u.item.id).filter((id) => !picked.includes(id))
+            const used = s.used.map((u) => u.item.id)
+            const fresh = used.filter((id) => !picked.includes(id))
             setPicked((p) => [...new Set([...p, ...fresh])])
-            setRecipeAdds((r) => ({ ...r, [s.recipe.name]: fresh }))
+            setRecipeAdds((r) => ({ ...r, [s.recipe.name]: { fresh, used } }))
             return fresh.length
           }}
           onUndo={(s) => {
             const name = s.recipe.name
             setMenu((v) => removeMenu(v, name))
             setKid((v) => removeMenu(v, name))
-            const mine = recipeAdds[name] ?? []
-            setPicked((p) => p.filter((id) => !mine.includes(id)))
-            setRecipeAdds((r) => {
-              const { [name]: _gone, ...rest } = r
-              return rest
-            })
+            const mine = recipeAdds[name] ?? { fresh: [], used: [] }
+            const { [name]: _gone, ...rest } = recipeAdds
+            // 다른 요리도 쓰는 재료는 풀지 않고, 그 요리가 이어받는다
+            const keep = new Set(Object.values(rest).flatMap((r) => r.used))
+            const next = { ...rest }
+            for (const id of mine.fresh.filter((id) => keep.has(id))) {
+              const owner = Object.keys(next).find((k) => next[k].used.includes(id))
+              if (owner) next[owner] = { ...next[owner], fresh: [...next[owner].fresh, id] }
+            }
+            setPicked((p) => p.filter((id) => !mine.fresh.includes(id) || keep.has(id)))
+            setRecipeAdds(next)
           }}
         />
         {items.length > 0 && (
@@ -600,7 +606,7 @@ function MealSheet({
                 return (
                   <Chip key={i.id} active={on} tone={on ? 'default' : 'suggest'} aria-pressed={on} className="max-w-full" onClick={() => toggleItem(i)}>
                     <span className="min-w-0 truncate">{i.name}</span>
-                    <span className={cx('shrink-0 text-xs font-semibold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(i.expiry_date)])}>
+                    <span className={cx('shrink-0 text-[13px] font-bold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(i.expiry_date)])}>
                       {expiryLabel(i.expiry_date)}
                     </span>
                   </Chip>

@@ -73,7 +73,7 @@ export function RecipePicks({
               onClick={() => setFocus(on ? null : item.id)}
             >
               <span className="min-w-0 truncate">{item.name}</span>
-              <span className={cx('shrink-0 text-xs font-semibold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(item.expiry_date)])}>
+              <span className={cx('shrink-0 text-[13px] font-bold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(item.expiry_date)])}>
                 {expiryLabel(item.expiry_date)}
               </span>
             </Chip>
@@ -83,24 +83,32 @@ export function RecipePicks({
           <Chip onClick={() => setAllChips(!allChips)}>{allChips ? '접기' : `재료 ${soon.length - 8}개 더 보기`}</Chip>
         )}
       </div>
-      {note && (
-        <p role="status" className="mb-2 rounded-2xl bg-accent-soft px-3.5 py-2.5 text-[13px] font-bold break-keep text-accent">
-          {note}
-        </p>
-      )}
       {shown.length === 0 ? (
         <p className="rounded-2xl bg-sunken p-3 text-sm break-keep text-muted">
           {focus ? '이 재료로 만들 요리를 아직 못 찾았어요. 다른 재료를 눌러 보세요.' : '이 재료로는 추천할 요리가 없어요. 메뉴는 직접 적어 주세요.'}
         </p>
       ) : (
+        <>
+        {/* 안내 자리는 늘 같은 높이: 누르면 3초 동안 결과로 바뀌어도 아래 목록이 밀리지 않는다 */}
+        <div className="mb-2 flex min-h-11 items-center">
+          {note ? (
+            <p role="status" className="w-full rounded-2xl bg-accent-soft px-3.5 py-2.5 text-[13px] font-bold break-keep text-accent">
+              {note}
+            </p>
+          ) : (
+            <p className="px-1 text-xs break-keep text-muted">요리를 누르면 메뉴에 적히고, 쓰는 재료는 ‘사용예정’으로 골라져요. 다시 누르면 빼요.</p>
+          )}
+        </div>
         <ul className="flex flex-col gap-2">
           {shown.map((s) => {
             const added = menuText.includes(s.recipe.name)
             return (
               <li key={s.recipe.name}>
-                <div className="rounded-2xl border border-line bg-surface">
+                <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+                <div className="flex items-stretch">
                 <button
                   type="button"
+                  aria-pressed={added}
                   onClick={() => {
                     if (added) {
                       onUndo(s)
@@ -110,7 +118,7 @@ export function RecipePicks({
                       say(`${target} 메뉴에 적었어요${n ? ` · 사용예정 ${n}개 골랐어요` : ''}`)
                     }
                   }}
-                  className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition active:bg-sunken"
+                  className="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-3.5 py-2.5 text-left transition active:bg-sunken"
                 >
                   <span className={cx('min-w-0 flex-1', added && 'opacity-60')}>
                     <span className="flex items-center gap-1.5">
@@ -135,11 +143,12 @@ export function RecipePicks({
                   type="button"
                   aria-expanded={open === s.recipe.name}
                   onClick={() => setOpen(open === s.recipe.name ? null : s.recipe.name)}
-                  className="flex min-h-11 w-full items-center gap-1 px-3.5 text-[13px] font-bold text-accent"
+                  className="flex min-h-11 w-[68px] shrink-0 flex-col items-center justify-center gap-0.5 border-l border-line text-[12px] font-bold text-accent transition active:bg-sunken"
                 >
                   만드는 법
                   <ChevronDown size={14} className={cx('transition motion-reduce:transition-none', open === s.recipe.name && 'rotate-180')} aria-hidden />
                 </button>
+                </div>
                 {open === s.recipe.name && (
                   <div className="border-t border-line px-3.5 py-3">
                     {!steps ? (
@@ -163,6 +172,7 @@ export function RecipePicks({
             )
           })}
         </ul>
+        </>
       )}
       {all.length > 5 && shown.length > 0 && (
         <button
