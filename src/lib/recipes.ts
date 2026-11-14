@@ -277,5 +277,33 @@ export function suggestRecipes(items: Item[], opts: { focusId?: string | null; b
     score -= (recipe.extra.length - Math.floor(extraHave)) * 0.05
     out.push({ recipe, used, missing, score })
   }
-  return out.sort((a, b) => b.score - a.score || a.recipe.name.localeCompare(b.recipe.name))
+  out.sort((a, b) => b.score - a.score || a.recipe.name.localeCompare(b.recipe.name))
+  return diversify(out)
+}
+
+/**
+ * 같은 재료 조합(예: 두부·삼겹살·김치)을 쓰는 요리가 위에 줄줄이 오지 않게, 앞에서 이미 뽑힌 같은 조합마다 점수를 깎아 다시 고른다.
+ * 점수가 높은 순서는 최대한 지키고, 조합이 다른 요리를 사이사이에 끼워 넣는 정도다
+ */
+function diversify(list: Suggestion[]): Suggestion[] {
+  const comboOf = (s: Suggestion) => s.used.map((u) => u.item.id).sort().join('+')
+  const left = [...list]
+  const out: Suggestion[] = []
+  const seen = new Map<string, number>()
+  while (left.length) {
+    let best = 0
+    let bestScore = -Infinity
+    for (let i = 0; i < left.length; i++) {
+      const adj = left[i].score - 1.5 * (seen.get(comboOf(left[i])) ?? 0)
+      if (adj > bestScore) {
+        bestScore = adj
+        best = i
+      }
+    }
+    const [pick] = left.splice(best, 1)
+    const k = comboOf(pick)
+    seen.set(k, (seen.get(k) ?? 0) + 1)
+    out.push(pick)
+  }
+  return out
 }
