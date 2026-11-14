@@ -390,6 +390,14 @@ function EggMark() {
   )
 }
 
+/** 쉼표로 이어 적은 메뉴에서 이름 하나를 뺀다 */
+const removeMenu = (text: string, name: string) =>
+  text
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => x && x !== name)
+    .join(', ')
+
 function MealSheet({
   date,
   slot: initial,
@@ -418,6 +426,8 @@ function MealSheet({
   const [target, setTarget] = useState<'adult' | 'kid'>('adult')
   /** 이 끼니에 쓰려고 고른 냉장고 식품 */
   const [picked, setPicked] = useState<string[]>(() => idsOf(date, initial))
+  /** 추천 요리를 눌러서 새로 고른 재료. '적었어요'를 다시 눌러 뺄 때 같이 푼다 */
+  const [recipeAdds, setRecipeAdds] = useState<Record<string, string[]>>({})
   const [more, setMore] = useState(false)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
@@ -443,6 +453,7 @@ function MealSheet({
     setMenu(current(date, s).adult)
     setKid(current(date, s).kid)
     setPicked(idsOf(date, s))
+    setRecipeAdds({})
   }
   const add = (text: string) =>
     (target === 'kid' ? setKid : setMenu)((v) => (v.trim() ? `${v.trim()}, ${text}` : text))
@@ -551,9 +562,24 @@ function MealSheet({
         <RecipePicks
           items={items}
           menuText={`${menu} ${kid}`}
+          target={target === 'kid' ? '아이' : '어른'}
           onPick={(s) => {
             add(s.recipe.name)
-            setPicked((p) => [...new Set([...p, ...s.used.map((u) => u.item.id)])])
+            const fresh = s.used.map((u) => u.item.id).filter((id) => !picked.includes(id))
+            setPicked((p) => [...new Set([...p, ...fresh])])
+            setRecipeAdds((r) => ({ ...r, [s.recipe.name]: fresh }))
+            return fresh.length
+          }}
+          onUndo={(s) => {
+            const name = s.recipe.name
+            setMenu((v) => removeMenu(v, name))
+            setKid((v) => removeMenu(v, name))
+            const mine = recipeAdds[name] ?? []
+            setPicked((p) => p.filter((id) => !mine.includes(id)))
+            setRecipeAdds((r) => {
+              const { [name]: _gone, ...rest } = r
+              return rest
+            })
           }}
         />
         {items.length > 0 && (
@@ -567,14 +593,14 @@ function MealSheet({
               )
             }
           >
-            <p className="mb-2 text-xs break-keep text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 식단표에는 위에 적은 메뉴명만 보여요.</p>
+            <p className="mb-2 text-xs break-keep text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 위에서 요리를 누르면 쓰는 재료는 자동으로 골라져요. 식단표에는 적은 메뉴명만 보여요.</p>
             <div className="flex flex-wrap gap-2">
               {[...soonest, ...extra.filter((e) => !soonest.some((s) => s.id === e.id))].map((i) => {
                 const on = picked.includes(i.id)
                 return (
-                  <Chip key={i.id} active={on} tone={on ? 'default' : 'suggest'} aria-pressed={on} onClick={() => toggleItem(i)}>
-                    {i.name}
-                    <span className={cx('text-xs font-semibold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(i.expiry_date)])}>
+                  <Chip key={i.id} active={on} tone={on ? 'default' : 'suggest'} aria-pressed={on} className="max-w-full" onClick={() => toggleItem(i)}>
+                    <span className="min-w-0 truncate">{i.name}</span>
+                    <span className={cx('shrink-0 text-xs font-semibold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(i.expiry_date)])}>
                       {expiryLabel(i.expiry_date)}
                     </span>
                   </Chip>
@@ -589,8 +615,8 @@ function MealSheet({
                     .filter((i) => !soonest.some((s) => s.id === i.id) && !picked.includes(i.id) && i.name.includes(q.trim()))
                     .slice(0, 12)
                     .map((i) => (
-                      <Chip key={i.id} onClick={() => toggleItem(i)}>
-                        {i.name}
+                      <Chip key={i.id} className="max-w-full" onClick={() => toggleItem(i)}>
+                        <span className="min-w-0 truncate">{i.name}</span>
                       </Chip>
                     ))}
                 </div>
