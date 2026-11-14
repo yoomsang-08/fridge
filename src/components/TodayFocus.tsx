@@ -1,7 +1,7 @@
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { categoryOf } from '../lib/categories'
-import { emojiOfItem } from '../lib/foodLook'
+import { FoodGlyph } from './FoodGlyph'
 import { daysLeft, expiryLevel, LEVEL_TEXT } from '../lib/expiry'
 import type { ItemAction } from '../lib/repo'
 import type { Item } from '../lib/types'
@@ -134,7 +134,7 @@ function FocusRow({
           style={{ backgroundColor: cat.tint }}
           aria-hidden
         >
-          {emojiOfItem(i, cat.emoji)}
+          <FoodGlyph item={i} categoryEmoji={cat.emoji} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[16px] font-bold">{i.name}</span>

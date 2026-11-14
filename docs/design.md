@@ -50,7 +50,7 @@ Tailwind 클래스로 토큰 이름만 씁니다. `slate-*`, `sky-*`, `red-*` �
 - 둥글기: 카드 `rounded-card`(18px), 버튼·입력 `rounded-2xl`(16px), 작은 버튼·칩 `rounded-xl` / `rounded-full`, 시트 위쪽 28px.
 - 그림자: 카드 `shadow-card`(아주 옅게), 떠 있는 '식품 넣기'만 `shadow-float`. 다른 곳에 큰 그림자 금지.
 - 간격: 화면 좌우 16px(PC 24px), 카드 안 14–20px, 섹션 사이 12–24px. `gap` 으로 배치하고 요소마다 margin 을 붙이지 않습니다.
-- 아이콘: `lucide-react` (선 두께 2 안팎). UI 아이콘에 이모지를 쓰지 않습니다. 식품 **분류**만 이모지 + `categories.ts` 의 `tint` 바탕. 식품 이름으로 알아본 것은 이름별 이모지(`lib/foodLook.ts`), 못 찾으면 분류 이모지.
+- 아이콘: `lucide-react` (선 두께 2 안팎). UI 아이콘에 이모지를 쓰지 않습니다. 식품 **분류**만 이모지 + `categories.ts` 의 `tint` 바탕. 식품 이름으로 알아본 것은 이름별 이모지(`lib/foodLook.ts`), 못 찾으면 분류 이모지. 그림 파일(`src/assets/food/`, 규칙은 그 폴더의 README)이 있으면 이모지 대신 그림.
 
 ## 부품 (`src/components/ui.tsx`)
 
@@ -62,6 +62,7 @@ Tailwind 클래스로 토큰 이름만 씁니다. `slate-*`, `sky-*`, `red-*` �
 | `Button` `danger` | 삭제, 연결 해제 |
 | `Chip` | 필터, 빠른 선택(+1주 등), 분류 선택. 선택되면 `active` (먹색) |
 | `WhoTag` | 식단 메뉴 앞의 작은 '어른'(`sunken` 바탕 + `muted`) / '아이'(`accent-soft` + `accent`) 태그 11px. 한 칸에 아이 메뉴가 있을 때만 붙이고, 어른 메뉴만 있으면 태그 없이 예전처럼. 경고색 금지 |
+| `FoodGlyph` | 식품 타일 안의 그림. 그림 파일(`src/assets/food/`)이 있으면 그림, 없으면 이모지. 타일 크기·바탕은 부르는 쪽이 정하고 그림은 타일의 68%(2D 칩은 지름의 0.55). 식품 아이콘 자리에 이모지를 직접 쓰지 말고 이 부품을 씁니다 |
 | `Chip tone="suggest"` | 눌러서 값을 채우는 제안 (자동완성, 검색 후보, 소비기한 제안) |
 | `Segmented` | 2–3개 중 하나 (기한순/칸별, 소비기한/유통기한, 냉장고 선택) |
 | `Switch` | 켜고 끄는 설정 (급속냉동 등). 켜짐 `accent`, 꺼짐 `sunken`. 줄 전체를 `label` 로 감싸 이름도 누르게 |

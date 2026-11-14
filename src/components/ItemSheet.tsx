@@ -8,7 +8,7 @@ import { cx } from '../lib/cx'
 import { SpaceIcon } from './SpaceIcon'
 import { Button, Chip, Field, IconButton, Segmented, TextInput } from './ui'
 import { autoDays, categoryOf, guessCategoryByName, CONTAINERS, daysLabel, guessContainer, UNITS, useCategories } from '../lib/categories'
-import { emojiOfItem } from '../lib/foodLook'
+import { FoodGlyph } from './FoodGlyph'
 import { addDays, addMonths, daysLeft, expiryLabel, expiryLevel, LEVEL_STYLE, LEVEL_TEXT } from '../lib/expiry'
 import {
   foodSearchAvailable,
@@ -737,7 +737,7 @@ function ItemSummary({
           style={{ backgroundColor: cat.tint }}
           aria-hidden
         >
-          {emojiOfItem(item, cat.emoji)}
+          <FoodGlyph item={item} categoryEmoji={cat.emoji} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[17px] font-extrabold">{item.name}</p>
