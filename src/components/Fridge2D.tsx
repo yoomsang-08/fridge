@@ -1,4 +1,5 @@
 import { categoryOf } from '../lib/categories'
+import { emojiOfItem } from '../lib/foodLook'
 import { expiryLevel, type ExpiryLevel } from '../lib/expiry'
 import {
   baseId,
@@ -145,7 +146,7 @@ function Chips({ box, items, onOpen, label }: { box: Box; items: Item[]; onOpen:
             <title>{`${it.name} ${it.quantity}${it.unit}${it.expiry_date ? ` · ${it.expiry_date}` : ''}`}</title>
             <circle cx={x} cy={y} r={d / 2 - 5} fill={tintHex(cat.tint)} className={ring ?? 'stroke-line'} strokeWidth={ring ? 9 : 3} />
             <text x={x} y={y + d * 0.04} fontSize={d * 0.5} textAnchor="middle" dominantBaseline="middle" className="select-none">
-              {cat.emoji}
+              {emojiOfItem(it, cat.emoji)}
             </text>
           </g>
         )

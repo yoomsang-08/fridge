@@ -1,4 +1,5 @@
 import { categoryOf } from '../lib/categories'
+import { emojiOfItem } from '../lib/foodLook'
 import { expiryLabel, expiryLevel, LEVEL_TEXT } from '../lib/expiry'
 import type { Item } from '../lib/types'
 import { cx } from '../lib/cx'
@@ -26,7 +27,7 @@ export function ItemRow({
           className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[22px]"
           style={{ backgroundColor: cat.tint }}
         >
-          {cat.emoji}
+          {emojiOfItem(i, cat.emoji)}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
