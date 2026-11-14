@@ -16,5 +16,16 @@ for (const line of table) {
   for (const k of [...f[1].split(','), ...f[2].split(',')].filter(Boolean).flatMap((x) => x.split('/')))
     if (!known.has(k)) { console.log(`모르는 재료 '${k}':`, f[0]); bad++ }
 }
+const stepSrc = readFileSync(new URL('../src/lib/recipeSteps.ts', import.meta.url), 'utf8')
+const stepLines = stepSrc.split('`')[1].split('\n').map((l) => l.trim()).filter(Boolean)
+const seen = new Set()
+for (const l of stepLines) {
+  const [n, st] = l.split('|')
+  if (!names.has(n)) { console.log('조리 순서의 요리명이 요리 표에 없음:', n); bad++ }
+  if (seen.has(n)) { console.log('조리 순서 이름 겹침:', n); bad++ }
+  seen.add(n)
+  if (!st || st.split(' / ').length < 2) { console.log('조리 순서가 너무 짧음:', n); bad++ }
+}
+console.log(`조리 순서 ${stepLines.length}개`)
 console.log(`요리 ${table.length}개, 문제 ${bad}건`)
 process.exit(bad ? 1 : 0)
