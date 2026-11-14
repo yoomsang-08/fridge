@@ -50,7 +50,7 @@ Tailwind 클래스로 토큰 이름만 씁니다. `slate-*`, `sky-*`, `red-*` �
 - 둥글기: 카드 `rounded-card`(18px), 버튼·입력 `rounded-2xl`(16px), 작은 버튼·칩 `rounded-xl` / `rounded-full`, 시트 위쪽 28px.
 - 그림자: 카드 `shadow-card`(아주 옅게), 떠 있는 '식품 넣기'만 `shadow-float`. 다른 곳에 큰 그림자 금지.
 - 간격: 화면 좌우 16px(PC 24px), 카드 안 14–20px, 섹션 사이 12–24px. `gap` 으로 배치하고 요소마다 margin 을 붙이지 않습니다.
-- 아이콘: `lucide-react` (선 두께 2 안팎). UI 아이콘에 이모지를 쓰지 않습니다. 식품 **분류**만 이모지 + `categories.ts` 의 `tint` 바탕.
+- 아이콘: `lucide-react` (선 두께 2 안팎). UI 아이콘에 이모지를 쓰지 않습니다. 식품 **분류**만 이모지 + `categories.ts` 의 `tint` 바탕. 식품 이름으로 알아본 것은 이름별 이모지(`lib/foodLook.ts`), 못 찾으면 분류 이모지.
 
 ## 부품 (`src/components/ui.tsx`)
 
