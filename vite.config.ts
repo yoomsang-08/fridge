@@ -15,7 +15,8 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       // 푸시 알림 수신(public/push-sw.js)을 생성된 서비스워커에 붙인다
-      workbox: { importScripts: ['push-sw.js'] },
+      // 식품 그림(src/assets/food/*.png)도 미리 받아 둬서 냉장고 앞 약한 와이파이에서도 그림이 나오게 한다
+      workbox: { importScripts: ['push-sw.js'], globPatterns: ['**/*.{js,css,html,png}'] },
       manifest: {
         name: '냉장고를 부탁해',
         short_name: '냉장고',

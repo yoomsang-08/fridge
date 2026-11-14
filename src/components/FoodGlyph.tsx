@@ -7,6 +7,6 @@ import type { Item } from '../lib/types'
  */
 export function FoodGlyph({ item, categoryEmoji }: { item: Pick<Item, 'name'>; categoryEmoji: string }) {
   const src = imageOfItem(item)
-  if (src) return <img src={src} alt="" draggable={false} className="h-[78%] w-[78%] object-contain" />
+  if (src) return <img src={src} alt="" draggable={false} className="h-[68%] w-[68%] object-contain" />
   return <>{emojiOfItem(item, categoryEmoji)}</>
 }
