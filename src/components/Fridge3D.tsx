@@ -23,7 +23,8 @@ import {
 import { BUNTING, type Celebration } from '../lib/celebrations'
 import { magnetOf } from '../lib/notes'
 import { drawArt, isArt, type MagnetKind } from '../lib/magnets'
-import { bodyColor, SHAPE_HEIGHT } from '../lib/container3d'
+import { bodyColor, foodColor, SHAPE_HEIGHT } from '../lib/container3d'
+import { emojiOfItem, lookOfName } from '../lib/foodLook'
 import { Container3D } from './Container3D'
 import type { Compartment, FridgePhoto, Item, Note } from '../lib/types'
 
@@ -385,8 +386,12 @@ function ItemMesh({
   const lv = expiryLevel(item.expiry_date)
   const ring = LEVEL_RING[lv]
   const cat = categoryOf(item.category)
-  const kind = shapeOfItem(item)
-  const color = bodyColor(tintHex(cat.tint), kind, space)
+  const look = lookOfName(item.name)
+  const produce = look?.variant && look.variant !== 'label'
+  const picked = shapeOfItem(item)
+  // 이름으로 낱개 채소·과일을 알아봤고 용기를 따로 안 골랐으면 낱개로(상자 추정은 접는다)
+  const kind = produce && !item.container && (picked === 'box' || picked === 'loose') ? 'loose' : picked
+  const color = look?.color ? foodColor(look.color, space) : bodyColor(tintHex(cat.tint), kind, space)
   const s = size * (hover ? 1.08 : 1)
   const h = SHAPE_HEIGHT[kind] * s
   return (
@@ -407,7 +412,7 @@ function ItemMesh({
         document.body.style.cursor = ''
       }}
     >
-      <Container3D shape={kind} s={s} color={color} />
+      <Container3D shape={kind} s={s} color={color} variant={look?.variant} band={look?.band} />
       {/* 누르는 자리: 모양과 상관없이 바닥 한 칸 크기 상자 */}
       <mesh position={[0, Math.max(h, s * 0.4) / 2, 0]} userData={{ item: true }}>
         <boxGeometry args={[s, Math.max(h, s * 0.4), s * 0.8]} />
@@ -427,7 +432,7 @@ function ItemMesh({
       )}
       {/* 이름표: 작게, 늘 카메라 쪽 */}
       <sprite position={[0, Math.max(h * 0.5, s * 0.3), s * 0.42]} scale={[s * 0.4, s * 0.4, 1]}>
-        <spriteMaterial map={chipTexture(cat.emoji, '#ffffff')} transparent depthWrite={false} />
+        <spriteMaterial map={chipTexture(emojiOfItem(item, cat.emoji), '#ffffff')} transparent depthWrite={false} />
       </sprite>
     </group>
   )

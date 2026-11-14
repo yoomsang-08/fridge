@@ -46,3 +46,16 @@ export function bodyColor(tint: string, shape: Shape3D, space: keyof typeof LIGH
   const sat = hsl.s < 0.05 ? 0.04 : space === 'fridge' ? Math.min(0.62, s + 0.12) : s
   return `#${new THREE.Color().setHSL(hsl.h, sat, lo + (hi - lo) * step).getHexString()}`
 }
+
+/**
+ * 실제 식품 색(우유 흰색, 사과 빨강…)을 3D 몸체 색으로. 색상·채도는 실제 색을 따르고,
+ * 명도만 공간 배경과 대비되게 범위 안으로 맞춘다(흰 우유도 흰 냉장고에서 묻히지 않게)
+ */
+const FOOD_L = { fridge: [0.34, 0.8], pantry: [0.5, 0.93] } as const
+
+export function foodColor(real: string, space: keyof typeof FOOD_L): string {
+  const hsl = { h: 0, s: 0, l: 0 }
+  new THREE.Color(real).getHSL(hsl)
+  const [lo, hi] = FOOD_L[space]
+  return `#${new THREE.Color().setHSL(hsl.h, hsl.s, Math.min(hi, Math.max(lo, hsl.l))).getHexString()}`
+}
