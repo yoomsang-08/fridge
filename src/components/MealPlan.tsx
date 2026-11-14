@@ -18,6 +18,7 @@ import {
   type MealDay,
 } from '../lib/meals'
 import type { Item, MealPlan as Meal, MealSlot } from '../lib/types'
+import { RecipePicks } from './RecipePicks'
 import { Sheet } from './Sheet'
 import { Button, Chip, Field, Segmented, SunnyEgg, TextInput, WhoTag } from './ui'
 
@@ -547,6 +548,14 @@ function MealSheet({
             </div>
           </Field>
         )}
+        <RecipePicks
+          items={items}
+          menuText={`${menu} ${kid}`}
+          onPick={(s) => {
+            add(s.recipe.name)
+            setPicked((p) => [...new Set([...p, ...s.used.map((u) => u.item.id)])])
+          }}
+        />
         {items.length > 0 && (
           <Field
             label="냉장고 재료 쓰기"
