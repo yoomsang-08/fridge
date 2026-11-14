@@ -43,8 +43,7 @@ export function RecipePicks({
       }
     >
       <p className="mb-2 text-xs break-keep text-muted">
-        일주일 안에 기한이 오는 재료예요. 재료를 누르면 그 재료로 만들 요리만 보여요. 소금·간장·기름·양파·대파·계란 같은 기본
-        재료는 늘 있다고 봐요.
+        재료를 누르면 그 재료로 만들 요리만 보여요. 소금·간장·기름·양파·대파·계란 같은 기본 재료는 늘 있다고 봐요.
       </p>
       <div className="mb-3 flex flex-wrap gap-2">
         {soon.slice(0, 8).map(({ item }) => {
@@ -53,7 +52,6 @@ export function RecipePicks({
             <Chip
               key={item.id}
               active={on}
-              tone={on ? 'default' : 'suggest'}
               aria-pressed={on}
               onClick={() => setFocus(on ? null : item.id)}
             >
@@ -80,9 +78,9 @@ export function RecipePicks({
                   type="button"
                   disabled={added}
                   onClick={() => onPick(s)}
-                  className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition active:bg-sunken disabled:opacity-60"
+                  className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition active:bg-sunken"
                 >
-                  <span className="min-w-0 flex-1">
+                  <span className={cx('min-w-0 flex-1', added && 'opacity-60')}>
                     <span className="flex items-center gap-1.5">
                       <span className="text-[15px] font-bold break-keep text-ink">{s.recipe.name}</span>
                       {hasEgg(s.recipe.name) && <SunnyEgg size={16} />}
@@ -105,10 +103,10 @@ export function RecipePicks({
                   type="button"
                   aria-expanded={open === s.recipe.name}
                   onClick={() => setOpen(open === s.recipe.name ? null : s.recipe.name)}
-                  className="flex min-h-9 w-full items-center gap-1 px-3.5 pb-2 text-[13px] font-bold text-accent sm:min-h-11"
+                  className="flex min-h-11 w-full items-center gap-1 px-3.5 text-[13px] font-bold text-accent"
                 >
                   만드는 법
-                  <ChevronDown size={14} className={cx('transition', open === s.recipe.name && 'rotate-180')} aria-hidden />
+                  <ChevronDown size={14} className={cx('transition motion-reduce:transition-none', open === s.recipe.name && 'rotate-180')} aria-hidden />
                 </button>
                 {open === s.recipe.name && (
                   <div className="border-t border-line px-3.5 py-3">
