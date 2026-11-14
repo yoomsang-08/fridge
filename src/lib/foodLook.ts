@@ -27,9 +27,10 @@ export interface FoodLook {
 const RULES: [RegExp, FoodLook][] = [
   // 가공품: 원재료 이름이 들어간 것(토마토케첩·딸기잼·사과주스·배추김치)이 아래 채소·과일 규칙에 먼저 걸리지 않게 맨 위
   [/소시지|햄|베이컨|스팸/, { emoji: '🌭', color: '#d4766a' }],
+  [/요구르트|요거트|플레인/, { emoji: '🥛', color: '#f1e9f2', variant: 'label', band: '#c25b8a' }],
   [/김치|깍두기|겉절이/, { emoji: '🥬', color: '#c9402b' }],
-  [/라면|국수|파스타|우동|면/, { emoji: '🍜', color: '#e8c98a' }],
-  [/밥|햇반|죽/, { emoji: '🍚', color: '#f2ede0' }],
+  [/라면|국수|파스타|우동|냉면|칼국수|짜장면|짬뽕|^면$/, { emoji: '🍜', color: '#e8c98a' }],
+  [/밥|햇반|죽$/, { emoji: '🍚', color: '#f2ede0' }],
   [/빵|식빵|베이글|모닝빵/, { emoji: '🍞', color: '#d9a05b' }],
   [/만두/, { emoji: '🥟', color: '#efe3c9' }],
   [/피자/, { emoji: '🍕', color: '#e0a54a' }],
@@ -52,7 +53,6 @@ const RULES: [RegExp, FoodLook][] = [
   // 원재료
   [/단호박/, { emoji: '🎃', color: '#d98a2b', variant: 'apple' }],
   [/우유|두유/, { emoji: '🥛', color: '#f3f1ea', variant: 'label', band: '#3b7fc4' }],
-  [/요구르트|요거트|플레인/, { emoji: '🥛', color: '#f1e9f2', variant: 'label', band: '#c25b8a' }],
   [/치즈/, { emoji: '🧀', color: '#f2c94c' }],
   [/버터/, { emoji: '🧈', color: '#f4dc7a' }],
   [/사과/, { emoji: '🍎', color: '#d2392f', variant: 'apple' }],
