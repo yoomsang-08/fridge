@@ -339,7 +339,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
 
           {tab === 'notes' && (
             <Segmented
-              className="mb-4 w-full [&>button]:flex-1"
+              className={cx('mb-4 w-full [&>button]:flex-1', noteView === 'shopping' && 'mx-auto max-w-reading')}
               value={noteView}
               onChange={setNoteView}
               options={[

@@ -21,6 +21,7 @@ interface Props {
 export function ShoppingList({ list, items, onAdd, onCheck, onRemove, onStock, onOpenItem }: Props) {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const todo = list.filter((s) => !s.checked)
   const done = list.filter((s) => s.checked)
 
@@ -28,23 +29,41 @@ export function ShoppingList({ list, items, onAdd, onCheck, onRemove, onStock, o
     const { name, qty } = splitNameQty(text)
     if (!name || busy) return
     setBusy(true)
+    setError(null)
     try {
       await onAdd(name, qty)
       setText('')
       if (name.includes('아이스크림')) eggToast('지선 님 아이스크림 지킴이 출동')
+    } catch {
+      setError('담지 못했어요. 잠시 뒤 다시 해 주세요.')
     } finally {
       setBusy(false)
     }
   }
 
   const check = async (s: ShoppingItem) => {
-    await onCheck(s.id, !s.checked)
+    setError(null)
+    try {
+      await onCheck(s.id, !s.checked)
+    } catch {
+      setError('바꾸지 못했어요. 잠시 뒤 다시 해 주세요.')
+      return
+    }
     // 마지막 하나까지 다 체크하면 (이스터에그)
     if (!s.checked && todo.length === 1 && list.length >= 2) eggToast('장보기 끝! 오늘도 수고했어요, 지선 님')
   }
 
+  const remove = async (id: string) => {
+    setError(null)
+    try {
+      await onRemove([id])
+    } catch {
+      setError('빼지 못했어요. 잠시 뒤 다시 해 주세요.')
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex max-w-reading flex-col gap-4">
       <div>
         <h2 className="text-2xl font-extrabold tracking-tight">장보기</h2>
         <p className="mt-0.5 text-sm text-muted">
@@ -72,6 +91,12 @@ export function ShoppingList({ list, items, onAdd, onCheck, onRemove, onStock, o
         </Button>
       </form>
 
+      {error && (
+        <p role="alert" className="rounded-2xl bg-expired-soft p-3 text-sm text-expired">
+          {error}
+        </p>
+      )}
+
       {list.length === 0 && (
         <Card className="flex flex-col items-center gap-2 px-5 py-10 text-center">
           <ShoppingCart size={28} strokeWidth={2} className="text-faint" />
@@ -82,7 +107,7 @@ export function ShoppingList({ list, items, onAdd, onCheck, onRemove, onStock, o
       {todo.length > 0 && (
         <Card className="divide-y divide-line overflow-hidden">
           {todo.map((s) => (
-            <Row key={s.id} s={s} items={items} onCheck={() => check(s)} onRemove={() => onRemove([s.id])} onOpenItem={onOpenItem} />
+            <Row key={s.id} s={s} items={items} onCheck={() => check(s)} onRemove={() => remove(s.id)} onOpenItem={onOpenItem} />
           ))}
         </Card>
       )}
@@ -97,7 +122,7 @@ export function ShoppingList({ list, items, onAdd, onCheck, onRemove, onStock, o
           </div>
           <Card className="divide-y divide-line overflow-hidden">
             {done.map((s) => (
-              <Row key={s.id} s={s} items={items} onCheck={() => check(s)} onRemove={() => onRemove([s.id])} onOpenItem={onOpenItem} />
+              <Row key={s.id} s={s} items={items} onCheck={() => check(s)} onRemove={() => remove(s.id)} onOpenItem={onOpenItem} />
             ))}
           </Card>
           <p className="text-xs text-muted">세제·휴지처럼 재고에 안 넣을 것은 오른쪽 ×로 빼 주세요.</p>
@@ -151,7 +176,7 @@ function Row({
         {have && (
           <button
             onClick={() => onOpenItem(have)}
-            className="mt-1 inline-flex min-h-7 max-w-full items-center rounded-full bg-accent-soft px-2.5 text-xs font-semibold text-accent"
+            className="mt-1 inline-flex min-h-9 max-w-full sm:min-h-11 items-center rounded-full bg-accent-soft px-2.5 text-xs font-semibold text-accent"
           >
             <span className="truncate">
               냉장고에 이미 {have.name !== s.name ? `${have.name} ` : ''}
