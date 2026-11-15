@@ -12,6 +12,8 @@ export type ContainerModel = Exclude<Shape3D, 'loose' | 'egg'> | 'egg-tray' | 'o
 export type FoodModel =
   | 'apple' | 'avocado' | 'carrot' | 'chicken' | 'egg' | 'fish' | 'kimchi'
   | 'milk' | 'onion' | 'pork' | 'potato' | 'tofu' | 'tomato'
+  | 'banana' | 'broccoli' | 'corn' | 'cucumber' | 'garlic' | 'grape' | 'green-onion'
+  | 'kabocha' | 'lemon' | 'mushroom' | 'pear' | 'pepper' | 'watermelon'
 
 export type ModelKey = { kind: 'container'; name: ContainerModel } | { kind: 'food'; name: FoodModel }
 
@@ -21,6 +23,17 @@ export const MODEL_HEIGHT: Record<ContainerModel | FoodModel, number> = {
   jar: 0.72, carton: 1.05, can: 0.62, tub: 0.52, box: 0.6, bag: 0.8, tray: 0.24, egg: 0.337, 'egg-tray': 0.3,
   apple: 0.606, avocado: 0.75, carrot: 0.52, chicken: 0.305, fish: 0.33, kimchi: 0.558,
   milk: 1.0, onion: 0.593, pork: 0.314, potato: 0.401, tofu: 0.466, tomato: 0.43,
+  banana: 0.62, broccoli: 0.62, corn: 0.62, cucumber: 0.236, garlic: 0.62, grape: 0.62, 'green-onion': 0.62,
+  kabocha: 0.62, lemon: 0.353, mushroom: 0.62, pear: 0.62, pepper: 0.62, watermelon: 0.57,
+}
+
+/**
+ * 2순위 채소·과일은 납품 크기가 커서(높이 0.8~1.4, 오이 가로 1.6) 앱에서 1순위 식품과 비슷한 크기가 되도록 줄인다.
+ * 높이 0.62 이하·가로 0.8 이하. MODEL_HEIGHT 는 이미 줄인 뒤의 높이. 없는 모델은 1배
+ */
+export const MODEL_SCALE: Partial<Record<FoodModel, number>> = {
+  banana: 0.489, broccoli: 0.508, corn: 0.646, cucumber: 0.491, garlic: 0.795, grape: 0.471, 'green-onion': 0.456,
+  kabocha: 0.715, lemon: 0.63, mushroom: 0.738, pear: 0.518, pepper: 0.616, watermelon: 0.667,
 }
 
 /** 이름 → 식품 모델. 가공품(사과주스·딸기잼·토마토케첩…)이 원재료로 오인되지 않게 foodLook 이 알아본 모양과 함께 본다 */
@@ -35,6 +48,19 @@ const FOOD_RULES: [RegExp, FoodModel, (look: NonNullable<ReturnType<typeof lookO
   [/사과|홍로|부사|아오리|시나노/, 'apple', (l) => l.variant === 'apple'],
   [/아보카도/, 'avocado', (l) => l.variant === 'apple'],
   [/토마토/, 'tomato', (l) => l.variant === 'apple'],
+  [/단호박/, 'kabocha', (l) => l.variant === 'apple'],
+  [/오이|애호박|주키니|^호박/, 'cucumber', (l) => l.variant === 'long'],
+  [/대파|쪽파|^파$/, 'green-onion', (l) => l.variant === 'long'],
+  [/마늘/, 'garlic', (l) => l.variant === 'apple'],
+  [/브로콜리/, 'broccoli', (l) => l.variant === 'apple'],
+  [/파프리카|피망|고추/, 'pepper', (l) => l.variant === 'apple'],
+  [/바나나/, 'banana', (l) => l.variant === 'banana'],
+  [/포도|샤인/, 'grape', (l) => l.variant === 'apple'],
+  [/수박/, 'watermelon', (l) => l.variant === 'apple'],
+  [/레몬/, 'lemon', (l) => l.variant === 'apple'],
+  [/^(나주|신고|황금)?배$/, 'pear', (l) => l.variant === 'apple'],
+  [/버섯/, 'mushroom', () => true],
+  [/옥수수/, 'corn', () => true],
   [/당근/, 'carrot', (l) => l.variant === 'carrot'],
   [/감자/, 'potato', (l) => l.variant === 'potato'],
   [/양파/, 'onion', (l) => l.variant === 'apple'],
