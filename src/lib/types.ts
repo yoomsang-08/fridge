@@ -161,3 +161,20 @@ export interface MealPlan {
   created_at: string
   updated_at: string
 }
+
+/** 장보기 리스트 한 줄 (메모 탭 > 장보기) */
+export interface ShoppingItem {
+  id: string
+  household_id: string
+  name: string
+  /** '1통', '2개' 같은 말 */
+  qty: string | null
+  category: string | null
+  source: 'manual' | 'meal' | 'recipe' | 'eaten'
+  source_note: string | null
+  checked: boolean
+  checked_by: string | null
+  checked_at: string | null
+  added_by: string | null
+  created_at: string
+}

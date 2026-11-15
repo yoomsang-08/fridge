@@ -1,10 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashtagsOf } from './notes'
 import { blobToDataUrl, PHOTO_LIMIT, preparePhoto } from './photos'
-import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, MealPlan, MealSlot, Me, Member, Note, NoteComment, NoteInput, Zone } from './types'
+import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, MealPlan, MealSlot, Me, Member, Note, NoteComment, NoteInput, ShoppingItem, Zone } from './types'
 import { mealsSince } from './meals'
 import type { FridgeTemplate } from './templates'
-import { DEFAULT_CATEGORIES, getCategories, setCategories, type Category, type CategoryDays } from './categories'
+import { DEFAULT_CATEGORIES, getCategories, guessCategoryByName, setCategories, type Category, type CategoryDays } from './categories'
 
 export interface Snapshot {
   fridges: Fridge[]
@@ -27,6 +27,8 @@ export interface Snapshot {
   meals: MealPlan[]
   /** 식단표에 보일 끼니(집 단위). null 이면 아직 정하지 않음 */
   mealSlots: MealSlot[] | null
+  /** 장보기 리스트: 안 산 것 먼저, 최근에 담은 것부터 */
+  shopping: ShoppingItem[]
 }
 
 export type ItemAction = 'use' | 'consume' | 'discard'
@@ -67,6 +69,12 @@ export interface Repo {
   setMeal(date: string, slot: MealSlot, menu: string, itemIds?: string[], kidMenu?: string): Promise<void>
   /** 식단표에 보일 끼니 고르기. 집 식구 모두에게 같게 보인다 */
   setMealSlots(slots: MealSlot[]): Promise<void>
+  /** 장보기에 담기. 분류는 이름으로 자동 */
+  addShopping(name: string, qty?: string): Promise<void>
+  /** 장보기 체크·해제. 누가 체크했는지 남는다 */
+  checkShopping(id: string, checked: boolean): Promise<void>
+  /** 장보기에서 빼기 */
+  deleteShopping(ids: string[]): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
   markNotesRead(ids: string[]): Promise<void>
   /** 이 기기를 쓰는 사람의 이름 바꾸기 */
@@ -79,6 +87,11 @@ export interface Repo {
   setCategoryDays(id: string, days: CategoryDays): Promise<void>
   /** 다른 기기에서 바뀌면 호출. 반환값은 구독 해제 */
   subscribe(onChange: () => void): () => void
+}
+
+/** 안 산 것 먼저, 그 안에서는 최근에 담은 것부터 */
+function sortShopping(list: ShoppingItem[]): ShoppingItem[] {
+  return [...list].sort((a, b) => Number(a.checked) - Number(b.checked) || b.created_at.localeCompare(a.created_at))
 }
 
 function nextAfterAction(item: Item, action: ItemAction): Partial<Item> {
@@ -112,11 +125,22 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     return rows.filter((r) => signed.has(r.path)).map((r) => ({ ...r, url: signed.get(r.path)!.url }))
   }
 
+  const myDisplayName = async () => {
+    const { data: auth } = await sb.auth.getSession()
+    const { data: m } = await sb
+      .from('household_members')
+      .select('display_name')
+      .eq('household_id', hid)
+      .eq('user_id', auth.session?.user.id ?? '')
+      .maybeSingle()
+    return (m?.display_name as string | null) || null
+  }
+
   return {
     async load() {
       const { data: auth } = await sb.auth.getSession()
       const uid = auth.session?.user.id ?? ''
-      const [f, c, i, h, n, m, k, nc, ph, mp, hs] = await Promise.all([
+      const [f, c, i, h, n, m, k, nc, ph, mp, hs, sh] = await Promise.all([
         sb.from('fridges').select('*').eq('household_id', hid).order('sort_order').order('created_at'),
         sb.from('compartments').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
@@ -130,6 +154,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('meal_plans').select('*').eq('household_id', hid).gte('plan_date', mealsSince()).order('plan_date'),
         // 0020 마이그레이션 전이면 이 칸이 없어 오류 → 무시하고 기본값
         sb.from('households').select('meal_slots').eq('id', hid).maybeSingle(),
+        // 0024 마이그레이션 전이면 테이블이 없어 오류 → 무시하고 빈 목록
+        sb.from('shopping_items').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(300),
       ])
       // 0007 마이그레이션 전이면 테이블이 없으니 기본 분류로
       setCategories((k.data as Category[] | null) ?? DEFAULT_CATEGORIES)
@@ -158,6 +184,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         meals: (mp.data ?? []) as MealPlan[],
         // 0020 마이그레이션 전이면 null
         mealSlots: ((hs.data as { meal_slots?: MealSlot[] | null } | null)?.meal_slots ?? null),
+        shopping: sortShopping((sh.data ?? []) as ShoppingItem[]),
       }
     },
     async addFridge(t, name) {
@@ -346,6 +373,31 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async setMealSlots(slots) {
       check(await sb.from('households').update({ meal_slots: slots }).eq('id', hid))
     },
+    async addShopping(name, qty) {
+      const myName = await myDisplayName()
+      check(
+        await sb.from('shopping_items').insert({
+          household_id: hid,
+          name: name.trim(),
+          qty: qty?.trim() || null,
+          category: guessCategoryByName(name),
+          added_by: myName,
+        }),
+      )
+    },
+    async checkShopping(id, checked) {
+      const myName = checked ? await myDisplayName() : null
+      check(
+        await sb
+          .from('shopping_items')
+          .update({ checked, checked_by: myName, checked_at: checked ? new Date().toISOString() : null })
+          .eq('id', id),
+      )
+    },
+    async deleteShopping(ids) {
+      if (ids.length === 0) return
+      check(await sb.from('shopping_items').delete().in('id', ids))
+    },
     async markNotesRead(ids) {
       if (ids.length === 0) return
       check(await sb.from('notes').update({ read_at: new Date().toISOString() }).in('id', ids).is('read_at', null))
@@ -358,7 +410,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         timer = setTimeout(onChange, 250)
       }
       const channel = sb.channel(`household-${hid}`)
-      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments', 'fridge_photos', 'meal_plans']) {
+      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments', 'fridge_photos', 'meal_plans', 'shopping_items']) {
         channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter: `household_id=eq.${hid}` }, changed)
         channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `household_id=eq.${hid}` }, changed)
         // 삭제는 Supabase 가 필터를 지원하지 않아(id 만 온다) 필터 없이 받는다
@@ -395,7 +447,7 @@ export function createLocalRepo(): Repo {
   const read = (): Stored => {
     const raw = localStorage.getItem(LOCAL_KEY)
     const s = raw ? JSON.parse(raw) : {}
-    return { fridges: [], compartments: [], items: [], notes: [], archivedNotes: [], comments: [], photos: [], meals: [], mealSlots: null, ...s }
+    return { fridges: [], compartments: [], items: [], notes: [], archivedNotes: [], comments: [], photos: [], meals: [], mealSlots: null, shopping: [], ...s }
   }
   const write = (s: Stored) => localStorage.setItem(LOCAL_KEY, JSON.stringify(s))
   const mutate = async (fn: (s: Stored) => void) => {
@@ -418,6 +470,7 @@ export function createLocalRepo(): Repo {
         history,
         me,
         members: [{ ...me, lastSeenAt: now(), device: null, joinedAt: now() }],
+        shopping: sortShopping(s.shopping),
       }
     },
     addFridge: (t, name) =>
@@ -591,6 +644,33 @@ export function createLocalRepo(): Repo {
     setMealSlots: (slots) =>
       mutate((s) => {
         s.mealSlots = slots
+      }),
+    addShopping: (name, qty) =>
+      mutate((s) => {
+        s.shopping.push({
+          id: id(),
+          household_id: LOCAL_HID,
+          name: name.trim(),
+          qty: qty?.trim() || null,
+          category: guessCategoryByName(name),
+          source: 'manual',
+          source_note: null,
+          checked: false,
+          checked_by: null,
+          checked_at: null,
+          added_by: localMe().name,
+          created_at: now(),
+        })
+      }),
+    checkShopping: (sid, checked) =>
+      mutate((s) => {
+        s.shopping = s.shopping.map((x) =>
+          x.id === sid ? { ...x, checked, checked_by: checked ? localMe().name : null, checked_at: checked ? now() : null } : x,
+        )
+      }),
+    deleteShopping: (ids) =>
+      mutate((s) => {
+        s.shopping = s.shopping.filter((x) => !ids.includes(x.id))
       }),
     markNotesRead: async () => {},
     async renameMe(name) {
