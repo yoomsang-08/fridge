@@ -51,10 +51,10 @@ export function RecipePicks({
     try {
       if (mine.length > 0) {
         await onUnshop(mine.map((x) => x.id))
-        say(`${name}을(를) 장보기에서 뺐어요`)
+        say(`장보기에서 뺐어요 · ${name}`)
       } else {
         await onShop(name, `${s.recipe.name} 재료`)
-        say(`${name}을(를) 장보기에 담았어요 · 메모 탭 > 장보기에서 봐요`)
+        say(`장보기에 담았어요 · ${name} (메모 탭 > 장보기)`)
       }
     } catch {
       say('장보기에 담지 못했어요. 잠시 뒤 다시 해 주세요.')
