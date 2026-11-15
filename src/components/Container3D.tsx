@@ -2,7 +2,7 @@ import { Suspense, useMemo } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { LookVariant } from '../lib/foodLook'
-import type { ModelKey } from '../lib/model3d'
+import { MODEL_SCALE, type ModelKey } from '../lib/model3d'
 
 const CONTAINER_URL = import.meta.glob<string>('../assets/container3d/*.glb', { query: '?url', import: 'default', eager: true })
 const FOOD_URL = import.meta.glob<string>('../assets/food3d/*.glb', { query: '?url', import: 'default', eager: true })
@@ -31,7 +31,8 @@ function GlbModel({ model, s, color, band }: { model: ModelKey; s: number; color
     hide.forEach((o) => (o.visible = false))
     return c
   }, [scene, color, band])
-  return <primitive object={root} scale={s} />
+  const k = model.kind === 'food' ? (MODEL_SCALE[model.name] ?? 1) : 1
+  return <primitive object={root} scale={s * k} />
 }
 
 /** 낱개 채소·과일의 특징 모양. 꼭지·잎은 모두 같은 초록(LEAF) */
