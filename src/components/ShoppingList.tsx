@@ -1,7 +1,8 @@
 import { Check, ShoppingCart, X } from 'lucide-react'
 import { useState } from 'react'
 import { eggToast } from '../lib/eggToast'
-import { alreadyHave, splitNameQty } from '../lib/shopping'
+import { haveSummary, splitNameQty } from '../lib/shopping'
+import { showToast } from '../lib/toast'
 import { cx } from '../lib/cx'
 import type { Item, ShoppingItem } from '../lib/types'
 import { Button, Card, TextInput } from './ui'
@@ -12,13 +13,17 @@ interface Props {
   onAdd: (name: string, qty?: string) => Promise<void>
   onCheck: (id: string, checked: boolean) => Promise<void>
   onRemove: (ids: string[]) => Promise<void>
+  /** 뺀 줄 되살리기 (토스트의 '되돌리기') */
+  onRestore: (list: ShoppingItem[]) => Promise<void>
   /** 체크한 것을 식품 넣기 시트로 연달아 연다 */
   onStock: (checked: ShoppingItem[]) => void
   onOpenItem: (item: Item) => void
+  /** 태블릿 가로: 메모 보드 옆 패널로 놓일 때 (제목 작게, 폭은 패널에 맞춤) */
+  panel?: boolean
 }
 
 /** 메모 탭 > 장보기: 냉장고 문에 붙여 두는 장보기 쪽지 */
-export function ShoppingList({ list, items, onAdd, onCheck, onRemove, onStock, onOpenItem }: Props) {
+export function ShoppingList({ list, items, onAdd, onCheck, onRemove, onRestore, onStock, onOpenItem, panel }: Props) {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -56,16 +61,22 @@ export function ShoppingList({ list, items, onAdd, onCheck, onRemove, onStock, o
   const remove = async (id: string) => {
     setError(null)
     try {
+      const gone = list.find((x) => x.id === id)
       await onRemove([id])
+      if (gone)
+        showToast(`${gone.name} 뺐어요`, {
+          label: '되돌리기',
+          onClick: () => void onRestore([gone]).catch(() => setError('되돌리지 못했어요. 다시 담아 주세요.')),
+        })
     } catch {
       setError('빼지 못했어요. 잠시 뒤 다시 해 주세요.')
     }
   }
 
   return (
-    <div className="mx-auto flex max-w-reading flex-col gap-4">
+    <div className={cx('flex flex-col gap-4', panel ? 'w-full' : 'mx-auto max-w-reading')}>
       <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">장보기</h2>
+        <h2 className={cx('font-extrabold tracking-tight', panel ? 'text-xl' : 'text-2xl')}>장보기</h2>
         <p className="mt-0.5 text-sm text-muted">
           {list.length === 0 ? '냉장고를 확인하고, 살 것을 적어 두세요.' : `안 산 것 ${todo.length}개 · 식구 모두 같이 봐요`}
         </p>
@@ -146,7 +157,7 @@ function Row({
   onOpenItem: (item: Item) => void
 }) {
   // 산 것은 이미 사 왔으니 '이미 있어요' 안내는 안 산 것에만
-  const have = s.checked ? null : alreadyHave(s.name, items)
+  const have = s.checked ? null : haveSummary(s.name, items)
   const who = s.checked ? (s.checked_by ? `${s.checked_by}님이 샀어요` : null) : s.added_by ? `${s.added_by}님이 담음` : null
   return (
     <div className="flex items-center gap-1 pr-1 pl-1">
@@ -175,13 +186,12 @@ function Row({
         {who && <p className="truncate text-xs text-muted">{who}</p>}
         {have && (
           <button
-            onClick={() => onOpenItem(have)}
-            className="mt-1 inline-flex min-h-9 max-w-full sm:min-h-11 items-center rounded-full bg-accent-soft px-2.5 text-xs font-semibold text-accent"
+            onClick={() => onOpenItem(have.first)}
+            className="mt-1 inline-flex min-h-9 max-w-full items-center rounded-full bg-accent-soft px-2.5 text-xs font-semibold text-accent sm:min-h-11"
           >
             <span className="truncate">
-              냉장고에 이미 {have.name !== s.name ? `${have.name} ` : ''}
-              {have.quantity}
-              {have.unit} 있어요
+              냉장고에 이미 {have.prefix}
+              {have.amount} 있어요{have.count > 1 ? ` · ${have.count}곳 합계` : ''}
             </span>
           </button>
         )}
