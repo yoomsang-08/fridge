@@ -24,6 +24,7 @@ import { BUNTING, type Celebration } from '../lib/celebrations'
 import { magnetOf } from '../lib/notes'
 import { drawArt, isArt, type MagnetKind } from '../lib/magnets'
 import { bodyColor, foodColor, SHAPE_HEIGHT } from '../lib/container3d'
+import { MODEL_HEIGHT, pickModel } from '../lib/model3d'
 import { emojiOfItem, lookOfName } from '../lib/foodLook'
 import { Container3D } from './Container3D'
 import type { Compartment, FridgePhoto, Item, Note } from '../lib/types'
@@ -393,7 +394,8 @@ function ItemMesh({
   const kind = produce && !item.container && (picked === 'box' || picked === 'loose') ? 'loose' : picked
   const color = look?.color ? foodColor(look.color, space) : bodyColor(tintHex(cat.tint), kind, space)
   const s = size * (hover ? 1.08 : 1)
-  const h = SHAPE_HEIGHT[kind] * s
+  const model = pickModel(item.name, kind, !!item.container)
+  const h = (model ? MODEL_HEIGHT[model.name] : SHAPE_HEIGHT[kind]) * s
   return (
     <group
       position={position}
@@ -412,7 +414,7 @@ function ItemMesh({
         document.body.style.cursor = ''
       }}
     >
-      <Container3D shape={kind} s={s} color={color} variant={look?.variant} band={look?.band} />
+      <Container3D s={s} color={color} variant={look?.variant} band={look?.band} model={model} />
       {/* 누르는 자리: 모양과 상관없이 바닥 한 칸 크기 상자 */}
       <mesh position={[0, Math.max(h, s * 0.4) / 2, 0]} userData={{ item: true }}>
         <boxGeometry args={[s, Math.max(h, s * 0.4), s * 0.8]} />
