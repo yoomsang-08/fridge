@@ -765,7 +765,7 @@ function ItemSummary({
         </div>
       </div>
       <div className="flex px-1 empty:hidden">
-        <PlannedChip itemId={item.id} />
+        <PlannedChip itemId={item.id} unit={item.unit} />
       </div>
       {lv === 'expired' && (
         <div className="rounded-2xl bg-expired-soft p-3.5">

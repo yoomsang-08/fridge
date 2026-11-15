@@ -1,14 +1,17 @@
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Minus, Plus, TriangleAlert } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import { expiryLabel, expiryLevel, LEVEL_TEXT } from '../lib/expiry'
 import {
+  fmtQty,
   frequentMenus,
   hasEgg,
   mealKey,
   mealMap,
   mealText,
   mealWeek,
+  plannedTotal,
+  plannedUses,
   MEAL_AHEAD_WEEKS,
   MEAL_BACK_WEEKS,
   MEAL_LABEL,
@@ -25,7 +28,7 @@ import { Button, Chip, Field, Segmented, SunnyEgg, TextInput, WhoTag } from './u
 interface Props {
   meals: Meal[]
   items: Item[]
-  onSave: (date: string, slot: MealSlot, menu: string, itemIds: string[], kidMenu: string) => Promise<void>
+  onSave: (date: string, slot: MealSlot, menu: string, itemIds: string[], kidMenu: string, amounts?: Record<string, number>) => Promise<void>
 }
 
 const weekRange = (days: MealDay[]) => {
@@ -208,8 +211,8 @@ export function MealPlanView({ meals, items, onSave }: Props) {
           current={(d, s) => menuOf(d, s)}
           idsOf={(d, s) => map.get(mealKey(d, s))?.item_ids ?? []}
           onClose={() => setEditing(null)}
-          onSave={async (slot, menu, ids, kid) => {
-            await onSave(editing.date, slot, menu, ids, kid)
+          onSave={async (slot, menu, ids, kid, amounts) => {
+            await onSave(editing.date, slot, menu, ids, kid, amounts)
             setEditing(null)
           }}
         />
@@ -417,7 +420,7 @@ function MealSheet({
   current: (date: string, slot: MealSlot) => Menu
   idsOf: (date: string, slot: MealSlot) => string[]
   onClose: () => void
-  onSave: (slot: MealSlot, menu: string, itemIds: string[], kidMenu: string) => Promise<void>
+  onSave: (slot: MealSlot, menu: string, itemIds: string[], kidMenu: string, amounts?: Record<string, number>) => Promise<void>
 }) {
   const [slot, setSlot] = useState(initial)
   const [menu, setMenu] = useState(current(date, initial).adult)
@@ -426,6 +429,8 @@ function MealSheet({
   const [target, setTarget] = useState<'adult' | 'kid'>('adult')
   /** 이 끼니에 쓰려고 고른 냉장고 식품 */
   const [picked, setPicked] = useState<string[]>(() => idsOf(date, initial))
+  /** 고른 식품별로 이 끼니에 쓸 양. 정하지 않은 식품은 빠져 있다 */
+  const [amounts, setAmounts] = useState<Record<string, number>>(() => ({ ...(meals.find((x) => x.plan_date === date && x.slot === initial)?.item_uses ?? {}) }))
   /** 추천 요리를 눌러서 새로 고른 재료. '적었어요'를 다시 눌러 뺄 때 같이 푼다 */
   const [recipeAdds, setRecipeAdds] = useState<Record<string, { fresh: string[]; used: string[] }>>({})
   const [more, setMore] = useState(false)
@@ -453,17 +458,28 @@ function MealSheet({
     setMenu(current(date, s).adult)
     setKid(current(date, s).kid)
     setPicked(idsOf(date, s))
+    setAmounts({ ...(meals.find((x) => x.plan_date === date && x.slot === s)?.item_uses ?? {}) })
     setRecipeAdds({})
   }
   const add = (text: string) =>
     (target === 'kid' ? setKid : setMenu)((v) => (v.trim() ? `${v.trim()}, ${text}` : text))
   /** 냉장고 식품 고르기/빼기: 사용예정 연결만 바꾸고, 메뉴명은 건드리지 않는다 */
+  /** 이 끼니를 뺀 앞으로의 다른 식단이 각 식품을 쓰기로 한 내용. 한 식품을 여러 끼니가 나눠 쓸 수 있다 */
+  const others = useMemo(
+    () => plannedUses(meals.filter((x) => !(x.plan_date === date && x.slot === slot))),
+    [meals, date, slot],
+  )
+  const setAmount = (id: string, n: number | null) =>
+    setAmounts((a) => {
+      const { [id]: _gone, ...rest } = a
+      return n && n > 0 ? { ...rest, [id]: n } : rest
+    })
   const toggleItem = (i: Item) => setPicked((p) => (p.includes(i.id) ? p.filter((x) => x !== i.id) : [...p, i.id]))
   const save = async () => {
     setBusy(true)
     setError(null)
     try {
-      await onSave(slot, menu, picked, kid)
+      await onSave(slot, menu, picked, kid, amounts)
     } catch {
       setError('저장하지 못했어요. 잠시 뒤에 다시 해 주세요.')
       setBusy(false)
@@ -599,7 +615,7 @@ function MealSheet({
               )
             }
           >
-            <p className="mb-2 text-xs break-keep text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 위에서 요리를 누르면 쓰는 재료는 자동으로 골라져요. 식단표에는 적은 메뉴명만 보여요.</p>
+            <p className="mb-2 text-xs break-keep text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 같은 식품을 여러 끼니에 골라도 돼요. 식단표에는 적은 메뉴명만 보여요.</p>
             <div className="flex flex-wrap gap-2">
               {[...soonest, ...extra.filter((e) => !soonest.some((s) => s.id === e.id))].map((i) => {
                 const on = picked.includes(i.id)
@@ -613,6 +629,70 @@ function MealSheet({
                 )
               })}
             </div>
+            {extra.length > 0 && (
+              <ul className="mt-3 flex flex-col divide-y divide-line rounded-2xl border border-line">
+                {extra.map((i) => {
+                  const uses = others.get(i.id)
+                  const rest = i.quantity - plannedTotal(uses)
+                  const mine = amounts[i.id]
+                  const over = mine != null && mine > rest
+                  const step = i.quantity % 1 === 0 ? 1 : 0.5
+                  return (
+                    <li key={i.id} className="flex flex-col gap-1.5 p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{i.name}</span>
+                        {mine == null ? (
+                          <button
+                            type="button"
+                            className="min-h-9 shrink-0 rounded-full bg-sunken px-3 text-[13px] font-bold text-muted active:brightness-95 sm:min-h-11"
+                            onClick={() => setAmount(i.id, Math.min(step, Math.max(rest, step)))}
+                          >
+                            쓸 양 적기
+                          </button>
+                        ) : (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              aria-label={`${i.name} 양 줄이기`}
+                              className="grid size-9 place-items-center rounded-full bg-sunken text-ink active:brightness-95 sm:size-11"
+                              onClick={() => setAmount(i.id, mine - step)}
+                            >
+                              <Minus size={16} strokeWidth={2.4} aria-hidden />
+                            </button>
+                            <span className="tabular min-w-12 text-center text-[15px] font-bold">
+                              {fmtQty(mine)}
+                              {i.unit}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`${i.name} 양 늘리기`}
+                              className="grid size-9 place-items-center rounded-full bg-sunken text-ink active:brightness-95 sm:size-11"
+                              onClick={() => setAmount(i.id, mine + step)}
+                            >
+                              <Plus size={16} strokeWidth={2.4} aria-hidden />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {uses && uses.length > 0 && (
+                        <p className="text-xs break-keep text-muted">
+                          다른 끼니 {uses.length}번에도 쓰기로 했어요
+                          {plannedTotal(uses) > 0 && ` (합 ${fmtQty(plannedTotal(uses))}${i.unit})`}
+                        </p>
+                      )}
+                      {over && (
+                        <p className="flex items-start gap-1 text-xs font-bold break-keep text-ink">
+                          <TriangleAlert size={13} className="mt-px shrink-0" aria-hidden />
+                          {rest > 0
+                            ? `다른 끼니 몫을 빼면 ${fmtQty(rest)}${i.unit} 남아요. ${fmtQty(mine - rest)}${i.unit} 더 적었어요.`
+                            : `다른 끼니에서 이미 다 쓰기로 했어요 (${fmtQty(i.quantity)}${i.unit}). 저장은 돼요.`}
+                        </p>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
             {more && (
               <div className="mt-3 flex flex-col gap-2">
                 <TextInput value={q} placeholder="식품 이름 찾기" onChange={(e) => setQ(e.target.value)} />

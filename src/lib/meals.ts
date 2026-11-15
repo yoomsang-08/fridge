@@ -149,7 +149,25 @@ export interface PlannedUse {
   date: string
   slot: MealSlot
   menu: string
+  /** 이 끼니에 쓸 양(식품 단위 기준). 정하지 않았으면 없다 */
+  qty?: number
 }
+
+/** 저장할 양: 고른 식품 중 양을 정한(0보다 큰) 것만 남긴다 */
+export function usedAmounts(ids: string[], amounts?: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const id of ids) {
+    const n = amounts?.[id]
+    if (typeof n === 'number' && n > 0) out[id] = n
+  }
+  return out
+}
+
+/** 앞으로 쓰기로 한 양의 합(양을 정한 끼니만). 한 식품을 여러 끼니가 나눠 쓸 수 있다 */
+export const plannedTotal = (uses: PlannedUse[] | undefined) => (uses ?? []).reduce((a, u) => a + (u.qty ?? 0), 0)
+
+/** 소수 오차 없이 보여 주기 위한 둥글리기 (0.5 단위 입력 대비) */
+export const fmtQty = (n: number) => String(Math.round(n * 100) / 100)
 
 /** 식품 id → 앞으로 그 식품을 쓰기로 한 식단들(빠른 날짜순). 지난 날짜 식단은 뺀다 */
 export function plannedUses(meals: MealPlan[], base: Date = today()): Map<string, PlannedUse[]> {
@@ -161,7 +179,8 @@ export function plannedUses(meals: MealPlan[], base: Date = today()): Map<string
     for (const itemId of m.item_ids ?? []) {
       const list = out.get(itemId) ?? []
       const { adult, kid } = mealText(m)
-      list.push({ date: m.plan_date, slot: m.slot, menu: [adult, kid].filter(Boolean).join(' / ') })
+      const qty = m.item_uses?.[itemId]
+      list.push({ date: m.plan_date, slot: m.slot, menu: [adult, kid].filter(Boolean).join(' / '), ...(qty ? { qty } : {}) })
       out.set(itemId, list)
     }
   }

@@ -1,7 +1,7 @@
 import { Utensils } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MEAL_LABEL, hasEgg, plannedDayText } from '../lib/meals'
+import { MEAL_LABEL, fmtQty, hasEgg, plannedDayText } from '../lib/meals'
 import { usePlannedUses } from '../lib/plannedUse'
 import { SunnyEgg } from './ui'
 
@@ -9,7 +9,7 @@ import { SunnyEgg } from './ui'
  * 식단표에서 쓰기로 한 식품에 붙는 '사용예정' 칩. 누르면(마우스는 올려도) 언제 어떤 메뉴인지 작은 창으로 보여 준다.
  * 폰·아이패드는 탭으로 열고 닫는다. 다른 곳을 누르거나 스크롤하면 닫힌다. 식단이 없으면 아무것도 그리지 않는다
  */
-export function PlannedChip({ itemId, className }: { itemId: string; className?: string }) {
+export function PlannedChip({ itemId, unit = '', className }: { itemId: string; unit?: string; className?: string }) {
   const uses = usePlannedUses(itemId)
   const btn = useRef<HTMLButtonElement>(null)
   const pop = useRef<HTMLDivElement>(null)
@@ -88,6 +88,7 @@ export function PlannedChip({ itemId, className }: { itemId: string; className?:
                     {plannedDayText(u.date)} {MEAL_LABEL[u.slot]}
                   </span>
                   <span className="min-w-0 flex-1 font-semibold break-keep">{u.menu}</span>
+                  {u.qty != null && <span className="tabular shrink-0 text-xs font-bold text-muted">{fmtQty(u.qty)}{unit}</span>}
                   {hasEgg(u.menu) && <SunnyEgg size={16} />}
                 </li>
               ))}

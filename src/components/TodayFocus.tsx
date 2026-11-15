@@ -144,7 +144,7 @@ function FocusRow({
       </button>
       <span className="flex shrink-0 gap-1.5 sm:gap-2">{children}</span>
       <div className="basis-full pt-1 pl-14 empty:hidden">
-        <PlannedChip itemId={i.id} />
+        <PlannedChip itemId={i.id} unit={i.unit} />
       </div>
     </li>
   )
