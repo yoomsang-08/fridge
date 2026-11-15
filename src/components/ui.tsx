@@ -272,9 +272,10 @@ export function ToastHost({ aboveFab = false }: { aboveFab?: boolean }) {
     <div
       role="status"
       className={cx(
-        'fixed inset-x-4 z-[60] mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card',
+        'fixed inset-x-4 z-[60] mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink pr-2 pl-4 text-sm text-white shadow-card',
+        !t.over && 'py-2',
         t.over
-          ? 'top-[calc(0.75rem+env(safe-area-inset-top))]'
+          ? 'top-[calc(0.25rem+env(safe-area-inset-top))] py-1'
           : cx(
               aboveFab ? 'bottom-[calc(9.75rem+env(safe-area-inset-bottom))] sm:bottom-24' : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] sm:bottom-8',
               'lg:left-[calc(var(--spacing-rail)+1rem)]',

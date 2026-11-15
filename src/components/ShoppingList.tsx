@@ -187,9 +187,9 @@ function Row({
         {have && (
           <button
             onClick={() => onOpenItem(have.first)}
-            className="mt-1 inline-flex min-h-9 max-w-full items-center rounded-full bg-accent-soft px-2.5 text-xs font-semibold text-accent sm:min-h-11"
+            className="mt-1 inline-flex min-h-9 max-w-full items-center rounded-2xl bg-accent-soft px-2.5 py-1 text-left text-xs font-semibold break-keep text-accent sm:min-h-11"
           >
-            <span className="truncate">
+            <span>
               냉장고에 이미 {have.prefix}
               {have.amount} 있어요{have.count > 1 ? ` · ${have.count}곳 합계` : ''}
             </span>
