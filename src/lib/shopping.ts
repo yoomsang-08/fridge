@@ -3,18 +3,35 @@ import type { Item, ShoppingItem } from './types'
 
 const squash = (s: string) => s.replace(/\s+/g, '')
 
-/** 장보기 항목과 같은(또는 비슷한) 이름의 재고. 막지 않고 알려 주기만 한다 */
-export function alreadyHave(name: string, items: Item[]): Item | null {
+/**
+ * 장보기 항목과 같은(또는 비슷한) 이름의 재고 전부. 막지 않고 알려 주기만 한다.
+ * 같은 이름이 있으면 그것만, 없으면 '우유' ↔ '서울우유 1L' 같은 부분 일치를 후보로 돌려준다.
+ */
+export function matchingItems(name: string, items: Item[]): Item[] {
   const q = squash(name)
-  if (!q) return null
-  const exact = items.find((i) => squash(i.name) === q)
-  if (exact) return exact
-  if (q.length < 2) return null
-  // '우유' ↔ '서울우유 1L' 는 후보로만
-  return items.find((i) => {
+  if (!q) return []
+  const exact = items.filter((i) => squash(i.name) === q)
+  if (exact.length > 0 || q.length < 2) return exact
+  return items.filter((i) => {
     const n = squash(i.name)
     return n.length >= 2 && (n.includes(q) || q.includes(n))
-  }) ?? null
+  })
+}
+
+export function alreadyHave(name: string, items: Item[]): Item | null {
+  return matchingItems(name, items)[0] ?? null
+}
+
+/** 여러 칸에 나뉜 같은 식품을 단위별로 합쳐 '2통 + 500ml' 로. 첫 번째 식품은 눌렀을 때 열 대상 */
+export function haveSummary(name: string, items: Item[]): { first: Item; amount: string; count: number; prefix: string } | null {
+  const list = matchingItems(name, items)
+  if (list.length === 0) return null
+  const sums = new Map<string, number>()
+  for (const i of list) sums.set(i.unit, (sums.get(i.unit) ?? 0) + i.quantity)
+  const amount = [...sums].map(([unit, q]) => `${Math.round(q * 100) / 100}${unit}`).join(' + ')
+  const names = new Set(list.map((i) => i.name))
+  const prefix = names.size === 1 && !names.has(name.trim()) ? `${list[0].name} ` : ''
+  return { first: list[0], amount, count: list.length, prefix }
 }
 
 /** '1통' · '2 개' → 수량 1, 단위 통. 모르는 말이면 null */

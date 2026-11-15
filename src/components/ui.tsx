@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { cx } from '../lib/cx'
 import { onEggToast } from '../lib/eggToast'
+import { onToast, type ToastMsg } from '../lib/toast'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 
 /** 화면 공통 부품. 색은 index.css 의 디자인 토큰만 쓴다 */
@@ -241,9 +242,58 @@ export function EggToast() {
   return (
     <p
       role="status"
-      className="pointer-events-none fixed inset-x-0 top-[calc(4.75rem+env(safe-area-inset-top))] z-40 mx-auto w-fit max-w-[calc(100%-2rem)] animate-[sheet-up_200ms_ease-out] rounded-xl bg-accent-soft px-4 py-2 text-center text-sm font-semibold break-keep text-accent shadow-card"
+      className="pointer-events-none fixed inset-x-0 top-[calc(4.75rem+env(safe-area-inset-top))] z-[60] mx-auto w-fit max-w-[calc(100%-2rem)] animate-[sheet-up_200ms_ease-out] rounded-xl bg-accent-soft px-4 py-2 text-center text-sm font-semibold break-keep text-accent shadow-card"
     >
       {text}
     </p>
+  )
+}
+
+/**
+ * 되돌리기 토스트. 시트(z-40, 어두운 막)가 열려 있으면 막 위(z-60)·화면 위쪽에 또렷하게 띄워
+ * 시트 버튼을 가리지 않고 어둡게 눌리지도 않는다.
+ */
+export function ToastHost({ aboveFab = false }: { aboveFab?: boolean }) {
+  const [t, setT] = useState<(ToastMsg & { over: boolean }) | null>(null)
+  useEffect(() => {
+    let timer = 0
+    const off = onToast((m) => {
+      setT({ ...m, over: !!document.querySelector('[role="dialog"]') })
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => setT(null), m.ms ?? 4000)
+    })
+    return () => {
+      off()
+      window.clearTimeout(timer)
+    }
+  }, [])
+  if (!t) return null
+  return (
+    <div
+      role="status"
+      className={cx(
+        'fixed inset-x-4 z-[60] mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card',
+        t.over
+          ? 'top-[calc(0.75rem+env(safe-area-inset-top))]'
+          : cx(
+              aboveFab ? 'bottom-[calc(9.75rem+env(safe-area-inset-bottom))] sm:bottom-24' : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] sm:bottom-8',
+              'lg:left-[calc(var(--spacing-rail)+1rem)]',
+            ),
+      )}
+    >
+      <span className="min-w-0 flex-1 break-keep">{t.text}</span>
+      {t.action && (
+        <button
+          className="h-9 shrink-0 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
+          onClick={() => {
+            const a = t.action
+            setT(null)
+            a?.onClick()
+          }}
+        >
+          {t.action.label}
+        </button>
+      )}
+    </div>
   )
 }
