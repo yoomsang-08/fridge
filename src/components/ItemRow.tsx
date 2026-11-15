@@ -63,7 +63,7 @@ export function ItemRow({
         {i.quantity > 1 ? '−1' : '다 먹음'}
       </button>
       <div className="empty:hidden basis-full pt-1 pl-14">
-        <PlannedChip itemId={i.id} />
+        <PlannedChip itemId={i.id} unit={i.unit} />
       </div>
     </li>
   )
