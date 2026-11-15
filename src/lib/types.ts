@@ -180,3 +180,12 @@ export interface ShoppingItem {
   added_by: string | null
   created_at: string
 }
+
+/** 요리 추천 좋아요·싫어요 (집 식구 공유). 요리 이름당 하나 */
+export interface RecipeReaction {
+  household_id: string
+  recipe_name: string
+  reaction: 'up' | 'down'
+  by_name: string | null
+  created_at: string
+}

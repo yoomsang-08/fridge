@@ -333,6 +333,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             <MealPlanView
               meals={snap.meals}
               items={snap.items}
+              reactions={snap.reactions}
+              onReact={(name, reaction) => mutate(() => repo.setRecipeReaction(name, reaction))}
               onSave={(date, slot, menu, ids, kid, amounts) => mutate(() => repo.setMeal(date, slot, menu, ids, kid, amounts))}
             />
           )}
@@ -421,6 +423,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               me={snap.me}
               members={snap.members}
               history={snap.history}
+              reactions={snap.reactions}
               isLocal={isLocal}
               onSignOut={onSignOut}
               onChanged={reload}

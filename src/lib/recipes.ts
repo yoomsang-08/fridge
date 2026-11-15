@@ -215,15 +215,22 @@ export function soonItems(items: Item[], base?: Date): { item: Item; days: numbe
   return out.sort((a, b) => a.days - b.days || a.item.name.localeCompare(b.item.name))
 }
 
+/** 좋아요한 요리에 얹는 점수: 임박 재료 하나(1.5~4)보다 작게, 비슷한 요리끼리일 때 앞서는 정도 */
+export const UP_BONUS = 1.2
+
 /** 급할수록 무겁게 */
 const urgency = (d: number) => (d <= 1 ? 4 : d <= 3 ? 3 : d <= 5 ? 2 : 1.5)
 
 /**
  * 임박 재료를 쓰는 요리를 점수순으로. focusId 를 주면 그 식품을 쓰는 요리만.
  * - 꼭 필요한 재료가 하나만 모자라도 보여 주고(‘~만 더 있으면’), 둘 이상 모자라면 뺀다
+ * - 싫어요(down)로 표시한 요리는 아예 뺀다. 좋아요(up)는 점수를 조금 올려 같은 조건이면 먼저 보이게 한다(UP_BONUS)
  * - 점수: 임박 재료를 쓸수록(급할수록 더) 오르고, 모자란 재료·안 쓰는 선택 재료가 있으면 조금씩 내려간다
  */
-export function suggestRecipes(items: Item[], opts: { focusId?: string | null; base?: Date } = {}): Suggestion[] {
+export function suggestRecipes(
+  items: Item[],
+  opts: { focusId?: string | null; base?: Date; reactions?: ReadonlyMap<string, 'up' | 'down'> } = {},
+): Suggestion[] {
   const soon = soonItems(items, opts.base)
   if (soon.length === 0) return []
   // 재료 이름 → 가진 식품들(전체), 임박한 것들
@@ -241,6 +248,8 @@ export function suggestRecipes(items: Item[], opts: { focusId?: string | null; b
 
   const out: Suggestion[] = []
   for (const recipe of RECIPES) {
+    const reaction = opts.reactions?.get(recipe.name)
+    if (reaction === 'down') continue
     const used: UsedItem[] = []
     const usedKeys = new Set<string>()
     const claim = (slot: Slot) => {
@@ -275,6 +284,7 @@ export function suggestRecipes(items: Item[], opts: { focusId?: string | null; b
     score += extraHave * 0.4
     score -= missing.length * 4.5
     score -= (recipe.extra.length - Math.floor(extraHave)) * 0.05
+    if (reaction === 'up') score += UP_BONUS
     out.push({ recipe, used, missing, score })
   }
   out.sort((a, b) => b.score - a.score || a.recipe.name.localeCompare(b.recipe.name))
