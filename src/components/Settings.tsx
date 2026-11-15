@@ -3,11 +3,12 @@ import { useState } from 'react'
 import { formatCode } from '../lib/code'
 import { FRIDGE_TEMPLATES, ZONE_LABEL } from '../lib/templates'
 import type { Repo } from '../lib/repo'
-import type { Compartment, Fridge, Household, Item, Me, Member, Zone } from '../lib/types'
+import type { Compartment, Fridge, Household, Item, Me, Member, RecipeReaction, Zone } from '../lib/types'
 import { useDialog } from './Dialog'
 import { BackupSettings } from './BackupSettings'
 import { CategoryDaysSettings } from './CategoryDaysSettings'
 import { MealSlotSettings } from './MealSlotSettings'
+import { RecipeReactionList } from './RecipeReactionList'
 import { MemberDevices } from './MemberDevices'
 import { RecentlyDone } from './RecentlyDone'
 import { PushSettings } from './PushSettings'
@@ -22,12 +23,13 @@ interface Props {
   me: Me
   members: Member[]
   history: Item[]
+  reactions: RecipeReaction[]
   isLocal: boolean
   onSignOut?: () => void
   onChanged: () => void
 }
 
-export function Settings({ repo, household, fridges, compartments, me, members, history, isLocal, onSignOut, onChanged }: Props) {
+export function Settings({ repo, household, fridges, compartments, me, members, history, reactions, isLocal, onSignOut, onChanged }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -240,6 +242,17 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
       {!isLocal && <BackupSettings householdId={household.id} />}
 
       <MealSlotSettings repo={repo} onChanged={onChanged} onError={setError} />
+
+      <Card className="p-5">
+        <h2 className="text-[15px] font-extrabold">요리 추천 좋아요·싫어요</h2>
+        <p className="mt-1 mb-3 text-sm break-keep text-muted">
+          식단표 요리 추천에서 엄지로 표시한 요리예요. 싫어요한 요리는 추천에서 빠지고, 좋아요한 요리는 조금 먼저 보여요. 식구 모두에게 똑같이 보여요.
+        </p>
+        <RecipeReactionList
+          reactions={reactions}
+          onUndo={(n) => run(() => repo.setRecipeReaction(n, null))}
+        />
+      </Card>
 
       <CategoryDaysSettings repo={repo} onError={setError} />
 

@@ -20,7 +20,7 @@ import {
   WEEKDAYS,
   type MealDay,
 } from '../lib/meals'
-import type { Item, MealPlan as Meal, MealSlot, ShoppingItem } from '../lib/types'
+import type { Item, MealPlan as Meal, MealSlot, RecipeReaction, ShoppingItem } from '../lib/types'
 import { RecipePicks } from './RecipePicks'
 import { Sheet } from './Sheet'
 import { Button, Chip, Field, Segmented, SunnyEgg, TextInput, WhoTag } from './ui'
@@ -28,6 +28,8 @@ import { Button, Chip, Field, Segmented, SunnyEgg, TextInput, WhoTag } from './u
 interface Props {
   meals: Meal[]
   items: Item[]
+  reactions: RecipeReaction[]
+  onReact: (name: string, reaction: 'up' | 'down' | null) => Promise<void>
   /** 장보기 리스트: 요리 추천의 부족한 재료를 바로 담는다 */
   shopping: ShoppingItem[]
   onShop: (name: string, note: string) => Promise<void>
@@ -42,7 +44,7 @@ const weekRange = (days: MealDay[]) => {
 }
 
 /** 식단표 탭: 이번 주 + 다음 주, 화살표로 지난 주(8주 전까지)도 보고 고칠 수 있다. 폰은 한 주씩 카드, 넓은 화면(1024px~)은 두 주를 표로 */
-export function MealPlanView({ meals, items, shopping, onShop, onUnshop, onSave }: Props) {
+export function MealPlanView({ meals, items, reactions, onReact, shopping, onShop, onUnshop, onSave }: Props) {
   // 이번 주 = 0, 지난 주 = -1 … 다음 주 = 1
   const [wk, setWk] = useState(0)
   // 두 주씩 보는 화면(옆으로 길게·넓은 화면)은 wk 부터 두 주. 다음 주가 아래에 오도록 마지막은 0부터
@@ -212,6 +214,8 @@ export function MealPlanView({ meals, items, shopping, onShop, onUnshop, onSave 
           slots={slots}
           meals={meals}
           items={items}
+          reactions={reactions}
+          onReact={onReact}
           shopping={shopping}
           onShop={onShop}
           onUnshop={onUnshop}
@@ -414,6 +418,8 @@ function MealSheet({
   slots,
   meals,
   items,
+  reactions,
+  onReact,
   shopping,
   onShop,
   onUnshop,
@@ -427,6 +433,8 @@ function MealSheet({
   slots: MealSlot[]
   meals: Meal[]
   items: Item[]
+  reactions: RecipeReaction[]
+  onReact: (name: string, reaction: 'up' | 'down' | null) => Promise<void>
   shopping: ShoppingItem[]
   onShop: (name: string, note: string) => Promise<void>
   onUnshop: (ids: string[]) => Promise<void>
@@ -590,6 +598,8 @@ function MealSheet({
         )}
         <RecipePicks
           items={items}
+          reactions={reactions}
+          onReact={onReact}
           shopping={shopping}
           onShop={onShop}
           onUnshop={onUnshop}

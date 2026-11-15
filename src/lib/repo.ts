@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashtagsOf } from './notes'
 import { blobToDataUrl, PHOTO_LIMIT, preparePhoto } from './photos'
-import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, MealPlan, MealSlot, Me, Member, Note, NoteComment, NoteInput, ShoppingItem, Zone } from './types'
+import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, MealPlan, MealSlot, Me, Member, Note, NoteComment, NoteInput, RecipeReaction, ShoppingItem, Zone } from './types'
 import { mealsSince, usedAmounts } from './meals'
 import type { FridgeTemplate } from './templates'
 import { DEFAULT_CATEGORIES, getCategories, guessCategoryByName, setCategories, type Category, type CategoryDays } from './categories'
@@ -29,6 +29,8 @@ export interface Snapshot {
   mealSlots: MealSlot[] | null
   /** 장보기 리스트: 안 산 것 먼저, 최근에 담은 것부터 */
   shopping: ShoppingItem[]
+  /** 요리 추천 좋아요·싫어요: 최근에 표시한 것부터 */
+  reactions: RecipeReaction[]
 }
 
 export type ItemAction = 'use' | 'consume' | 'discard'
@@ -75,6 +77,8 @@ export interface Repo {
   checkShopping(id: string, checked: boolean): Promise<void>
   /** 장보기에서 빼기 */
   deleteShopping(ids: string[]): Promise<void>
+  /** 요리 추천 좋아요·싫어요 표시. null 이면 표시를 지운다(되돌리기) */
+  setRecipeReaction(name: string, reaction: 'up' | 'down' | null): Promise<void>
   /** 뺀 장보기 줄 되살리기 (같은 id·체크 상태 그대로) */
   restoreShopping(items: ShoppingItem[]): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
@@ -148,7 +152,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async load() {
       const { data: auth } = await sb.auth.getSession()
       const uid = auth.session?.user.id ?? ''
-      const [f, c, i, h, n, m, k, nc, ph, mp, hs, sh] = await Promise.all([
+      const [f, c, i, h, n, m, k, nc, ph, mp, hs, sh, rr] = await Promise.all([
         sb.from('fridges').select('*').eq('household_id', hid).order('sort_order').order('created_at'),
         sb.from('compartments').select('*').eq('household_id', hid).order('sort_order'),
         sb.from('items').select('*').eq('household_id', hid).eq('status', 'active'),
@@ -164,6 +168,8 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         sb.from('households').select('meal_slots').eq('id', hid).maybeSingle(),
         // 0024 마이그레이션 전이면 테이블이 없어 오류 → 무시하고 빈 목록
         sb.from('shopping_items').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(300),
+        // 0027 마이그레이션 전이면 테이블이 없어 오류 → 무시하고 빈 목록
+        sb.from('recipe_reactions').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(1000),
       ])
       // 0007 마이그레이션 전이면 테이블이 없으니 기본 분류로
       setCategories((k.data as Category[] | null) ?? DEFAULT_CATEGORIES)
@@ -193,6 +199,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         // 0020 마이그레이션 전이면 null
         mealSlots: ((hs.data as { meal_slots?: MealSlot[] | null } | null)?.meal_slots ?? null),
         shopping: sortShopping((sh.data ?? []) as ShoppingItem[]),
+        reactions: (rr.data ?? []) as RecipeReaction[],
       }
     },
     async addFridge(t, name) {
@@ -412,6 +419,20 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       if (ids.length === 0) return
       check(await sb.from('shopping_items').delete().in('id', ids))
     },
+    async setRecipeReaction(name, reaction) {
+      const recipe_name = name.trim()
+      if (!recipe_name) return
+      if (!reaction) {
+        check(await sb.from('recipe_reactions').delete().eq('household_id', hid).eq('recipe_name', recipe_name))
+        return
+      }
+      const myName = await myDisplayName()
+      check(
+        await sb
+          .from('recipe_reactions')
+          .upsert({ household_id: hid, recipe_name, reaction, by_name: myName, created_at: new Date().toISOString() }, { onConflict: 'household_id,recipe_name' }),
+      )
+    },
     async markNotesRead(ids) {
       if (ids.length === 0) return
       check(await sb.from('notes').update({ read_at: new Date().toISOString() }).in('id', ids).is('read_at', null))
@@ -424,7 +445,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
         timer = setTimeout(onChange, 250)
       }
       const channel = sb.channel(`household-${hid}`)
-      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments', 'fridge_photos', 'meal_plans', 'shopping_items']) {
+      for (const table of ['fridges', 'compartments', 'items', 'notes', 'note_comments', 'fridge_photos', 'meal_plans', 'shopping_items', 'recipe_reactions']) {
         channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter: `household_id=eq.${hid}` }, changed)
         channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `household_id=eq.${hid}` }, changed)
         // 삭제는 Supabase 가 필터를 지원하지 않아(id 만 온다) 필터 없이 받는다
@@ -461,7 +482,7 @@ export function createLocalRepo(): Repo {
   const read = (): Stored => {
     const raw = localStorage.getItem(LOCAL_KEY)
     const s = raw ? JSON.parse(raw) : {}
-    return { fridges: [], compartments: [], items: [], notes: [], archivedNotes: [], comments: [], photos: [], meals: [], mealSlots: null, shopping: [], ...s }
+    return { fridges: [], compartments: [], items: [], notes: [], archivedNotes: [], comments: [], photos: [], meals: [], mealSlots: null, shopping: [], reactions: [], ...s }
   }
   const write = (s: Stored) => localStorage.setItem(LOCAL_KEY, JSON.stringify(s))
   const mutate = async (fn: (s: Stored) => void) => {
@@ -685,6 +706,13 @@ export function createLocalRepo(): Repo {
     deleteShopping: (ids) =>
       mutate((s) => {
         s.shopping = s.shopping.filter((x) => !ids.includes(x.id))
+      }),
+    setRecipeReaction: (name, reaction) =>
+      mutate((s) => {
+        const rest = s.reactions.filter((r) => r.recipe_name !== name.trim())
+        s.reactions = reaction
+          ? [{ household_id: LOCAL_HID, recipe_name: name.trim(), reaction, by_name: localMe().name, created_at: now() }, ...rest]
+          : rest
       }),
     restoreShopping: (list) =>
       mutate((s) => {

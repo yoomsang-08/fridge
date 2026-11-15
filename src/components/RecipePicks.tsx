@@ -1,11 +1,15 @@
-import { ChevronDown, Plus, ShoppingCart } from 'lucide-react'
+import { ChevronDown, Plus, ShoppingCart, ThumbsDown, ThumbsUp, Undo2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import { expiryLabel, LEVEL_TEXT, expiryLevel } from '../lib/expiry'
 import { hasEgg } from '../lib/meals'
 import { KIND_LABEL, soonItems, suggestRecipes, type Suggestion } from '../lib/recipes'
-import type { Item, ShoppingItem } from '../lib/types'
+import { reactionMap } from '../lib/recipeReactions'
+import type { Item, RecipeReaction, ShoppingItem } from '../lib/types'
+import { RecipeReactionList } from './RecipeReactionList'
 import { Chip, Field, SunnyEgg } from './ui'
+
+const NO_OVERLAY: Record<string, 'up' | 'down' | null> = {}
 
 /** 식단표 적기 창: 일주일 안에 기한이 오는 재료로 만들 수 있는 요리. 누르면 메뉴에 이름이 들어가고, 쓰는 재료는 '사용예정'으로 골라진다 */
 export function RecipePicks({
@@ -17,6 +21,8 @@ export function RecipePicks({
   target,
   onPick,
   onUndo,
+  reactions,
+  onReact,
 }: {
   items: Item[]
   /** 장보기 리스트. 이미 담긴 부족 재료는 '담았어요'로 */
@@ -31,26 +37,56 @@ export function RecipePicks({
   onPick: (s: Suggestion) => number | void
   /** '적었어요'를 다시 누르면: 메뉴에서 이름을 빼고 그 요리 때문에 고른 재료를 푼다 */
   onUndo: (s: Suggestion) => void
+  /** 집 식구가 표시한 좋아요·싫어요 */
+  reactions: RecipeReaction[]
+  /** 표시하기. null 이면 지운다(되돌리기) */
+  onReact: (name: string, reaction: 'up' | 'down' | null) => Promise<void> | void
 }) {
   const [focus, setFocus] = useState<string | null>(null)
   const [more, setMore] = useState(false)
   const [allChips, setAllChips] = useState(false)
   /** 누른 결과를 3초 동안 알려 주는 한 줄 */
-  const [note, setNote] = useState<string | null>(null)
+  const [note, setNote] = useState<{ text: string } | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const say = (text: string) => {
-    setNote(text)
+    setNote({ text })
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => setNote(null), 3000)
+  }
+  // 누르자마자 보이게 먼저 반영해 두고, 저장된 값이 들어오면 거기에 맡긴다
+  const [overlay, setOverlay] = useState<{ base: RecipeReaction[]; map: Record<string, 'up' | 'down' | null> }>({ base: reactions, map: {} })
+  const mine = overlay.base === reactions ? overlay.map : NO_OVERLAY
+  const setMine = (fn: (m: Record<string, 'up' | 'down' | null>) => Record<string, 'up' | 'down' | null>) =>
+    setOverlay((o) => ({ base: reactions, map: fn(o.base === reactions ? o.map : {}) }))
+  const [listOpen, setListOpen] = useState(false)
+  /** 방금 싫어요로 뺀 요리: 그 자리에 '되돌리기' 한 줄을 남기려고 목록에 잠시 더 둔다 */
+  const [gone, setGone] = useState<string[]>([])
+  const merged = useMemo(() => {
+    const m = reactionMap(reactions)
+    for (const [k, v] of Object.entries(mine)) {
+      if (v) m.set(k, v)
+      else m.delete(k)
+    }
+    return m
+  }, [reactions, mine])
+  const react = (name: string, next: 'up' | 'down' | null) => {
+    setMine((m) => ({ ...m, [name]: next }))
+    Promise.resolve(onReact(name, next)).catch(() => {
+      setMine((m) => {
+        const { [name]: _x, ...rest } = m
+        return rest
+      })
+      say('저장하지 못했어요. 잠시 뒤에 다시 눌러 주세요')
+    })
   }
   /** 부족 재료를 장보기에 담거나(이미 담겼으면) 뺀다 */
   const toggleShop = async (s: Suggestion) => {
     const name = s.missing[0]
     const sq = name.replace(/\s+/g, '')
-    const mine = shopping.filter((x) => !x.checked && x.name.replace(/\s+/g, '') === sq)
+    const listed = shopping.filter((x) => !x.checked && x.name.replace(/\s+/g, '') === sq)
     try {
-      if (mine.length > 0) {
-        await onUnshop(mine.map((x) => x.id))
+      if (listed.length > 0) {
+        await onUnshop(listed.map((x) => x.id))
         say(`장보기에서 뺐어요 · ${name}`)
       } else {
         await onShop(name, `${s.recipe.name} 재료`)
@@ -68,7 +104,12 @@ export function RecipePicks({
     if (open && !steps) import('../lib/recipeSteps').then((m) => setSteps(m.STEPS)).catch(() => setSteps({}))
   }, [open, steps])
   const soon = useMemo(() => soonItems(items), [items])
-  const all = useMemo(() => suggestRecipes(items, { focusId: focus }), [items, focus])
+  const forList = useMemo(() => {
+    const m = new Map(merged)
+    for (const n of gone) if (m.get(n) === 'down') m.delete(n)
+    return m
+  }, [merged, gone])
+  const all = useMemo(() => suggestRecipes(items, { focusId: focus, reactions: forList }), [items, focus, forList])
   if (soon.length === 0) return null
   const shown = all.slice(0, more ? 15 : 5)
 
@@ -95,7 +136,10 @@ export function RecipePicks({
               active={on}
               aria-pressed={on}
               className="max-w-full"
-              onClick={() => setFocus(on ? null : item.id)}
+              onClick={() => {
+                setFocus(on ? null : item.id)
+                setGone([])
+              }}
             >
               <span className="min-w-0 truncate">{item.name}</span>
               <span className={cx('shrink-0 text-[13px] font-bold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(item.expiry_date)])}>
@@ -117,8 +161,8 @@ export function RecipePicks({
         {/* 안내 자리는 늘 같은 높이: 누르면 3초 동안 결과로 바뀌어도 아래 목록이 밀리지 않는다 */}
         <div className="mb-2 flex min-h-11 items-center">
           {note ? (
-            <p role="status" className="w-full rounded-2xl bg-accent-soft px-3.5 py-2.5 text-[13px] font-bold break-keep text-accent">
-              {note}
+            <p role="status" className="flex w-full items-center justify-between rounded-2xl bg-accent-soft px-3.5 py-1.5 text-[13px] font-bold break-keep text-accent">
+              {note.text}
             </p>
           ) : (
             <p className="px-1 text-xs break-keep text-muted">요리를 누르면 메뉴에 적히고, 쓰는 재료는 ‘사용예정’으로 골라져요. 다시 누르면 빼요.</p>
@@ -127,6 +171,26 @@ export function RecipePicks({
         <ul className="flex flex-col gap-2">
           {shown.map((s) => {
             const added = menuText.includes(s.recipe.name)
+            const mood = merged.get(s.recipe.name)
+            if (mood === 'down')
+              return (
+                <li key={s.recipe.name}>
+                  <div className="flex min-h-12 items-center justify-between gap-2 rounded-2xl border border-dashed border-line bg-sunken pl-3.5">
+                    <span className="min-w-0 text-sm font-bold break-keep text-muted">추천에서 뺐어요 · {s.recipe.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        react(s.recipe.name, null)
+                        setGone((g) => g.filter((x) => x !== s.recipe.name))
+                      }}
+                      className="flex min-h-11 shrink-0 items-center gap-1 rounded-2xl px-3 text-[13px] font-bold text-accent active:bg-surface"
+                    >
+                      <Undo2 size={16} aria-hidden />
+                      되돌리기
+                    </button>
+                  </div>
+                </li>
+              )
             return (
               <li key={s.recipe.name}>
                 <div className="overflow-hidden rounded-2xl border border-line bg-surface">
@@ -164,15 +228,43 @@ export function RecipePicks({
                     <Plus size={18} className="shrink-0 text-accent" aria-hidden />
                   )}
                 </button>
-                <button
-                  type="button"
-                  aria-expanded={open === s.recipe.name}
-                  onClick={() => setOpen(open === s.recipe.name ? null : s.recipe.name)}
-                  className="flex min-h-11 w-[68px] shrink-0 flex-col items-center justify-center gap-0.5 border-l border-line text-[12px] font-bold text-accent transition active:bg-sunken"
-                >
-                  만드는 법
-                  <ChevronDown size={14} className={cx('transition motion-reduce:transition-none', open === s.recipe.name && 'rotate-180')} aria-hidden />
-                </button>
+                </div>
+                <div className="flex items-stretch border-t border-line">
+                  <button
+                    type="button"
+                    aria-expanded={open === s.recipe.name}
+                    onClick={() => setOpen(open === s.recipe.name ? null : s.recipe.name)}
+                    className="flex min-h-11 flex-1 items-center gap-1 px-3.5 text-[12px] font-bold text-accent transition active:bg-sunken"
+                  >
+                    만드는 법
+                    <ChevronDown size={14} className={cx('transition motion-reduce:transition-none', open === s.recipe.name && 'rotate-180')} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={mood === 'up'}
+                    aria-label={`${s.recipe.name} 좋아요`}
+                    onClick={() => {
+                      const on = mood === 'up'
+                      react(s.recipe.name, on ? null : 'up')
+                      say(on ? '좋아요를 뺐어요' : '좋아요 했어요 · 비슷하면 먼저 보여 줄게요')
+                    }}
+                    className={cx('flex min-h-11 w-12 shrink-0 items-center justify-center border-l border-line transition active:bg-sunken', mood === 'up' ? 'bg-accent-soft text-accent' : 'text-muted')}
+                  >
+                    <ThumbsUp size={18} fill={mood === 'up' ? 'currentColor' : 'none'} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={false}
+                    aria-label={`${s.recipe.name} 싫어요`}
+                    onClick={() => {
+                      const name = s.recipe.name
+                      setGone((g) => [...g, name])
+                      react(name, 'down')
+                    }}
+                    className="flex min-h-11 w-12 shrink-0 items-center justify-center border-l border-line text-muted transition active:bg-sunken"
+                  >
+                    <ThumbsDown size={18} aria-hidden />
+                  </button>
                 </div>
                 {s.missing.length > 0 && (() => {
                   const name = s.missing[0]
@@ -220,6 +312,24 @@ export function RecipePicks({
           })}
         </ul>
         </>
+      )}
+      {reactions.length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            aria-expanded={listOpen}
+            onClick={() => setListOpen(!listOpen)}
+            className="flex min-h-11 w-full items-center justify-between rounded-2xl px-3 text-[13px] font-bold text-muted active:bg-sunken"
+          >
+            표시한 요리 {reactions.length}개 보기 · 되돌리기
+            <ChevronDown size={14} className={cx('transition motion-reduce:transition-none', listOpen && 'rotate-180')} aria-hidden />
+          </button>
+          {listOpen && (
+            <div className="rounded-2xl border border-line bg-surface px-3.5 py-3">
+              <RecipeReactionList reactions={reactions} canCopy={false} onUndo={(n) => react(n, null)} />
+            </div>
+          )}
+        </div>
       )}
       {all.length > 5 && shown.length > 0 && (
         <button
