@@ -15,7 +15,7 @@ import { FRIDGE_TEMPLATES } from '../lib/templates'
 import { expiryLevel } from '../lib/expiry'
 import { setAppBadge } from '../lib/badge'
 import { isUnread } from '../lib/notes'
-import type { FridgePhoto, Household, Item, Note, NoteComment, ShoppingItem } from '../lib/types'
+import type { FridgePhoto, Household, Item, Note, ShoppingItem } from '../lib/types'
 import { parseQty, openCount } from '../lib/shopping'
 import { ShoppingList } from './ShoppingList'
 import { FridgeStatus } from './FridgeStatus'
@@ -31,9 +31,11 @@ import { NoteArchiveSheet, NoteViewSheet, NoteWriteSheet, PhotoViewSheet } from 
 import { Settings } from './Settings'
 import { celebrationToday, hourKST, weekdayKST, ymdKST } from '../lib/celebrations'
 import { countCleanup, eggToast } from '../lib/eggToast'
+import { showToast } from '../lib/toast'
+import { useMedia } from '../lib/useMedia'
 import type { ItemAction } from '../lib/repo'
 import { cx } from '../lib/cx'
-import { Button, Card, EggToast, Logo, Segmented, SunnyEgg } from './ui'
+import { Button, Card, EggToast, Logo, Segmented, SunnyEgg, ToastHost } from './ui'
 
 const URGENT_LEVELS = new Set(['expired', 'urgent'])
 
@@ -86,13 +88,12 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())
   /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
-  const [undoItem, setUndoItem] = useState<{ id: string; name: string; action: ItemAction } | null>(null)
-  const [removed, setRemoved] = useState<{ note: Note; comments: NoteComment[] } | null>(null)
   const egg = useSunnyEgg()
   const celebration = useMemo(() => celebrationToday(), [])
   // 금요일 저녁 6시부터는 헤더에 불금 한 줄 (이스터에그)
   const fridayNight = useMemo(() => weekdayKST() === 5 && hourKST() >= 18, [])
   const compactFab = useScrollingDown()
+  const wide = useMedia('(min-width: 1024px)')
 
   const reload = useCallback(async () => {
     try {
@@ -154,18 +155,6 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     repo.markNotesRead(ids).catch(() => {})
   }, [tab, unread, repo])
 
-  useEffect(() => {
-    if (!removed) return
-    const timer = setTimeout(() => setRemoved(null), 4000)
-    return () => clearTimeout(timer)
-  }, [removed])
-
-  useEffect(() => {
-    if (!undoItem) return
-    const timer = setTimeout(() => setUndoItem(null), 5000)
-    return () => clearTimeout(timer)
-  }, [undoItem])
-
   const openTab = (t: Tab) => {
     if (t !== 'notes') setFresh(new Set())
     setTab(t)
@@ -183,7 +172,11 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     const finished = action === 'consume' || (action === 'use' && item.quantity <= 1)
     return mutate(async () => {
       await repo.act(item, action)
-      if (finished || action === 'discard') setUndoItem({ id: item.id, name: item.name, action })
+      if (finished || action === 'discard')
+        showToast(`${item.name} ${action === 'discard' ? '버렸어요' : '다 먹었어요'}`, {
+          label: '되돌리기',
+          onClick: () => void mutate(() => repo.restoreItem(item.id)),
+        }, 5000)
       if (finished && countCleanup(ymdKST()) === 10) eggToast('오늘 냉장고 정리왕')
     })
   }
@@ -335,49 +328,68 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               items={snap.items}
               reactions={snap.reactions}
               onReact={(name, reaction) => mutate(() => repo.setRecipeReaction(name, reaction))}
+              shopping={snap.shopping}
+              onShop={(name, note) => mutate(() => repo.addShopping(name, undefined, { source: 'recipe', note }))}
+              onUnshop={(ids) => mutate(() => repo.deleteShopping(ids))}
               onSave={(date, slot, menu, ids, kid, amounts) => mutate(() => repo.setMeal(date, slot, menu, ids, kid, amounts))}
             />
           )}
 
-          {tab === 'notes' && (
-            <Segmented
-              className={cx('mb-4 w-full [&>button]:flex-1', noteView === 'shopping' && 'mx-auto max-w-reading')}
-              value={noteView}
-              onChange={setNoteView}
-              options={[
-                ['door', '냉장고 문'],
-                ['shopping', openCount(snap.shopping) > 0 ? `장보기 ${openCount(snap.shopping)}` : '장보기'],
-              ]}
-            />
-          )}
-
-          {tab === 'notes' && noteView === 'shopping' && (
-            <ShoppingList
-              list={snap.shopping}
-              items={snap.items}
-              onAdd={(name, qty) => mutate(() => repo.addShopping(name, qty))}
-              onCheck={(id, checked) => mutate(() => repo.checkShopping(id, checked))}
-              onRemove={(ids) => mutate(() => repo.deleteShopping(ids))}
-              onStock={(queue) => setSheet({ mode: 'stock', queue, index: 0 })}
-              onOpenItem={(item) => setSheet({ mode: 'edit', item })}
-            />
-          )}
-
-          {tab === 'notes' && noteView === 'door' && (
-            <NoteBoard
-              notes={snap.notes}
-              comments={snap.comments}
-              me={snap.me}
-              fresh={fresh}
-              archivedCount={snap.archivedNotes.length}
-              onOpenArchive={() => setSheet({ mode: 'note-archive' })}
-              onOpen={(note) => setSheet({ mode: 'note-view', note })}
-              onWrite={() => setSheet({ mode: 'note-write' })}
-              photos={snap.photos}
-              onOpenPhoto={(photo) => setSheet({ mode: 'photo-view', photo })}
-              onAddPhoto={(file) => mutate(() => repo.addPhoto(file))}
-            />
-          )}
+          {tab === 'notes' &&
+            (() => {
+              const shoppingEl = (
+                <ShoppingList
+                  panel={wide}
+                  list={snap.shopping}
+                  items={snap.items}
+                  onAdd={(name, qty) => mutate(() => repo.addShopping(name, qty))}
+                  onCheck={(id, checked) => mutate(() => repo.checkShopping(id, checked))}
+                  onRemove={(ids) => mutate(() => repo.deleteShopping(ids))}
+                  onRestore={(list) => mutate(() => repo.restoreShopping(list))}
+                  onStock={(queue) => setSheet({ mode: 'stock', queue, index: 0 })}
+                  onOpenItem={(item) => setSheet({ mode: 'edit', item })}
+                />
+              )
+              const boardEl = (
+                <NoteBoard
+                  notes={snap.notes}
+                  comments={snap.comments}
+                  me={snap.me}
+                  fresh={fresh}
+                  archivedCount={snap.archivedNotes.length}
+                  onOpenArchive={() => setSheet({ mode: 'note-archive' })}
+                  onOpen={(note) => setSheet({ mode: 'note-view', note })}
+                  onWrite={() => setSheet({ mode: 'note-write' })}
+                  photos={snap.photos}
+                  onOpenPhoto={(photo) => setSheet({ mode: 'photo-view', photo })}
+                  onAddPhoto={(file) => mutate(() => repo.addPhoto(file))}
+                />
+              )
+              // 태블릿 가로·PC(1024px~): 메모 보드 옆에 장보기 패널을 함께 둔다
+              if (wide)
+                return (
+                  <div className="grid grid-cols-[minmax(0,1fr)_22.5rem] items-start gap-8">
+                    <div className="min-w-0">{boardEl}</div>
+                    <aside aria-label="장보기" className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-3xl bg-sunken p-4">
+                      {shoppingEl}
+                    </aside>
+                  </div>
+                )
+              return (
+                <>
+                  <Segmented
+                    className={cx('mb-4 w-full [&>button]:flex-1', noteView === 'shopping' && 'mx-auto max-w-reading')}
+                    value={noteView}
+                    onChange={setNoteView}
+                    options={[
+                      ['door', '냉장고 문'],
+                      ['shopping', openCount(snap.shopping) > 0 ? `장보기 ${openCount(snap.shopping)}` : '장보기'],
+                    ]}
+                  />
+                  {noteView === 'shopping' ? shoppingEl : boardEl}
+                </>
+              )
+            })()}
 
           {tab === 'list' && !noFridge && (
             <InventoryList
@@ -524,7 +536,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
               const comments = snap.comments.filter((c) => c.note_id === note.id)
               await mutate(() => repo.deleteNote(note.id))
               setSheet(sheet.archived ? { mode: 'note-archive' } : null)
-              setRemoved({ note, comments })
+              showToast('메모를 뗐어요', { label: '되돌리기', onClick: () => void mutate(() => repo.restoreNote(note, comments)) })
             }}
             onArchive={
               sheet.archived
@@ -560,51 +572,7 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
         )}
 
         <EggToast />
-        {removed && (
-          <div
-            role="status"
-            className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card sm:bottom-8 lg:left-[calc(var(--spacing-rail)+1rem)]"
-          >
-            <span className="flex-1">메모를 뗐어요</span>
-            <button
-              className="h-9 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
-              onClick={() => {
-                const { note, comments } = removed
-                setRemoved(null)
-                mutate(() => repo.restoreNote(note, comments))
-              }}
-            >
-              되돌리기
-            </button>
-          </div>
-        )}
-
-        {undoItem && !removed && (
-          <div
-            role="status"
-            className={cx(
-              'fixed inset-x-4 z-30 mx-auto flex max-w-md animate-[sheet-up_200ms_ease-out] items-center gap-3 rounded-2xl bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-card',
-              showAdd
-                ? 'bottom-[calc(9.75rem+env(safe-area-inset-bottom))] sm:bottom-24'
-                : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] sm:bottom-8',
-              'lg:left-[calc(var(--spacing-rail)+1rem)]',
-            )}
-          >
-            <span className="min-w-0 flex-1 truncate">
-              {undoItem.name} {undoItem.action === 'discard' ? '버렸어요' : '다 먹었어요'}
-            </span>
-            <button
-              className="h-9 shrink-0 rounded-xl px-3 font-bold text-accent-soft active:bg-white/10"
-              onClick={() => {
-                const { id } = undoItem
-                setUndoItem(null)
-                mutate(() => repo.restoreItem(id))
-              }}
-            >
-              되살리기
-            </button>
-          </div>
-        )}
+        <ToastHost aboveFab={showAdd} />
 
         {sheet?.mode === 'stock' && sheet.queue[sheet.index] && (() => {
           const cur = sheet.queue[sheet.index]

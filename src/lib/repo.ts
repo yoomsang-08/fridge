@@ -72,13 +72,15 @@ export interface Repo {
   /** 식단표에 보일 끼니 고르기. 집 식구 모두에게 같게 보인다 */
   setMealSlots(slots: MealSlot[]): Promise<void>
   /** 장보기에 담기. 분류는 이름으로 자동 */
-  addShopping(name: string, qty?: string): Promise<void>
+  addShopping(name: string, qty?: string, from?: ShoppingFrom): Promise<void>
   /** 장보기 체크·해제. 누가 체크했는지 남는다 */
   checkShopping(id: string, checked: boolean): Promise<void>
   /** 장보기에서 빼기 */
   deleteShopping(ids: string[]): Promise<void>
   /** 요리 추천 좋아요·싫어요 표시. null 이면 표시를 지운다(되돌리기) */
   setRecipeReaction(name: string, reaction: 'up' | 'down' | null): Promise<void>
+  /** 뺀 장보기 줄 되살리기 (같은 id·체크 상태 그대로) */
+  restoreShopping(items: ShoppingItem[]): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
   markNotesRead(ids: string[]): Promise<void>
   /** 이 기기를 쓰는 사람의 이름 바꾸기 */
@@ -94,6 +96,12 @@ export interface Repo {
 }
 
 /** 안 산 것 먼저, 그 안에서는 최근에 담은 것부터 */
+/** 장보기에 담은 이유: 식단표 요리 추천이면 source 'recipe' + '쑥갓두부국 · 대파 부족' 같은 한 줄 */
+export interface ShoppingFrom {
+  source: 'meal' | 'recipe' | 'eaten'
+  note: string
+}
+
 function sortShopping(list: ShoppingItem[]): ShoppingItem[] {
   return [...list].sort((a, b) => Number(a.checked) - Number(b.checked) || b.created_at.localeCompare(a.created_at))
 }
@@ -383,17 +391,20 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
     async setMealSlots(slots) {
       check(await sb.from('households').update({ meal_slots: slots }).eq('id', hid))
     },
-    async addShopping(name, qty) {
+    async addShopping(name, qty, from) {
       const myName = await myDisplayName()
-      check(
-        await sb.from('shopping_items').insert({
-          household_id: hid,
-          name: name.trim(),
-          qty: qty?.trim() || null,
-          category: guessCategoryByName(name),
-          added_by: myName,
-        }),
-      )
+      const row: Record<string, unknown> = {
+        household_id: hid,
+        name: name.trim(),
+        qty: qty?.trim() || null,
+        category: guessCategoryByName(name),
+        added_by: myName,
+      }
+      check(await sb.from('shopping_items').insert(from ? { ...row, source: from.source, source_note: from.note } : row))
+    },
+    async restoreShopping(items) {
+      if (items.length === 0) return
+      check(await sb.from('shopping_items').upsert(items.map((x) => ({ ...x, household_id: hid }))))
     },
     async checkShopping(id, checked) {
       const myName = checked ? await myDisplayName() : null
@@ -669,7 +680,7 @@ export function createLocalRepo(): Repo {
       mutate((s) => {
         s.mealSlots = slots
       }),
-    addShopping: (name, qty) =>
+    addShopping: (name, qty, from) =>
       mutate((s) => {
         s.shopping.push({
           id: id(),
@@ -677,8 +688,8 @@ export function createLocalRepo(): Repo {
           name: name.trim(),
           qty: qty?.trim() || null,
           category: guessCategoryByName(name),
-          source: 'manual',
-          source_note: null,
+          source: from?.source ?? 'manual',
+          source_note: from?.note ?? null,
           checked: false,
           checked_by: null,
           checked_at: null,
@@ -702,6 +713,10 @@ export function createLocalRepo(): Repo {
         s.reactions = reaction
           ? [{ household_id: LOCAL_HID, recipe_name: name.trim(), reaction, by_name: localMe().name, created_at: now() }, ...rest]
           : rest
+      }),
+    restoreShopping: (list) =>
+      mutate((s) => {
+        s.shopping = [...s.shopping.filter((x) => !list.some((r) => r.id === x.id)), ...list]
       }),
     markNotesRead: async () => {},
     async renameMe(name) {

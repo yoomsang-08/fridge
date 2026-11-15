@@ -1,11 +1,11 @@
-import { ChevronDown, Plus, ThumbsDown, ThumbsUp, Undo2 } from 'lucide-react'
+import { ChevronDown, Plus, ShoppingCart, ThumbsDown, ThumbsUp, Undo2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import { expiryLabel, LEVEL_TEXT, expiryLevel } from '../lib/expiry'
 import { hasEgg } from '../lib/meals'
 import { KIND_LABEL, soonItems, suggestRecipes, type Suggestion } from '../lib/recipes'
 import { reactionMap } from '../lib/recipeReactions'
-import type { Item, RecipeReaction } from '../lib/types'
+import type { Item, RecipeReaction, ShoppingItem } from '../lib/types'
 import { RecipeReactionList } from './RecipeReactionList'
 import { Chip, Field, SunnyEgg } from './ui'
 
@@ -14,6 +14,9 @@ const NO_OVERLAY: Record<string, 'up' | 'down' | null> = {}
 /** 식단표 적기 창: 일주일 안에 기한이 오는 재료로 만들 수 있는 요리. 누르면 메뉴에 이름이 들어가고, 쓰는 재료는 '사용예정'으로 골라진다 */
 export function RecipePicks({
   items,
+  shopping,
+  onShop,
+  onUnshop,
   menuText,
   target,
   onPick,
@@ -22,6 +25,11 @@ export function RecipePicks({
   onReact,
 }: {
   items: Item[]
+  /** 장보기 리스트. 이미 담긴 부족 재료는 '담았어요'로 */
+  shopping: ShoppingItem[]
+  onShop: (name: string, note: string) => Promise<void>
+  /** '담았어요 · 빼기' */
+  onUnshop: (ids: string[]) => Promise<void>
   /** 지금 적혀 있는 메뉴(어른+아이). 이미 적은 요리는 '적었어요'로 */
   menuText: string
   /** 지금 이름이 들어갈 칸 */
@@ -70,6 +78,23 @@ export function RecipePicks({
       })
       say('저장하지 못했어요. 잠시 뒤에 다시 눌러 주세요')
     })
+  }
+  /** 부족 재료를 장보기에 담거나(이미 담겼으면) 뺀다 */
+  const toggleShop = async (s: Suggestion) => {
+    const name = s.missing[0]
+    const sq = name.replace(/\s+/g, '')
+    const listed = shopping.filter((x) => !x.checked && x.name.replace(/\s+/g, '') === sq)
+    try {
+      if (listed.length > 0) {
+        await onUnshop(listed.map((x) => x.id))
+        say(`장보기에서 뺐어요 · ${name}`)
+      } else {
+        await onShop(name, `${s.recipe.name} 재료`)
+        say(`장보기에 담았어요 · ${name} (메모 탭 > 장보기)`)
+      }
+    } catch {
+      say('장보기에 담지 못했어요. 잠시 뒤 다시 해 주세요.')
+    }
   }
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), [])
   /** 조리 순서는 펼칠 때 처음 한 번만 따로 불러온다 */
@@ -241,6 +266,28 @@ export function RecipePicks({
                     <ThumbsDown size={18} aria-hidden />
                   </button>
                 </div>
+                {s.missing.length > 0 && (() => {
+                  const name = s.missing[0]
+                  const sq = name.replace(/\s+/g, '')
+                  const inList = shopping.some((x) => !x.checked && x.name.replace(/\s+/g, '') === sq)
+                  return (
+                    <div className="flex items-center gap-2 border-t border-line px-3.5 py-1.5">
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted">부족한 재료 · {name}</span>
+                      <button
+                        type="button"
+                        aria-pressed={inList}
+                        onClick={() => toggleShop(s)}
+                        className={cx(
+                          'inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-3 text-[13px] font-bold transition active:brightness-95 sm:min-h-11',
+                          inList ? 'bg-accent text-white' : 'bg-accent-soft text-accent',
+                        )}
+                      >
+                        <ShoppingCart size={14} strokeWidth={2.4} aria-hidden />
+                        {inList ? '장보기에 담음 · 빼기' : '+ 장보기'}
+                      </button>
+                    </div>
+                  )
+                })()}
                 {open === s.recipe.name && (
                   <div className="border-t border-line px-3.5 py-3">
                     {!steps ? (
