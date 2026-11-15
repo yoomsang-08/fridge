@@ -1,4 +1,4 @@
-import { ChevronDown, Plus, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { ChevronDown, Plus, ThumbsDown, ThumbsUp, Undo2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { cx } from '../lib/cx'
 import { expiryLabel, LEVEL_TEXT, expiryLevel } from '../lib/expiry'
@@ -38,13 +38,12 @@ export function RecipePicks({
   const [more, setMore] = useState(false)
   const [allChips, setAllChips] = useState(false)
   /** 누른 결과를 3초 동안 알려 주는 한 줄 */
-  const [note, setNote] = useState<{ text: string; undo?: () => void } | null>(null)
+  const [note, setNote] = useState<{ text: string } | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** undo 가 있으면 누를 시간을 주려고 6초 */
-  const say = (text: string, undo?: () => void) => {
-    setNote({ text, undo })
+  const say = (text: string) => {
+    setNote({ text })
     if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => setNote(null), undo ? 6000 : 3000)
+    timer.current = setTimeout(() => setNote(null), 3000)
   }
   // 누르자마자 보이게 먼저 반영해 두고, 저장된 값이 들어오면 거기에 맡긴다
   const [overlay, setOverlay] = useState<{ base: RecipeReaction[]; map: Record<string, 'up' | 'down' | null> }>({ base: reactions, map: {} })
@@ -52,6 +51,8 @@ export function RecipePicks({
   const setMine = (fn: (m: Record<string, 'up' | 'down' | null>) => Record<string, 'up' | 'down' | null>) =>
     setOverlay((o) => ({ base: reactions, map: fn(o.base === reactions ? o.map : {}) }))
   const [listOpen, setListOpen] = useState(false)
+  /** 방금 싫어요로 뺀 요리: 그 자리에 '되돌리기' 한 줄을 남기려고 목록에 잠시 더 둔다 */
+  const [gone, setGone] = useState<string[]>([])
   const merged = useMemo(() => {
     const m = reactionMap(reactions)
     for (const [k, v] of Object.entries(mine)) {
@@ -78,7 +79,12 @@ export function RecipePicks({
     if (open && !steps) import('../lib/recipeSteps').then((m) => setSteps(m.STEPS)).catch(() => setSteps({}))
   }, [open, steps])
   const soon = useMemo(() => soonItems(items), [items])
-  const all = useMemo(() => suggestRecipes(items, { focusId: focus, reactions: merged }), [items, focus, merged])
+  const forList = useMemo(() => {
+    const m = new Map(merged)
+    for (const n of gone) if (m.get(n) === 'down') m.delete(n)
+    return m
+  }, [merged, gone])
+  const all = useMemo(() => suggestRecipes(items, { focusId: focus, reactions: forList }), [items, focus, forList])
   if (soon.length === 0) return null
   const shown = all.slice(0, more ? 15 : 5)
 
@@ -105,7 +111,10 @@ export function RecipePicks({
               active={on}
               aria-pressed={on}
               className="max-w-full"
-              onClick={() => setFocus(on ? null : item.id)}
+              onClick={() => {
+                setFocus(on ? null : item.id)
+                setGone([])
+              }}
             >
               <span className="min-w-0 truncate">{item.name}</span>
               <span className={cx('shrink-0 text-[13px] font-bold', on ? 'text-white/80' : LEVEL_TEXT[expiryLevel(item.expiry_date)])}>
@@ -129,11 +138,6 @@ export function RecipePicks({
           {note ? (
             <p role="status" className="flex w-full items-center justify-between rounded-2xl bg-accent-soft px-3.5 py-1.5 text-[13px] font-bold break-keep text-accent">
               {note.text}
-              {note.undo && (
-                <button type="button" className="ml-2 min-h-11 px-2 font-extrabold underline" onClick={() => { note.undo?.(); setNote(null) }}>
-                  되돌리기
-                </button>
-              )}
             </p>
           ) : (
             <p className="px-1 text-xs break-keep text-muted">요리를 누르면 메뉴에 적히고, 쓰는 재료는 ‘사용예정’으로 골라져요. 다시 누르면 빼요.</p>
@@ -143,6 +147,25 @@ export function RecipePicks({
           {shown.map((s) => {
             const added = menuText.includes(s.recipe.name)
             const mood = merged.get(s.recipe.name)
+            if (mood === 'down')
+              return (
+                <li key={s.recipe.name}>
+                  <div className="flex min-h-12 items-center justify-between gap-2 rounded-2xl border border-dashed border-line bg-sunken pl-3.5">
+                    <span className="min-w-0 text-sm font-bold break-keep text-muted">추천에서 뺐어요 · {s.recipe.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        react(s.recipe.name, null)
+                        setGone((g) => g.filter((x) => x !== s.recipe.name))
+                      }}
+                      className="flex min-h-11 shrink-0 items-center gap-1 rounded-2xl px-3 text-[13px] font-bold text-accent active:bg-surface"
+                    >
+                      <Undo2 size={16} aria-hidden />
+                      되돌리기
+                    </button>
+                  </div>
+                </li>
+              )
             return (
               <li key={s.recipe.name}>
                 <div className="overflow-hidden rounded-2xl border border-line bg-surface">
@@ -210,8 +233,8 @@ export function RecipePicks({
                     aria-label={`${s.recipe.name} 싫어요`}
                     onClick={() => {
                       const name = s.recipe.name
+                      setGone((g) => [...g, name])
                       react(name, 'down')
-                      say(`‘${name}’은 앞으로 추천하지 않아요`, () => react(name, null))
                     }}
                     className="flex min-h-11 w-12 shrink-0 items-center justify-center border-l border-line text-muted transition active:bg-sunken"
                   >
@@ -256,7 +279,7 @@ export function RecipePicks({
           </button>
           {listOpen && (
             <div className="rounded-2xl border border-line bg-surface px-3.5 py-3">
-              <RecipeReactionList reactions={reactions} onUndo={(n) => react(n, null)} />
+              <RecipeReactionList reactions={reactions} canCopy={false} onUndo={(n) => react(n, null)} />
             </div>
           )}
         </div>

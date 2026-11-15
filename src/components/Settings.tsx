@@ -246,7 +246,7 @@ export function Settings({ repo, household, fridges, compartments, me, members, 
       <Card className="p-5">
         <h2 className="text-[15px] font-extrabold">요리 추천 좋아요·싫어요</h2>
         <p className="mt-1 mb-3 text-sm break-keep text-muted">
-          식단표 요리 추천에서 엄지로 표시한 요리예요. 싫어요한 요리는 추천에서 빠지고, 요리 목록을 새로 고칠 때 다른 요리로 바꿔요. 식구 모두에게 똑같이 보여요.
+          식단표 요리 추천에서 엄지로 표시한 요리예요. 싫어요한 요리는 추천에서 빠지고, 좋아요한 요리는 조금 먼저 보여요. 식구 모두에게 똑같이 보여요.
         </p>
         <RecipeReactionList
           reactions={reactions}

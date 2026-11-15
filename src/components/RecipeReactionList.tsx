@@ -8,8 +8,11 @@ import { Button } from './ui'
 export function RecipeReactionList({
   reactions,
   onUndo,
+  canCopy = true,
 }: {
   reactions: RecipeReaction[]
+  /** 싫어요 목록 복사 버튼을 보일지(설정에서만) */
+  canCopy?: boolean
   onUndo: (name: string) => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -52,9 +55,11 @@ export function RecipeReactionList({
         {down.length > 0 ? (
           <>
             <ul className="mt-1">{down.map(row)}</ul>
-            <Button variant="secondary" className="mt-2 w-full" onClick={copy}>
-              {copied ? '복사했어요' : '날릴 요리 목록 복사'}
-            </Button>
+            {canCopy && (
+              <Button variant="secondary" className="mt-2 w-full" onClick={copy}>
+                {copied ? '복사했어요' : '싫어요 목록 복사'}
+              </Button>
+            )}
           </>
         ) : (
           <p className="mt-1 text-sm text-muted">없어요</p>
