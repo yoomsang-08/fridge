@@ -615,7 +615,7 @@ function MealSheet({
               )
             }
           >
-            <p className="mb-2 text-xs break-keep text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 같은 식품을 여러 끼니에 골라도 돼요. 위에서 요리를 누르면 쓰는 재료는 자동으로 골라져요. 식단표에는 적은 메뉴명만 보여요.</p>
+            <p className="mb-2 text-xs break-keep text-muted">고르면 재고에 ‘사용예정’ 표시가 붙어요. 같은 식품을 여러 끼니에 골라도 돼요. 식단표에는 적은 메뉴명만 보여요.</p>
             <div className="flex flex-wrap gap-2">
               {[...soonest, ...extra.filter((e) => !soonest.some((s) => s.id === e.id))].map((i) => {
                 const on = picked.includes(i.id)
@@ -684,8 +684,8 @@ function MealSheet({
                         <p className="flex items-start gap-1 text-xs font-bold break-keep text-ink">
                           <TriangleAlert size={13} className="mt-px shrink-0" aria-hidden />
                           {rest > 0
-                            ? `남은 ${fmtQty(rest)}${i.unit}보다 ${fmtQty(mine - rest)}${i.unit} 많아요. 저장은 돼요.`
-                            : `${fmtQty(i.quantity)}${i.unit}를 이미 다 쓰기로 했어요. 저장은 돼요.`}
+                            ? `다른 끼니 몫을 빼면 ${fmtQty(rest)}${i.unit} 남아요. ${fmtQty(mine - rest)}${i.unit} 더 적었어요.`
+                            : `다른 끼니에서 이미 다 쓰기로 했어요 (${fmtQty(i.quantity)}${i.unit}). 저장은 돼요.`}
                         </p>
                       )}
                     </li>
