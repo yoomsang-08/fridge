@@ -86,7 +86,7 @@ export function categoryOf(id: string): Category {
   return current.find((c) => c.id === id) ?? current.find((c) => c.id === 'etc') ?? FALLBACK
 }
 
-export const UNITS = ['개', '팩', '봉지', '병', '통', 'g', 'kg', 'ml', 'L']
+export const UNITS = ['개', '팩', '봉지', '병', '통', '판', '단', 'g', 'kg', 'ml', 'L']
 
 const CONTAINER_RULES: [RegExp, Container][] = [
   [/우유|두유|생크림|요구르트.*팩|팩/, 'carton'],

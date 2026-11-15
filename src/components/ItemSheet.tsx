@@ -59,6 +59,10 @@ interface Props {
   /** 우리 집 식구: '누가 넣었는지' 표시용 */
   members?: Member[]
   item?: Item
+  /** 장보기에서 사 온 것을 넣을 때: 이름·분류·수량이 미리 채워진다 */
+  prefill?: { name: string; category?: string | null; quantity?: number; unit?: string }
+  /** 장보기에서 연달아 넣는 중이면 몇 번째인지 */
+  step?: { index: number; total: number }
   defaultCompartmentId?: string
   onSave: (input: ItemInput, keepOpen: boolean) => Promise<void>
   onAction?: (item: Item, action: ItemAction) => Promise<void>
@@ -72,6 +76,8 @@ export function ItemSheet({
   history,
   members = [],
   item,
+  prefill,
+  step,
   defaultCompartmentId,
   onSave,
   onAction,
@@ -90,16 +96,16 @@ export function ItemSheet({
   const [spaceId, setSpaceId] = useState(
     compartments.find((c) => c.id === initialCompartment)?.fridge_id ?? fridges[0]?.id ?? '',
   )
-  const [name, setName] = useState(item?.name ?? '')
-  const [category, setCategory] = useState(item?.category ?? 'etc')
+  const [name, setName] = useState(item?.name ?? prefill?.name ?? '')
+  const [category, setCategory] = useState(item?.category ?? prefill?.category ?? 'etc')
   // 칩을 직접 누르기 전까지는 이름을 보고 분류를 정한다 (같은 이름을 넣은 적 있으면 그때 분류)
   const [categoryTouched, setCategoryTouched] = useState(!!item)
   // 자동으로 고른 칩이 가로 스크롤 밖에 있으면 보이게
   useEffect(() => {
     document.querySelector(`[data-cat="${category}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [category])
-  const [quantity, setQuantity] = useState(item?.quantity ?? 1)
-  const [unit, setUnit] = useState(item?.unit ?? '개')
+  const [quantity, setQuantity] = useState(item?.quantity ?? prefill?.quantity ?? 1)
+  const [unit, setUnit] = useState(item?.unit ?? prefill?.unit ?? '개')
   const [container, setContainer] = useState<Container | null>(item?.container ?? null)
   const containerGuess = useMemo(() => guessContainer(name, unit), [name, unit])
   const categories = useCategories().filter((c) => !c.hidden || c.id === item?.category)
@@ -122,7 +128,7 @@ export function ItemSheet({
   const [picked, setPicked] = useState<FoodProduct | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanNote, setScanNote] = useState<string | null>(null)
-  const [nameFocused, setNameFocused] = useState(!item)
+  const [nameFocused, setNameFocused] = useState(!item && !prefill)
   // 이스터에그 한 줄. 3초 뒤 저절로 사라진다 (docs/design.md 이스터에그 절)
   const [egg, setEgg] = useState<string | null>(null)
   const eggTimer = useRef(0)
@@ -315,17 +321,17 @@ export function ItemSheet({
   return (
     <>
       <Sheet
-        title={item ? '식품 정보' : '식품 넣기'}
+        title={item ? '식품 정보' : step ? `식품 넣기 (${step.index + 1}/${step.total})` : '식품 넣기'}
         onClose={onClose}
         footer={
           <>
-            {!item && (
+            {!item && !step && (
               <Button variant="secondary" className="flex-1" disabled={!canSave} onClick={() => save(true)}>
                 저장하고 계속
               </Button>
             )}
             <Button className="flex-[1.2]" disabled={!canSave} onClick={() => save(false)}>
-              저장
+              {step && step.index + 1 < step.total ? '저장하고 다음' : '저장'}
             </Button>
           </>
         }

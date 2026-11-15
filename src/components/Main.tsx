@@ -15,7 +15,9 @@ import { FRIDGE_TEMPLATES } from '../lib/templates'
 import { expiryLevel } from '../lib/expiry'
 import { setAppBadge } from '../lib/badge'
 import { isUnread } from '../lib/notes'
-import type { FridgePhoto, Household, Item, Note, NoteComment } from '../lib/types'
+import type { FridgePhoto, Household, Item, Note, NoteComment, ShoppingItem } from '../lib/types'
+import { parseQty, openCount } from '../lib/shopping'
+import { ShoppingList } from './ShoppingList'
 import { FridgeStatus } from './FridgeStatus'
 import { FridgeView } from './FridgeView'
 import { InventoryList } from './InventoryList'
@@ -31,7 +33,7 @@ import { celebrationToday, hourKST, weekdayKST, ymdKST } from '../lib/celebratio
 import { countCleanup, eggToast } from '../lib/eggToast'
 import type { ItemAction } from '../lib/repo'
 import { cx } from '../lib/cx'
-import { Button, Card, EggToast, Logo, SunnyEgg } from './ui'
+import { Button, Card, EggToast, Logo, Segmented, SunnyEgg } from './ui'
 
 const URGENT_LEVELS = new Set(['expired', 'urgent'])
 
@@ -51,6 +53,8 @@ type SheetState =
   | { mode: 'note-view'; note: Note; archived?: boolean }
   | { mode: 'note-archive' }
   | { mode: 'photo-view'; photo: FridgePhoto }
+  /** 장보기에서 사 온 것을 재고에 연달아 넣는 중 */
+  | { mode: 'stock'; queue: ShoppingItem[]; index: number }
   | null
 
 const LAST_COMPARTMENT_KEY = 'fridge-last-compartment'
@@ -77,6 +81,8 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
     if (location.search.includes('tab=')) history.replaceState(null, '', location.pathname)
   }, [])
   const [sheet, setSheet] = useState<SheetState>(null)
+  /** 메모 탭 맨 위 전환: 냉장고 문 | 장보기 */
+  const [noteView, setNoteView] = useState<'door' | 'shopping'>('door')
   /** 메모 탭을 연 순간 안 봤던 메모. 탭을 떠날 때까지 '새 메모'로 표시 */
   const [fresh, setFresh] = useState<Set<string>>(new Set())
   /** 방금 뗀 메모: 잠깐 '되돌리기'를 보여 준다 */
@@ -332,6 +338,30 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
           )}
 
           {tab === 'notes' && (
+            <Segmented
+              className={cx('mb-4 w-full [&>button]:flex-1', noteView === 'shopping' && 'mx-auto max-w-reading')}
+              value={noteView}
+              onChange={setNoteView}
+              options={[
+                ['door', '냉장고 문'],
+                ['shopping', openCount(snap.shopping) > 0 ? `장보기 ${openCount(snap.shopping)}` : '장보기'],
+              ]}
+            />
+          )}
+
+          {tab === 'notes' && noteView === 'shopping' && (
+            <ShoppingList
+              list={snap.shopping}
+              items={snap.items}
+              onAdd={(name, qty) => mutate(() => repo.addShopping(name, qty))}
+              onCheck={(id, checked) => mutate(() => repo.checkShopping(id, checked))}
+              onRemove={(ids) => mutate(() => repo.deleteShopping(ids))}
+              onStock={(queue) => setSheet({ mode: 'stock', queue, index: 0 })}
+              onOpenItem={(item) => setSheet({ mode: 'edit', item })}
+            />
+          )}
+
+          {tab === 'notes' && noteView === 'door' && (
             <NoteBoard
               notes={snap.notes}
               comments={snap.comments}
@@ -572,6 +602,33 @@ export function Main({ repo, household, smartthings, isLocal = false, onSignOut 
             </button>
           </div>
         )}
+
+        {sheet?.mode === 'stock' && sheet.queue[sheet.index] && (() => {
+          const cur = sheet.queue[sheet.index]
+          const q = parseQty(cur.qty)
+          return (
+            <ItemSheet
+              key={`stock-${cur.id}`}
+              fridges={snap.fridges}
+              compartments={snap.compartments}
+              history={snap.history}
+              members={snap.members}
+              prefill={{ name: cur.name, category: cur.category, quantity: q?.quantity, unit: q?.unit || undefined }}
+              step={{ index: sheet.index, total: sheet.queue.length }}
+              defaultCompartmentId={defaultCompartment}
+              onClose={() => setSheet(null)}
+              onSave={async (input) => {
+                localStorage.setItem(LAST_COMPARTMENT_KEY, input.compartment_id)
+                await mutate(async () => {
+                  await repo.addItem(input)
+                  await repo.deleteShopping([cur.id])
+                })
+                if (input.name.includes('아이스크림')) eggToast('지선 님 아이스크림 지킴이 출동')
+                setSheet(sheet.index + 1 < sheet.queue.length ? { ...sheet, index: sheet.index + 1 } : null)
+              }}
+            />
+          )
+        })()}
 
         {(sheet?.mode === 'add' || sheet?.mode === 'edit') && (
           <ItemSheet
