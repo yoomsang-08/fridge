@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashtagsOf } from './notes'
 import { blobToDataUrl, PHOTO_LIMIT, preparePhoto } from './photos'
 import type { Compartment, Fridge, Household, FridgePhoto, Item, ItemInput, MealPlan, MealSlot, Me, Member, Note, NoteComment, NoteInput, Zone } from './types'
-import { mealsSince } from './meals'
+import { mealsSince, usedAmounts } from './meals'
 import type { FridgeTemplate } from './templates'
 import { DEFAULT_CATEGORIES, getCategories, setCategories, type Category, type CategoryDays } from './categories'
 
@@ -64,7 +64,7 @@ export interface Repo {
   deletePhoto(photo: FridgePhoto): Promise<void>
   /** 식단표 칸 적기. 메뉴가 비어 있으면 그 칸을 비운다. itemIds 는 이 끼니에 쓸 냉장고 식품 */
   /** menu = 어른 메뉴, kidMenu = 아이 메뉴. 둘 다 비면 그 칸을 지운다 */
-  setMeal(date: string, slot: MealSlot, menu: string, itemIds?: string[], kidMenu?: string): Promise<void>
+  setMeal(date: string, slot: MealSlot, menu: string, itemIds?: string[], kidMenu?: string, amounts?: Record<string, number>): Promise<void>
   /** 식단표에 보일 끼니 고르기. 집 식구 모두에게 같게 보인다 */
   setMealSlots(slots: MealSlot[]): Promise<void>
   /** 상대가 남긴 메모를 봤다고 표시 */
@@ -321,7 +321,7 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       check(await sb.from('categories').update({ ...days, days_set: true }).eq('household_id', hid).eq('id', id))
       setCategories(getCategories().map((c) => (c.id === id ? { ...c, ...days } : c)))
     },
-    async setMeal(date, slot, menu, itemIds, kidMenu) {
+    async setMeal(date, slot, menu, itemIds, kidMenu, amounts) {
       const text = menu.trim()
       const kid = (kidMenu ?? '').trim()
       if (!text && !kid) {
@@ -338,7 +338,10 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       const row = { household_id: hid, plan_date: date, slot, menu: text, author_name: m?.display_name || null, updated_at: new Date().toISOString() }
       const upsert = (r: object) => sb.from('meal_plans').upsert(r, { onConflict: 'household_id,plan_date,slot' })
       const ids = itemIds ?? []
-      const res = await upsert({ ...row, kid_menu: kid || null, item_ids: ids })
+      const uses = usedAmounts(ids, amounts)
+      let res = await upsert({ ...row, kid_menu: kid || null, item_ids: ids, item_uses: uses })
+      // 0025 를 아직 안 돌렸으면 양 없이 저장한다 (재료 연결은 그대로)
+      if (res.error && Object.keys(uses).length > 0) res = await upsert({ ...row, kid_menu: kid || null, item_ids: ids })
       // 0022·0023 를 아직 안 돌렸어도, 재료·아이 메뉴를 안 적은 식단은 그대로 저장된다
       if (res.error && ids.length === 0 && !kid) check(await upsert(row))
       else check(res)
@@ -579,13 +582,13 @@ export function createLocalRepo(): Repo {
       mutate((s) => {
         s.photos = s.photos.filter((p) => p.id !== photo.id)
       }),
-    setMeal: (date, slot, menu, itemIds, kidMenu) =>
+    setMeal: (date, slot, menu, itemIds, kidMenu, amounts) =>
       mutate((s) => {
         const text = menu.trim()
         const kid = (kidMenu ?? '').trim()
         const rest = s.meals.filter((m) => !(m.plan_date === date && m.slot === slot))
         s.meals = text || kid
-          ? [...rest, { id: id(), household_id: LOCAL_HID, plan_date: date, slot, menu: text, kid_menu: kid || null, item_ids: itemIds ?? [], author_name: localMe().name, created_at: now(), updated_at: now() }]
+          ? [...rest, { id: id(), household_id: LOCAL_HID, plan_date: date, slot, menu: text, kid_menu: kid || null, item_ids: itemIds ?? [], item_uses: usedAmounts(itemIds ?? [], amounts), author_name: localMe().name, created_at: now(), updated_at: now() }]
           : rest
       }),
     setMealSlots: (slots) =>
