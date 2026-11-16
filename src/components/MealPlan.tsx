@@ -722,15 +722,19 @@ function MealSheet({
             {more && (
               <div className="mt-3 flex flex-col gap-2">
                 <TextInput value={q} placeholder="식품 이름 찾기" onChange={(e) => setQ(e.target.value)} />
+                <p className="text-xs break-keep text-muted">여러 개를 차례로 눌러 함께 고를 수 있어요. 고른 재료는 그 자리에 그대로 남아요.</p>
                 <div className="flex flex-wrap gap-2">
                   {items
-                    .filter((i) => !soonest.some((s) => s.id === i.id) && !picked.includes(i.id) && i.name.includes(q.trim()))
+                    .filter((i) => !soonest.some((s) => s.id === i.id) && i.name.includes(q.trim()))
                     .slice(0, 12)
-                    .map((i) => (
-                      <Chip key={i.id} className="max-w-full" onClick={() => toggleItem(i)}>
-                        <span className="min-w-0 truncate">{i.name}</span>
-                      </Chip>
-                    ))}
+                    .map((i) => {
+                      const on = picked.includes(i.id)
+                      return (
+                        <Chip key={i.id} active={on} aria-pressed={on} className="max-w-full" onClick={() => toggleItem(i)}>
+                          <span className="min-w-0 truncate">{i.name}</span>
+                        </Chip>
+                      )
+                    })}
                 </div>
               </div>
             )}
