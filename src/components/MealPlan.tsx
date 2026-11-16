@@ -501,8 +501,12 @@ function MealSheet({
     setError(null)
     try {
       await onSave(slot, menu, picked, kid, amounts)
-    } catch {
-      setError('저장하지 못했어요. 잠시 뒤에 다시 해 주세요.')
+    } catch (e) {
+      setError(
+        e instanceof Error && e.message === 'links_not_saved'
+          ? '메뉴는 저장했지만 냉장고 재료 연결이 서버에 남지 않았어요. 한 번 더 저장해 보고, 같으면 알려 주세요.'
+          : '저장하지 못했어요. 잠시 뒤에 다시 해 주세요.',
+      )
       setBusy(false)
     }
   }

@@ -387,6 +387,18 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       // 0022·0023 를 아직 안 돌렸어도, 재료·아이 메뉴를 안 적은 식단은 그대로 저장된다
       if (res.error && ids.length === 0 && !kid) res = await upsert(row)
       check(res)
+      // 재료를 골랐다면 서버에 정말 남았는지 다시 읽어 확인한다. 안 남았으면 '저장됐다'고 보이지 않게 실패로 알린다
+      if (ids.length > 0) {
+        const back = await sb
+          .from('meal_plans')
+          .select('item_ids')
+          .eq('household_id', hid)
+          .eq('plan_date', date)
+          .eq('slot', slot)
+          .maybeSingle()
+        const saved = new Set((back.data?.item_ids as string[] | null | undefined) ?? [])
+        if (back.error || !ids.every((x) => saved.has(x))) throw new Error('links_not_saved')
+      }
     },
     async setMealSlots(slots) {
       check(await sb.from('households').update({ meal_slots: slots }).eq('id', hid))
