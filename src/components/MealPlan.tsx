@@ -601,40 +601,6 @@ function MealSheet({
             </div>
           </Field>
         )}
-        <RecipePicks
-          items={items}
-          reactions={reactions}
-          onReact={onReact}
-          shopping={shopping}
-          onShop={onShop}
-          onUnshop={onUnshop}
-          menuText={`${menu} ${kid}`}
-          target={target === 'kid' ? '아이' : '어른'}
-          onPick={(s) => {
-            add(s.recipe.name)
-            const used = s.used.map((u) => u.item.id)
-            const fresh = used.filter((id) => !picked.includes(id))
-            setPicked((p) => [...new Set([...p, ...fresh])])
-            setRecipeAdds((r) => ({ ...r, [s.recipe.name]: { fresh, used } }))
-            return fresh.length
-          }}
-          onUndo={(s) => {
-            const name = s.recipe.name
-            setMenu((v) => removeMenu(v, name))
-            setKid((v) => removeMenu(v, name))
-            const mine = recipeAdds[name] ?? { fresh: [], used: [] }
-            const { [name]: _gone, ...rest } = recipeAdds
-            // 다른 요리도 쓰는 재료는 풀지 않고, 그 요리가 이어받는다
-            const keep = new Set(Object.values(rest).flatMap((r) => r.used))
-            const next = { ...rest }
-            for (const id of mine.fresh.filter((id) => keep.has(id))) {
-              const owner = Object.keys(next).find((k) => next[k].used.includes(id))
-              if (owner) next[owner] = { ...next[owner], fresh: [...next[owner].fresh, id] }
-            }
-            setPicked((p) => p.filter((id) => !mine.fresh.includes(id) || keep.has(id)))
-            setRecipeAdds(next)
-          }}
-        />
         {items.length > 0 && (
           <Field
             label="냉장고 재료 쓰기"
@@ -745,6 +711,40 @@ function MealSheet({
             )}
           </Field>
         )}
+        <RecipePicks
+          items={items}
+          reactions={reactions}
+          onReact={onReact}
+          shopping={shopping}
+          onShop={onShop}
+          onUnshop={onUnshop}
+          menuText={`${menu} ${kid}`}
+          target={target === 'kid' ? '아이' : '어른'}
+          onPick={(s) => {
+            add(s.recipe.name)
+            const used = s.used.map((u) => u.item.id)
+            const fresh = used.filter((id) => !picked.includes(id))
+            setPicked((p) => [...new Set([...p, ...fresh])])
+            setRecipeAdds((r) => ({ ...r, [s.recipe.name]: { fresh, used } }))
+            return fresh.length
+          }}
+          onUndo={(s) => {
+            const name = s.recipe.name
+            setMenu((v) => removeMenu(v, name))
+            setKid((v) => removeMenu(v, name))
+            const mine = recipeAdds[name] ?? { fresh: [], used: [] }
+            const { [name]: _gone, ...rest } = recipeAdds
+            // 다른 요리도 쓰는 재료는 풀지 않고, 그 요리가 이어받는다
+            const keep = new Set(Object.values(rest).flatMap((r) => r.used))
+            const next = { ...rest }
+            for (const id of mine.fresh.filter((id) => keep.has(id))) {
+              const owner = Object.keys(next).find((k) => next[k].used.includes(id))
+              if (owner) next[owner] = { ...next[owner], fresh: [...next[owner].fresh, id] }
+            }
+            setPicked((p) => p.filter((id) => !mine.fresh.includes(id) || keep.has(id)))
+            setRecipeAdds(next)
+          }}
+        />
       </div>
     </Sheet>
   )
