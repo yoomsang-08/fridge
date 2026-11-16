@@ -382,11 +382,11 @@ export function createSupabaseRepo(sb: SupabaseClient, household: Household): Re
       const ids = itemIds ?? []
       const uses = usedAmounts(ids, amounts)
       let res = await upsert({ ...row, kid_menu: kid || null, item_ids: ids, item_uses: uses })
-      // 0025 를 아직 안 돌렸으면 양 없이 저장한다 (재료 연결은 그대로)
-      if (res.error && Object.keys(uses).length > 0) res = await upsert({ ...row, kid_menu: kid || null, item_ids: ids })
+      // 0025(item_uses)를 아직 안 돌렸으면 양 없이 저장한다. 양을 안 적었어도 item_uses 를 보내므로 항상 다시 시도한다 (재료 연결은 그대로)
+      if (res.error) res = await upsert({ ...row, kid_menu: kid || null, item_ids: ids })
       // 0022·0023 를 아직 안 돌렸어도, 재료·아이 메뉴를 안 적은 식단은 그대로 저장된다
-      if (res.error && ids.length === 0 && !kid) check(await upsert(row))
-      else check(res)
+      if (res.error && ids.length === 0 && !kid) res = await upsert(row)
+      check(res)
     },
     async setMealSlots(slots) {
       check(await sb.from('households').update({ meal_slots: slots }).eq('id', hid))

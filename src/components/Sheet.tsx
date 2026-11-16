@@ -41,7 +41,7 @@ export function Sheet({
         </div>
         <div className="overflow-y-auto px-5 pt-2 pb-6">{children}</div>
         {footer && (
-          <div className="flex gap-2 border-t border-line px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-wrap gap-2 border-t border-line px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
             {footer}
           </div>
         )}
