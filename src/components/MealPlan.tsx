@@ -516,6 +516,11 @@ function MealSheet({
       onClose={onClose}
       footer={
         <>
+          {error && (
+            <p role="alert" className="basis-full rounded-xl bg-expired-soft px-3 py-2 text-sm break-keep text-expired">
+              {error}
+            </p>
+          )}
           {saved && (
             <Button
               variant="ghost"
@@ -740,7 +745,6 @@ function MealSheet({
             )}
           </Field>
         )}
-        {error && <p className="rounded-2xl bg-expired-soft p-3 text-sm text-expired">{error}</p>}
       </div>
     </Sheet>
   )
