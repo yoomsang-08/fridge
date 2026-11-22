@@ -14,6 +14,9 @@ export type FoodModel =
   | 'milk' | 'onion' | 'pork' | 'potato' | 'tofu' | 'tomato'
   | 'banana' | 'broccoli' | 'corn' | 'cucumber' | 'garlic' | 'grape' | 'green-onion'
   | 'kabocha' | 'lemon' | 'mushroom' | 'pear' | 'pepper' | 'watermelon'
+  | 'asparagus' | 'bean-sprout' | 'blueberry' | 'bread' | 'burdock' | 'butter' | 'cabbage' | 'cheese' | 'cherry' | 'chive' | 'cooked-rice'
+  | 'crab' | 'duck' | 'dumpling' | 'eggplant' | 'fishcake' | 'ginger' | 'grapefruit' | 'ice-cream' | 'lotus-root' | 'mango' | 'melon'
+  | 'peach' | 'persimmon' | 'pineapple' | 'pizza' | 'radish' | 'rice-cake' | 'sausage' | 'seaweed' | 'shellfish' | 'shrimp' | 'squid'
 
 export type ModelKey = { kind: 'container'; name: ContainerModel } | { kind: 'food'; name: FoodModel }
 
@@ -25,6 +28,16 @@ export const MODEL_HEIGHT: Record<ContainerModel | FoodModel, number> = {
   milk: 1.0, onion: 0.593, pork: 0.314, potato: 0.401, tofu: 0.466, tomato: 0.43,
   banana: 0.62, broccoli: 0.62, corn: 0.62, cucumber: 0.236, garlic: 0.62, grape: 0.62, 'green-onion': 0.62,
   kabocha: 0.62, lemon: 0.353, mushroom: 0.62, pear: 0.62, pepper: 0.62, watermelon: 0.57,
+  // 3순위 추가 납품 33종: 납품 크기가 이미 앱 식품과 같아 줄이지 않는다(높이 0.6 이하·가로 0.74 이하)
+  asparagus: 0.59, 'bean-sprout': 0.428, blueberry: 0.398, bread: 0.41,
+  burdock: 0.385, butter: 0.263, cabbage: 0.425, cheese: 0.278,
+  cherry: 0.577, chive: 0.562, 'cooked-rice': 0.352, crab: 0.25,
+  duck: 0.326, dumpling: 0.247, eggplant: 0.586, fishcake: 0.19,
+  ginger: 0.335, grapefruit: 0.554, 'ice-cream': 0.558, 'lotus-root': 0.227,
+  mango: 0.565, melon: 0.577, peach: 0.548, persimmon: 0.445,
+  pineapple: 0.609, pizza: 0.167, radish: 0.609, 'rice-cake': 0.242,
+  sausage: 0.328, seaweed: 0.278, shellfish: 0.251, shrimp: 0.241,
+  squid: 0.253,
 }
 
 /**
@@ -64,6 +77,40 @@ const FOOD_RULES: [RegExp, FoodModel, (look: NonNullable<ReturnType<typeof lookO
   [/당근/, 'carrot', (l) => l.variant === 'carrot'],
   [/감자/, 'potato', (l) => l.variant === 'potato'],
   [/양파/, 'onion', (l) => l.variant === 'apple'],
+  // 3순위 추가 납품 33종. 위 규칙이 먼저 맞으니, 아래는 겹칠 수 있는 이름만 앞쪽(밥 → 김, 피자 → 치즈, 어묵 → 게)에 둔다
+  [/밥|햇반/, 'cooked-rice', () => true],
+  [/^김$|김자반|조미김|구운김|김가루|미역|다시마|파래/, 'seaweed', () => true],
+  [/피자(?!치즈)/, 'pizza', () => true],
+  [/치즈/, 'cheese', () => true],
+  [/(^|무염|가염)버터/, 'butter', () => true],
+  [/빵|식빵|베이글|모닝빵/, 'bread', () => true],
+  [/만두/, 'dumpling', () => true],
+  [/떡/, 'rice-cake', () => true],
+  [/아이스크림/, 'ice-cream', () => true],
+  [/소시지|소세지|비엔나|햄(?!버거)|스팸/, 'sausage', () => true],
+  [/어묵|오뎅|맛살/, 'fishcake', () => true],
+  [/^게$|꽃게|대게|킹크랩|게살/, 'crab', () => true],
+  [/새우(?!젓|깡|칩)|쉬림프/, 'shrimp', () => true],
+  [/오징어|낙지|문어|쭈꾸미|주꾸미|한치/, 'squid', () => true],
+  [/조개|바지락|홍합|^굴$|생굴|전복|가리비|꼬막/, 'shellfish', () => true],
+  [/^오리(고기|탕)?$|훈제오리/, 'duck', () => true],
+  [/복숭아|천도/, 'peach', (l) => l.variant === 'apple'],
+  [/체리|앵두/, 'cherry', (l) => l.variant === 'apple'],
+  [/블루베리/, 'blueberry', (l) => l.variant === 'apple'],
+  [/망고/, 'mango', (l) => l.variant === 'apple'],
+  [/자몽/, 'grapefruit', (l) => l.variant === 'apple'],
+  [/참외|멜론/, 'melon', (l) => l.variant === 'apple'],
+  [/파인애플/, 'pineapple', (l) => l.variant === 'apple'],
+  [/^감$|단감|홍시|곶감/, 'persimmon', (l) => l.variant === 'apple'],
+  [/^가지|가지나물/, 'eggplant', () => true],
+  [/^(총각|알타리|열)?무$|무우/, 'radish', () => true],
+  [/양배추|배추/, 'cabbage', () => true],
+  [/부추/, 'chive', () => true],
+  [/아스파라거스/, 'asparagus', () => true],
+  [/콩나물|숙주/, 'bean-sprout', () => true],
+  [/우엉/, 'burdock', () => true],
+  [/연근/, 'lotus-root', () => true],
+  [/생강/, 'ginger', () => true],
 ]
 
 export function foodModelOfName(name: string): FoodModel | null {
