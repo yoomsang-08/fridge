@@ -93,7 +93,7 @@ const FOOD_RULES: [RegExp, FoodModel, (look: NonNullable<ReturnType<typeof lookO
   [/새우(?!젓|깡|칩)|쉬림프/, 'shrimp', () => true],
   [/오징어|낙지|문어|쭈꾸미|주꾸미|한치/, 'squid', () => true],
   [/조개|바지락|홍합|^굴$|생굴|전복|가리비|꼬막/, 'shellfish', () => true],
-  [/^오리|오리고기|훈제오리/, 'duck', () => true],
+  [/^오리(고기|탕)?$|훈제오리/, 'duck', () => true],
   [/복숭아|천도/, 'peach', (l) => l.variant === 'apple'],
   [/체리|앵두/, 'cherry', (l) => l.variant === 'apple'],
   [/블루베리/, 'blueberry', (l) => l.variant === 'apple'],
